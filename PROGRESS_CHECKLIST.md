@@ -1,0 +1,26 @@
+# Cloth Web Demo – Progress Checklist
+
+- [x] Scaffold Vite React+TS project and install core deps (`three`, `html2canvas`).
+- [x] Build accessible portfolio DOM layout styled for the cloth reveal.
+- [x] Implement DOM → WebGL capture layer with orthographic camera alignment.
+- [x] Add cloth physics system, collision handling, and activation lifecycle.
+- [x] Respect `prefers-reduced-motion` and dispose resources on teardown.
+- [x] Wire pointer gusts + damping for interactive fluttering.
+- [x] Lazy-load html2canvas to shrink initial bundle size.
+- [x] Document comprehensive test and QA plan (`TEST_PLAN.md`).
+- [x] Add mesh pooling / reactivation so elements can re-run the reveal without reload.
+- [x] Implement core physics unit tests (Verlet, collisions, sleep/wake).
+- [x] Wire simulation scheduler so only awake bodies tick.
+- [ ] Implement automated DOM-level integration tests (capture alignment, lifecycle).
+- [ ] Tune pointer impulse strength/radius per element and device type.
+- [ ] Execute manual browser/network/memory QA passes and log findings.
+- [ ] Prep demo script + visuals showing the dual-layer architecture.
+- [ ] Build SimWorld (tests + implementation) with broad-phase wake logic.
+- [x] Build SimWorld (tests + implementation) with broad-phase wake logic.
+- [x] Introduce unified `applyImpulse(point, force)` API with coverage.
+- [ ] Retro-fit DOM/WebGL integration tests:
+  - [ ] Element pool lifecycle (prepare → mount → recycle → destroy)
+  - [ ] Static mesh alignment & resize/scroll sync
+  - [ ] Cloth-enabled DOM hiding and mesh replacement
+  - [ ] Canonical UI render mapping
+  - [ ] Cloth lifecycle (dormant → active → reset)
