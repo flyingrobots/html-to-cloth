@@ -5,7 +5,7 @@
 
 2. **Tests-as-Specs First**
    - Write the failing tests that describe the desired behaviour.
-   - Update `BLOG_NOTES.md` (append-only, timestamp or reference the commit).
+   - Update the notes stream (append-only, timestamp/commit-linked). Today this lives in `BLOG_NOTES.md`; once the git-notebook tool lands it will store notes as empty commits under `refs/notes/*`.
    - Commit (`feat: add specs for …`).
 
 3. **Run Tests**
@@ -14,22 +14,32 @@
 
 4. **Structure Changes**
    - Adjust architecture / interfaces to support the new behaviour.
-   - Update `BLOG_NOTES.md` (append-only entry for this step).
+   - Append a note entry.
    - Commit (`refactor: prepare for …`).
 
 5. **Behaviour Changes**
    - Implement the logic to satisfy the specs.
-   - Update `BLOG_NOTES.md` (append-only entry for this step).
+   - Append a note entry.
    - Commit (`feat: implement …`).
    - Return to step 3 until green.
 
 6. **Documentation**
    - Update any docs, comments, or checklists.
-   - Update `BLOG_NOTES.md` (append-only entry for this step).
+    - Append a note entry.
    - Commit (`docs: …`).
 
 7. **Complete Task**
-   - Tick checklist items, note lessons in `BLOG_NOTES.md` (append-only summary).
+   - Tick checklist items, add a summary note.
+
+### Notebook Automation (Future)
+
+We plan to replace manual note edits with a `git-notebook` helper that:
+
+- Uses the current branch name to create/update `refs/notes/<branch>`.
+- Records append-only notes as `git commit --allow-empty -m "note"` on the notebook ref.
+- Hooks into CI to merge notebook refs alongside feature branches.
+
+Until that exists, keep notes in `BLOG_NOTES.md` following the append-only rule.
    - Commit (`chore: mark … complete`).
 
 8. **Push & PR**

@@ -1,73 +1,56 @@
-# React + TypeScript + Vite
+# Cloth Web Demo
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+A proof-of-concept portfolio that hides a WebGL cloth simulation beneath an accessible DOM layout. Clicking any `.cloth-enabled` element swaps it for a textured mesh, runs cloth physics with pointer-driven gusts, and lets the fabric tumble off screen before the DOM reappears.
 
-Currently, two official plugins are available:
+## Current Highlights
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) (or [oxc](https://oxc.rs) when used in [rolldown-vite](https://vite.dev/guide/rolldown)) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+- Canonical meter-based render space layered over the DOM via Three.js.
+- DOM capture → tessellated mesh pipeline with lazy html2canvas snapshots.
+- Custom cloth solver (Verlet integration, constraint satisfaction, sleep/wake).
+- Simulation scheduler + SimWorld for active-body ticking and basic broad-phase sweeps.
+- Pointer impulses and collision clamps wired through a unified `applyImpulse` API.
+- Tests-as-specs workflow: Vitest coverage for cloth, pooling, scheduler, impulses, SimWorld.
 
-## React Compiler
+## Getting Started
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
-
-## Expanding the ESLint configuration
-
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
-
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
-
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+```bash
+pnpm install   # or npm install / yarn
+pnpm dev       # start Vite dev server
+pnpm build     # production build
+pnpm test      # run Vitest suites
 ```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+The project uses React + Vite for rendering and TypeScript (for now) for static tooling. WebGL lives in `src/lib/` alongside the simulation modules.
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
+## Key Scripts
 
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
-```
+| Script | Description |
+| ------ | ----------- |
+| `pnpm dev` | Run the dev server with HMR. |
+| `pnpm build` | Type-check and bundle for production. |
+| `pnpm test` | Execute all Vitest specs (cloth, impulse, scheduler, SimWorld, pooling). |
+
+## Repository Workflow
+
+We follow the loop codified in [`AGENTS.md`](AGENTS.md):
+
+1. Branch per task, write failing specs first.
+2. Implement structure/behaviour, logging each step in an append-only notebook.
+3. Update docs/checklists, push PR, address feedback.
+
+## Testing & QA Plan
+
+See [`TEST_PLAN.md`](TEST_PLAN.md) for automated and manual coverage targets. The live checklist lives in [`PROGRESS_CHECKLIST.md`](PROGRESS_CHECKLIST.md).
+
+## Notes & Blog Stream
+
+Until the notebook tooling is automated, we log context in [`BLOG_NOTES.md`](BLOG_NOTES.md) as an append-only stream. The long-term plan is to replace this with a `git-notebook` ref (see AGENTS.md) so notes become empty commits on `refs/notes/*`.
+
+## Roadmap
+
+- Continuous collision for swept sphere-vs-cloth interactions.
+- DOM/WebGL integration specs (alignment, lifecycle).
+- Canonical UI renderer tests.
+- Pointer impulse tuning per element/device.
+
+Pull requests and experiments welcome—this is very much an evolving sandbox.
