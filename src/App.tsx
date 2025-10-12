@@ -1,14 +1,10 @@
 import { useEffect, useRef, useState } from "react"
-import { Moon, Sun } from "lucide-react"
-
-import { ThemeProvider, useTheme } from "@/components/theme-provider"
+import { ThemeProvider } from "@/components/theme-provider"
 import { ModeToggle } from "@/components/mode-toggle"
 import { Button } from "@/components/ui/button"
 import {
   Dialog,
   DialogContent,
-  DialogDescription,
-  DialogFooter,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
@@ -16,14 +12,22 @@ import {
   Card,
   CardContent,
   CardDescription,
-  CardFooter as CardFooterBase,
+  CardFooter,
   CardHeader,
   CardTitle,
 } from "@/components/ui/card"
 import { Switch } from "@/components/ui/switch"
 import { Slider } from "@/components/ui/slider"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
+import { ChevronDown } from "lucide-react"
 
-import { PortfolioWebGL } from "./lib/portfolioWebGL"
+import { PortfolioWebGL, type PinMode } from "./lib/portfolioWebGL"
 
 function Kbd({ children }: { children: React.ReactNode }) {
   return (
@@ -44,6 +48,16 @@ function DebugPalette({
   onGravityChange,
   impulseMultiplier,
   onImpulseMultiplierChange,
+  tessellationSegments,
+  onTessellationChange,
+  constraintIterations,
+  onConstraintIterationsChange,
+  substeps,
+  onSubstepsChange,
+  pointerColliderVisible,
+  onPointerColliderVisibleChange,
+  pinMode,
+  onPinModeChange,
   onStep,
   onReset,
 }: {
@@ -57,9 +71,26 @@ function DebugPalette({
   onGravityChange: (value: number) => void
   impulseMultiplier: number
   onImpulseMultiplierChange: (value: number) => void
+  tessellationSegments: number
+  onTessellationChange: (value: number) => void
+  constraintIterations: number
+  onConstraintIterationsChange: (value: number) => void
+  substeps: number
+  onSubstepsChange: (value: number) => void
+  pointerColliderVisible: boolean
+  onPointerColliderVisibleChange: (value: boolean) => void
+  pinMode: PinMode
+  onPinModeChange: (value: PinMode) => void
   onStep: () => void
   onReset: () => void
 }) {
+  const pinModeLabels: Record<PinMode, string> = {
+    top: "Top Edge",
+    bottom: "Bottom Edge",
+    corners: "Corners",
+    none: "None",
+  }
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-md border-none bg-background p-0">
@@ -82,6 +113,13 @@ function DebugPalette({
                 <p className="text-sm text-muted-foreground">Pause simulation to step manually</p>
               </div>
               <Switch checked={realTime} onCheckedChange={onRealTimeChange} />
+            </div>
+            <div className="flex items-center justify-between gap-4">
+              <div>
+                <p className="font-semibold leading-none">Pointer Collider</p>
+                <p className="text-sm text-muted-foreground">Visualize the pointer collision sphere</p>
+              </div>
+              <Switch checked={pointerColliderVisible} onCheckedChange={onPointerColliderVisibleChange} />
             </div>
             <div className="space-y-2">
               <div className="flex items-center justify-between text-sm font-medium">
@@ -109,20 +147,86 @@ function DebugPalette({
                 onValueChange={(value) => onImpulseMultiplierChange(value[0] ?? impulseMultiplier)}
               />
             </div>
+            <div className="space-y-2">
+              <div className="flex items-center justify-between text-sm font-medium">
+                <span>Tessellation</span>
+                <span className="text-muted-foreground">
+                  {tessellationSegments} × {tessellationSegments}
+                </span>
+              </div>
+              <Slider
+                value={[tessellationSegments]}
+                min={1}
+                max={32}
+                step={1}
+                onValueChange={(value) => onTessellationChange(Math.round(value[0] ?? tessellationSegments))}
+              />
+            </div>
+            <div className="space-y-2">
+              <div className="flex items-center justify-between text-sm font-medium">
+                <span>Constraint Iterations</span>
+                <span className="text-muted-foreground">{constraintIterations}</span>
+              </div>
+              <Slider
+                value={[constraintIterations]}
+                min={1}
+                max={12}
+                step={1}
+                onValueChange={(value) => onConstraintIterationsChange(Math.round(value[0] ?? constraintIterations))}
+              />
+            </div>
+            <div className="space-y-2">
+              <div className="flex items-center justify-between text-sm font-medium">
+                <span>Substeps</span>
+                <span className="text-muted-foreground">{substeps}</span>
+              </div>
+              <Slider
+                value={[substeps]}
+                min={1}
+                max={8}
+                step={1}
+                onValueChange={(value) => onSubstepsChange(Math.round(value[0] ?? substeps))}
+              />
+            </div>
+            <div className="space-y-2">
+              <div className="flex items-center justify-between text-sm font-medium">
+                <span>Pin Mode</span>
+                <span className="text-muted-foreground">{pinModeLabels[pinMode]}</span>
+              </div>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="outline" className="w-full justify-between">
+                    {pinModeLabels[pinMode]}
+                    <ChevronDown className="size-4 opacity-70" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="start" className="w-48">
+                  <DropdownMenuRadioGroup
+                    value={pinMode}
+                    onValueChange={(value) => onPinModeChange(value as PinMode)}
+                  >
+                    <DropdownMenuRadioItem value="top">Top Edge</DropdownMenuRadioItem>
+                    <DropdownMenuRadioItem value="bottom">Bottom Edge</DropdownMenuRadioItem>
+                    <DropdownMenuRadioItem value="corners">Corners</DropdownMenuRadioItem>
+                    <DropdownMenuRadioItem value="none">None</DropdownMenuRadioItem>
+                  </DropdownMenuRadioGroup>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
             {!realTime ? (
               <Button variant="secondary" onClick={onStep} className="justify-self-start">
                 Step (Space)
               </Button>
             ) : null}
           </CardContent>
-          <CardFooterBase className="flex justify-end gap-2">
+          <CardFooter className="flex justify-end gap-2">
             <Button variant="ghost" onClick={() => onOpenChange(false)}>
               Close
             </Button>
             <Button variant="outline" onClick={onReset}>
               Reset
             </Button>
-          </CardFooterBase>
+          </CardFooter>
         </Card>
       </DialogContent>
     </Dialog>
@@ -131,11 +235,17 @@ function DebugPalette({
 
 function Demo() {
   const controllerRef = useRef<PortfolioWebGL | null>(null)
+  const realTimeRef = useRef(true)
   const [debugOpen, setDebugOpen] = useState(false)
   const [wireframe, setWireframe] = useState(false)
   const [realTime, setRealTime] = useState(true)
   const [gravity, setGravity] = useState(9.81)
   const [impulseMultiplier, setImpulseMultiplier] = useState(1)
+  const [tessellationSegments, setTessellationSegments] = useState(24)
+  const [constraintIterations, setConstraintIterations] = useState(4)
+  const [substeps, setSubsteps] = useState(1)
+  const [pointerColliderVisible, setPointerColliderVisible] = useState(false)
+  const [pinMode, setPinMode] = useState<PinMode>("top")
 
   useEffect(() => {
     if (typeof window === "undefined") return
@@ -152,7 +262,7 @@ function Demo() {
         setDebugOpen((open) => !open)
         return
       }
-      if (!realTime && event.key === " ") {
+      if (!realTimeRef.current && event.key === " ") {
         event.preventDefault()
         controller.stepOnce()
       }
@@ -164,13 +274,14 @@ function Demo() {
       controller.dispose()
       controllerRef.current = null
     }
-  }, [realTime])
+  }, [])
 
   useEffect(() => {
     controllerRef.current?.setWireframe(wireframe)
   }, [wireframe])
 
   useEffect(() => {
+    realTimeRef.current = realTime
     controllerRef.current?.setRealTime(realTime)
   }, [realTime])
 
@@ -181,6 +292,28 @@ function Demo() {
   useEffect(() => {
     controllerRef.current?.setImpulseMultiplier(impulseMultiplier)
   }, [impulseMultiplier])
+
+  useEffect(() => {
+    controllerRef.current?.setConstraintIterations(constraintIterations)
+  }, [constraintIterations])
+
+  useEffect(() => {
+    controllerRef.current?.setSubsteps(substeps)
+  }, [substeps])
+
+  useEffect(() => {
+    const controller = controllerRef.current
+    if (!controller) return
+    void controller.setTessellationSegments(tessellationSegments)
+  }, [tessellationSegments])
+
+  useEffect(() => {
+    controllerRef.current?.setPointerColliderVisible(pointerColliderVisible)
+  }, [pointerColliderVisible])
+
+  useEffect(() => {
+    controllerRef.current?.setPinMode(pinMode)
+  }, [pinMode])
 
   const modifierKey =
     typeof navigator !== "undefined" && navigator?.platform?.toLowerCase().includes("mac") ? "⌘" : "Ctrl"
@@ -214,12 +347,27 @@ function Demo() {
         onGravityChange={setGravity}
         impulseMultiplier={impulseMultiplier}
         onImpulseMultiplierChange={setImpulseMultiplier}
+        tessellationSegments={tessellationSegments}
+        onTessellationChange={setTessellationSegments}
+        constraintIterations={constraintIterations}
+        onConstraintIterationsChange={setConstraintIterations}
+        substeps={substeps}
+        onSubstepsChange={setSubsteps}
+        pointerColliderVisible={pointerColliderVisible}
+        onPointerColliderVisibleChange={setPointerColliderVisible}
+        pinMode={pinMode}
+        onPinModeChange={setPinMode}
         onStep={() => controllerRef.current?.stepOnce()}
         onReset={() => {
           setWireframe(false)
           setRealTime(true)
           setGravity(9.81)
           setImpulseMultiplier(1)
+          setTessellationSegments(24)
+          setConstraintIterations(4)
+          setSubsteps(1)
+          setPointerColliderVisible(false)
+          setPinMode("top")
         }}
       />
     </>
