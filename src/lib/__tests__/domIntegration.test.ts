@@ -159,6 +159,7 @@ vi.mock('../clothPhysics', () => {
     public isOffscreen = vi.fn(() => false)
     public wake = vi.fn()
     public wakeIfPointInside = vi.fn()
+    public setGravity = vi.fn()
 
     constructor(public mesh: THREE.Mesh) {
       clothMocks.instances.push(this)
