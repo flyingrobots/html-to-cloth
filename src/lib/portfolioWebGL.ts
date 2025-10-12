@@ -1,5 +1,6 @@
 import * as THREE from 'three'
 import { DOMToWebGL } from './domToWebGL'
+import type { DOMMeshRecord } from './domToWebGL'
 import { ClothPhysics } from './clothPhysics'
 import { CollisionSystem } from './collisionSystem'
 import { CANONICAL_HEIGHT_METERS } from './units'
@@ -20,6 +21,7 @@ type ClothItem = {
   originalOpacity: string
   clickHandler: (event: MouseEvent) => void
   isActive: boolean
+  record?: DOMMeshRecord
   adapter?: ClothBodyAdapter
 }
 
@@ -29,19 +31,22 @@ class ClothBodyAdapter implements SleepableBody {
   private pointer: PointerState
   private collisionSystem: CollisionSystem
   private handleOffscreen: () => void
+  private record: DOMMeshRecord
 
   constructor(
     id: string,
     item: ClothItem,
     pointer: PointerState,
     collisionSystem: CollisionSystem,
-    handleOffscreen: () => void
+    handleOffscreen: () => void,
+    record: DOMMeshRecord
   ) {
     this.id = id
     this.item = item
     this.pointer = pointer
     this.collisionSystem = collisionSystem
     this.handleOffscreen = handleOffscreen
+    this.record = record
   }
 
   update(dt: number) {
@@ -49,7 +54,11 @@ class ClothBodyAdapter implements SleepableBody {
     if (!cloth) return
 
     if (this.pointer.needsImpulse) {
-      cloth.applyPointForce(this.pointer.position, this.pointer.velocity, 0.25, 0.8)
+      const radius = this.getImpulseRadius()
+      const strength = this.getImpulseStrength()
+      const scaledForce = this.pointer.velocity.clone().multiplyScalar(strength)
+      cloth.applyImpulse(this.pointer.position, scaledForce, radius)
+      this.pointer.needsImpulse = false
     }
 
     cloth.update(dt)
@@ -72,6 +81,23 @@ class ClothBodyAdapter implements SleepableBody {
 
   wakeIfPointInside(point: THREE.Vector2) {
     this.item.cloth?.wakeIfPointInside(point)
+  }
+
+  private getImpulseRadius() {
+    const attr = this.item.element.dataset.clothImpulseRadius
+    const parsed = attr ? Number.parseFloat(attr) : NaN
+    if (!Number.isNaN(parsed) && parsed > 0) {
+      return parsed
+    }
+    const { widthMeters = 0, heightMeters = 0 } = this.record ?? {}
+    const base = Math.max(widthMeters, heightMeters)
+    return base > 0 ? base / 2 : 0.25
+  }
+
+  private getImpulseStrength() {
+    const attr = this.item.element.dataset.clothImpulseStrength
+    const parsed = attr ? Number.parseFloat(attr) : NaN
+    return !Number.isNaN(parsed) && parsed > 0 ? parsed : 1
   }
 }
 
@@ -167,6 +193,8 @@ export class PortfolioWebGL {
       await this.pool.prepare(element)
       this.pool.mount(element)
 
+      const record = this.pool.getRecord(element)
+
       const originalOpacity = element.style.opacity
       element.style.opacity = '0'
 
@@ -183,6 +211,7 @@ export class PortfolioWebGL {
         originalOpacity,
         clickHandler,
         isActive: false,
+        record,
       })
     }
   }
@@ -209,13 +238,15 @@ export class PortfolioWebGL {
     setTimeout(() => cloth.releaseAllPins(), 900)
 
     item.cloth = cloth
+    item.record = record
     const adapterId = this.getBodyId(element)
     const adapter = new ClothBodyAdapter(
       adapterId,
       item,
       this.pointer,
       this.collisionSystem,
-      () => this.handleClothOffscreen(item)
+      () => this.handleClothOffscreen(item),
+      record
     )
     this.scheduler.addBody(adapter)
     item.adapter = adapter
