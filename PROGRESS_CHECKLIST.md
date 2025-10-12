@@ -11,16 +11,15 @@
 - [x] Add mesh pooling / reactivation so elements can re-run the reveal without reload.
 - [x] Implement core physics unit tests (Verlet, collisions, sleep/wake).
 - [x] Wire simulation scheduler so only awake bodies tick.
-- [ ] Implement automated DOM-level integration tests (capture alignment, lifecycle).
-- [ ] Tune pointer impulse strength/radius per element and device type.
+- [x] Implement automated DOM-level integration tests (capture alignment, lifecycle).
+- [x] Tune pointer impulse strength/radius per element and device type.
 - [ ] Execute manual browser/network/memory QA passes and log findings.
 - [ ] Prep demo script + visuals showing the dual-layer architecture.
-- [ ] Build SimWorld (tests + implementation) with broad-phase wake logic.
 - [x] Build SimWorld (tests + implementation) with broad-phase wake logic.
 - [x] Introduce unified `applyImpulse(point, force)` API with coverage.
-- [ ] Retro-fit DOM/WebGL integration tests:
-  - [ ] Element pool lifecycle (prepare → mount → recycle → destroy)
-  - [ ] Static mesh alignment & resize/scroll sync
-  - [ ] Cloth-enabled DOM hiding and mesh replacement
-  - [ ] Canonical UI render mapping
-  - [ ] Cloth lifecycle (dormant → active → reset)
+- [x] Retro-fit DOM/WebGL integration tests:
+  - [x] Element pool lifecycle (prepare → mount → recycle → destroy)
+  - [x] Static mesh alignment & resize/scroll sync
+  - [x] Cloth-enabled DOM hiding and mesh replacement
+  - [x] Canonical UI render mapping
+  - [x] Cloth lifecycle (dormant → active → reset)

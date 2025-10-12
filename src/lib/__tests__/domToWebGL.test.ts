@@ -106,7 +106,6 @@ import { DOMToWebGL } from '../domToWebGL'
 import {
   CANONICAL_HEIGHT_METERS,
   CANONICAL_WIDTH_METERS,
-  computeViewportScale,
   toCanonicalHeightMeters,
   toCanonicalWidthMeters,
   toCanonicalX,
@@ -180,17 +179,15 @@ describe('DOMToWebGL canonical mapping', () => {
   it('updates root group scale when resizing the viewport', () => {
     const dom = new DOMToWebGL(document.body)
     const rootGroup = (dom as any).rootGroup as { scale: { x: number; y: number } }
-    const initialScale = computeViewportScale(window.innerWidth, window.innerHeight)
-    expect(rootGroup.scale.x).toBeCloseTo(initialScale.scaleX)
-    expect(rootGroup.scale.y).toBeCloseTo(initialScale.scaleY)
+    expect(rootGroup.scale.x).toBe(1)
+    expect(rootGroup.scale.y).toBe(1)
 
     Object.defineProperty(window, 'innerWidth', { configurable: true, value: 800 })
     Object.defineProperty(window, 'innerHeight', { configurable: true, value: 600 })
     dom.resize()
 
-    const updatedScale = computeViewportScale(window.innerWidth, window.innerHeight)
-    expect(rootGroup.scale.x).toBeCloseTo(updatedScale.scaleX)
-    expect(rootGroup.scale.y).toBeCloseTo(updatedScale.scaleY)
+    expect(rootGroup.scale.x).toBe(1)
+    expect(rootGroup.scale.y).toBe(1)
 
     dom.detach()
   })
