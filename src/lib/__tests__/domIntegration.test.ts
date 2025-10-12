@@ -45,6 +45,7 @@ const schedulerMocks = {
 
 const clothMocks = {
   instances: [] as any[],
+  applyImpulse: vi.fn(),
 }
 
 const recordMap = new Map<HTMLElement, any>()
@@ -152,6 +153,9 @@ vi.mock('../clothPhysics', () => {
     public releaseAllPins = vi.fn()
     public update = vi.fn()
     public applyPointForce = vi.fn()
+    public applyImpulse = vi.fn((point: THREE.Vector2, force: THREE.Vector2, radius: number) =>
+      clothMocks.applyImpulse(point, force, radius)
+    )
     public isOffscreen = vi.fn(() => false)
     public wake = vi.fn()
     public wakeIfPointInside = vi.fn()
@@ -202,6 +206,7 @@ const resetSpies = () => {
   schedulerMocks.clear.mockReset()
 
   clothMocks.instances.length = 0
+  clothMocks.applyImpulse.mockReset()
   recordMap.clear()
 }
 
@@ -300,6 +305,74 @@ describe('PortfolioWebGL DOM integration', () => {
 
     window.dispatchEvent(new PointerEvent('pointermove', { clientX: 500, clientY: 400 }))
     expect(schedulerMocks.notifyPointer).toHaveBeenCalled()
+
+    webgl.dispose()
+  })
+
+  it('applies default impulse radius based on mesh width', async () => {
+    const webgl = new PortfolioWebGL()
+    await webgl.init()
+
+    const button = document.getElementById('cta') as HTMLElement
+    button.dispatchEvent(new MouseEvent('click'))
+
+    const adapter = schedulerMocks.addBody.mock.calls[0][0]
+    const cloth = clothMocks.instances[0]
+    const pointer = (webgl as any).pointer as {
+      position: THREE.Vector2
+      previous: THREE.Vector2
+      velocity: THREE.Vector2
+      needsImpulse: boolean
+    }
+
+    pointer.previous.set(0, 0)
+    pointer.position.set(0.2, 0.1)
+    pointer.velocity.set(0.2, 0.1)
+    pointer.needsImpulse = true
+
+    cloth.applyImpulse.mockReset()
+    const initialVelocity = pointer.velocity.clone()
+    adapter.update(0.016)
+
+    expect(cloth.applyImpulse).toHaveBeenCalledTimes(1)
+    const [, force, radius] = cloth.applyImpulse.mock.calls[0]
+    expect(radius).toBeCloseTo(0.5)
+    expect(force.x).toBeCloseTo(initialVelocity.x)
+    expect(force.y).toBeCloseTo(initialVelocity.y)
+
+    webgl.dispose()
+  })
+
+  it('honors per-element impulse tuning via data attributes', async () => {
+    const button = document.getElementById('cta') as HTMLElement
+    button.dataset.clothImpulseRadius = '0.9'
+    button.dataset.clothImpulseStrength = '1.5'
+
+    const webgl = new PortfolioWebGL()
+    await webgl.init()
+
+    button.dispatchEvent(new MouseEvent('click'))
+    const adapter = schedulerMocks.addBody.mock.calls[0][0]
+    const cloth = clothMocks.instances[0]
+    const pointer = (webgl as any).pointer as THREE.Vector2 & {
+      previous: THREE.Vector2
+      velocity: THREE.Vector2
+      needsImpulse: boolean
+    }
+
+    pointer.previous.set(0, 0)
+    pointer.position.set(0.3, 0.2)
+    pointer.velocity.set(0.3, 0.2)
+    pointer.needsImpulse = true
+
+    cloth.applyImpulse.mockReset()
+    const datasetVelocity = pointer.velocity.clone()
+    adapter.update(0.016)
+
+    const [, force, radius] = cloth.applyImpulse.mock.calls[0]
+    expect(radius).toBeCloseTo(0.9)
+    expect(force.x).toBeCloseTo(datasetVelocity.x * 1.5)
+    expect(force.y).toBeCloseTo(datasetVelocity.y * 1.5)
 
     webgl.dispose()
   })
