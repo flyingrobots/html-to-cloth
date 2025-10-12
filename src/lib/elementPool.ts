@@ -17,11 +17,16 @@ export class ElementPool {
     this.domBridge = domBridge
   }
 
-  async prepare(element: HTMLElement) {
-    if (this.elements.has(element)) return
+  async prepare(element: HTMLElement, segments = 24) {
+    const existing = this.elements.get(element)
+    if (existing && existing.segments === segments) return
+
+    if (existing) {
+      this.destroy(element)
+    }
 
     const texture = await this.domBridge.captureElement(element)
-    const record = this.domBridge.createMesh(element, texture)
+    const record = this.domBridge.createMesh(element, texture, segments)
 
     this.elements.set(element, record)
   }
