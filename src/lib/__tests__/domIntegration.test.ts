@@ -303,4 +303,32 @@ describe('PortfolioWebGL DOM integration', () => {
 
     webgl.dispose()
   })
+
+  it('returns cloth to dormant state after it falls offscreen', async () => {
+    const webgl = new PortfolioWebGL()
+    await webgl.init()
+
+    const button = document.getElementById('cta') as HTMLElement
+    button.dispatchEvent(new MouseEvent('click'))
+
+    expect(schedulerMocks.addBody).toHaveBeenCalledTimes(1)
+    const adapter = schedulerMocks.addBody.mock.calls[0][0]
+    const cloth = clothMocks.instances[0]
+
+    cloth.isOffscreen = vi.fn().mockReturnValue(true)
+    adapter.update(0.016)
+
+    expect(poolMocks.recycle).toHaveBeenCalledWith(button)
+    expect(poolMocks.resetGeometry).toHaveBeenCalledWith(button)
+    expect(poolMocks.mount).toHaveBeenCalledWith(button)
+    expect(schedulerMocks.removeBody).toHaveBeenCalled()
+
+    schedulerMocks.addBody.mockClear()
+
+    button.dispatchEvent(new MouseEvent('click'))
+    expect(schedulerMocks.addBody).toHaveBeenCalledTimes(1)
+    expect(clothMocks.instances.length).toBe(2)
+
+    webgl.dispose()
+  })
 })

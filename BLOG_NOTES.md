@@ -79,4 +79,4 @@ Web design feels clunky not because the medium is doomed, but because we’ve le
 
 
 - 2025-10-11: Added DOM integration specs covering capture/hide flow, resize refresh, and scheduler wake path.
-- 2025-10-12: README switched to npm commands for install/build/test so instructions match package-lock.
+- 2025-10-12: README switched to npm commands for install/build/test so instructions match package-lock.- 2025-10-12: Added DOMToWebGL canonical mapping specs and cloth lifecycle regression tests.
