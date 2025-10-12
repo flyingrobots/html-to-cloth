@@ -2,7 +2,6 @@ import * as THREE from 'three'
 import {
   CANONICAL_HEIGHT_METERS,
   CANONICAL_WIDTH_METERS,
-  computeViewportScale,
   fromPointerToCanonical,
   toCanonicalHeightMeters,
   toCanonicalWidthMeters,
@@ -27,7 +26,6 @@ export class DOMToWebGL {
 
   private container: HTMLElement
   private html2canvasRef: typeof import('html2canvas')['default'] | null = null
-  private rootGroup: THREE.Group
   private viewportWidth: number
   private viewportHeight: number
 
@@ -54,7 +52,6 @@ export class DOMToWebGL {
     this.scene.add(this.rootGroup)
 
     this.updateCamera()
-    this.updateRootScale()
     this.attach()
   }
 
@@ -74,7 +71,6 @@ export class DOMToWebGL {
     this.viewportWidth = window.innerWidth
     this.viewportHeight = window.innerHeight
     this.renderer.setSize(this.viewportWidth, this.viewportHeight)
-    this.updateRootScale()
   }
 
   render() {
@@ -186,11 +182,6 @@ export class DOMToWebGL {
     const x = toCanonicalX(centerX, this.viewportWidth)
     const y = toCanonicalY(centerY, this.viewportHeight)
     return [x, y, 0]
-  }
-
-  private updateRootScale() {
-    const { scaleX, scaleY } = computeViewportScale(this.viewportWidth, this.viewportHeight)
-    this.rootGroup.scale.set(scaleX, scaleY, 1)
   }
 
   private async ensureHtml2Canvas() {

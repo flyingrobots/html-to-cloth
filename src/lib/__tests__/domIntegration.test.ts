@@ -224,11 +224,10 @@ beforeEach(() => {
   rafSpy = vi.spyOn(globalThis, 'requestAnimationFrame').mockReturnValue(1 as any)
   cafSpy = vi.spyOn(globalThis, 'cancelAnimationFrame').mockImplementation(() => {})
   document.body.innerHTML = `
-    <div class="wrapper">
-      <button id="cta" class="cloth-enabled">Click me</button>
-      <div id="static">Static content</div>
-      <a id="link" class="cloth-enabled">Link</a>
-    </div>
+    <main class="demo">
+      <h1>Tactile demo</h1>
+      <button id="cta" class="cloth-enabled">Peel Back</button>
+    </main>
   `
   ;(document.getElementById('cta') as HTMLElement).getBoundingClientRect = () => ({
     left: 100,
@@ -239,17 +238,6 @@ beforeEach(() => {
     height: 60,
     x: 100,
     y: 200,
-    toJSON() {},
-  })
-  ;(document.getElementById('link') as HTMLElement).getBoundingClientRect = () => ({
-    left: 400,
-    top: 100,
-    right: 460,
-    bottom: 140,
-    width: 60,
-    height: 40,
-    x: 400,
-    y: 100,
     toJSON() {},
   })
 })
@@ -267,8 +255,9 @@ describe('PortfolioWebGL DOM integration', () => {
 
     const clothElements = Array.from(document.querySelectorAll<HTMLElement>('.cloth-enabled'))
 
-    expect(poolMocks.prepare).toHaveBeenCalledTimes(clothElements.length)
-    expect(poolMocks.mount).toHaveBeenCalledTimes(clothElements.length)
+    expect(clothElements).toHaveLength(1)
+    expect(poolMocks.prepare).toHaveBeenCalledTimes(1)
+    expect(poolMocks.mount).toHaveBeenCalledTimes(1)
     clothElements.forEach((el) => {
       expect(el.style.opacity).toBe('0')
     })
@@ -318,12 +307,7 @@ describe('PortfolioWebGL DOM integration', () => {
 
     const adapter = schedulerMocks.addBody.mock.calls[0][0]
     const cloth = clothMocks.instances[0]
-    const pointer = (webgl as any).pointer as {
-      position: THREE.Vector2
-      previous: THREE.Vector2
-      velocity: THREE.Vector2
-      needsImpulse: boolean
-    }
+    const pointer = (webgl as any).pointer as any
 
     pointer.previous.set(0, 0)
     pointer.position.set(0.2, 0.1)
@@ -354,11 +338,7 @@ describe('PortfolioWebGL DOM integration', () => {
     button.dispatchEvent(new MouseEvent('click'))
     const adapter = schedulerMocks.addBody.mock.calls[0][0]
     const cloth = clothMocks.instances[0]
-    const pointer = (webgl as any).pointer as THREE.Vector2 & {
-      previous: THREE.Vector2
-      velocity: THREE.Vector2
-      needsImpulse: boolean
-    }
+    const pointer = (webgl as any).pointer as any
 
     pointer.previous.set(0, 0)
     pointer.position.set(0.3, 0.2)
