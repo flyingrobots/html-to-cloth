@@ -83,3 +83,4 @@ Web design feels clunky not because the medium is doomed, but because we’ve le
 - 2025-10-12: Tuned pointer impulses via dataset overrides and canonical defaults; added specs verifying behaviour.
 - 2025-10-12: Simplified demo layout to h1+button, removed canvas double-scaling, and tuned tests to use minimal DOM.
 - 2025-10-12: Added keyboard-triggered debug palette with wireframe/real-time/gravity/impulse controls and manual stepping.
+- 2025-10-12: Integrated shadcn/ui (card, dialog, slider, switch) and rebuilt debug palette with real-time controls.
