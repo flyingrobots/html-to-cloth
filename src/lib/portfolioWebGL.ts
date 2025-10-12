@@ -56,7 +56,8 @@ class ClothBodyAdapter implements SleepableBody {
     if (this.pointer.needsImpulse) {
       const radius = this.getImpulseRadius()
       const strength = this.getImpulseStrength()
-      const scaledForce = this.pointer.velocity.clone().multiplyScalar(strength)
+      const base = this.getImpulseBaseMagnitude()
+      const scaledForce = this.pointer.velocity.clone().multiplyScalar(base * strength)
       cloth.applyImpulse(this.pointer.position, scaledForce, radius)
       this.pointer.needsImpulse = false
     }
@@ -99,6 +100,11 @@ class ClothBodyAdapter implements SleepableBody {
     const parsed = attr ? Number.parseFloat(attr) : NaN
     return !Number.isNaN(parsed) && parsed > 0 ? parsed : 1
   }
+
+  private getImpulseBaseMagnitude() {
+    const base = Math.max(this.record.widthMeters ?? 0, this.record.heightMeters ?? 0)
+    return base > 0 ? base : 0.02
+  }
 }
 
 export class PortfolioWebGL {
@@ -139,6 +145,14 @@ export class PortfolioWebGL {
     )
 
     if (!clothElements.length) return
+
+    if ('fonts' in document && typeof (document as any).fonts?.ready === 'object') {
+      try {
+        await (document as any).fonts.ready
+      } catch (error) {
+        console.warn('Waiting for fonts failed', error)
+      }
+    }
 
     await this.prepareElements(clothElements)
 

@@ -1,5 +1,6 @@
 import { beforeAll, beforeEach, afterEach, describe, expect, it, vi } from 'vitest'
 import * as THREE from 'three'
+import { toCanonicalHeightMeters, toCanonicalWidthMeters } from '../units'
 
 const domMocks = {
   capture: vi.fn(),
@@ -92,16 +93,19 @@ vi.mock('../elementPool', () => {
     prepare = vi.fn(async (element: HTMLElement) => {
       poolMocks.prepare(element)
       if (!recordMap.has(element)) {
+        const rect = element.getBoundingClientRect()
+        const widthMeters = toCanonicalWidthMeters(rect.width, window.innerWidth)
+        const heightMeters = toCanonicalHeightMeters(rect.height, window.innerHeight)
         const geometry = new THREE.PlaneGeometry(1, 1, 1, 1)
         const material = new THREE.MeshBasicMaterial()
         const mesh = new THREE.Mesh(geometry, material)
         const initialPositions = new Float32Array((geometry.attributes.position.array as Float32Array).slice())
         recordMap.set(element, {
           mesh,
-          baseWidthMeters: 1,
-          baseHeightMeters: 1,
-          widthMeters: 1,
-          heightMeters: 1,
+          baseWidthMeters: widthMeters || 1,
+          baseHeightMeters: heightMeters || 1,
+          widthMeters: widthMeters || 1,
+          heightMeters: heightMeters || 1,
           texture: {} as THREE.Texture,
           initialPositions,
         })
@@ -316,13 +320,15 @@ describe('PortfolioWebGL DOM integration', () => {
 
     cloth.applyImpulse.mockReset()
     const initialVelocity = pointer.velocity.clone()
+    const record = recordMap.get(button)!
+    const base = Math.max(record.widthMeters, record.heightMeters)
     adapter.update(0.016)
 
     expect(cloth.applyImpulse).toHaveBeenCalledTimes(1)
     const [, force, radius] = cloth.applyImpulse.mock.calls[0]
-    expect(radius).toBeCloseTo(0.5)
-    expect(force.x).toBeCloseTo(initialVelocity.x)
-    expect(force.y).toBeCloseTo(initialVelocity.y)
+    expect(radius).toBeCloseTo(base / 2)
+    expect(force.x).toBeCloseTo(initialVelocity.x * base)
+    expect(force.y).toBeCloseTo(initialVelocity.y * base)
 
     webgl.dispose()
   })
@@ -347,12 +353,14 @@ describe('PortfolioWebGL DOM integration', () => {
 
     cloth.applyImpulse.mockReset()
     const datasetVelocity = pointer.velocity.clone()
+    const record = recordMap.get(button)!
+    const base = Math.max(record.widthMeters, record.heightMeters)
     adapter.update(0.016)
 
     const [, force, radius] = cloth.applyImpulse.mock.calls[0]
     expect(radius).toBeCloseTo(0.9)
-    expect(force.x).toBeCloseTo(datasetVelocity.x * 1.5)
-    expect(force.y).toBeCloseTo(datasetVelocity.y * 1.5)
+    expect(force.x).toBeCloseTo(datasetVelocity.x * base * 1.5)
+    expect(force.y).toBeCloseTo(datasetVelocity.y * base * 1.5)
 
     webgl.dispose()
   })
