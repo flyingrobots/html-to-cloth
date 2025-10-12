@@ -32,6 +32,12 @@ class ClothBodyAdapter implements SleepableBody {
   private collisionSystem: CollisionSystem
   private handleOffscreen: () => void
   private record: DOMMeshRecord
+  private debug: {
+    paused: boolean
+    wireframe: boolean
+    gravity: number
+    impulseMultiplier: number
+  }
 
   constructor(
     id: string,
@@ -39,7 +45,8 @@ class ClothBodyAdapter implements SleepableBody {
     pointer: PointerState,
     collisionSystem: CollisionSystem,
     handleOffscreen: () => void,
-    record: DOMMeshRecord
+    record: DOMMeshRecord,
+    debug: { paused: boolean; wireframe: boolean; gravity: number; impulseMultiplier: number }
   ) {
     this.id = id
     this.item = item
@@ -47,6 +54,7 @@ class ClothBodyAdapter implements SleepableBody {
     this.collisionSystem = collisionSystem
     this.handleOffscreen = handleOffscreen
     this.record = record
+    this.debug = debug
   }
 
   update(dt: number) {
@@ -98,7 +106,8 @@ class ClothBodyAdapter implements SleepableBody {
   private getImpulseStrength() {
     const attr = this.item.element.dataset.clothImpulseStrength
     const parsed = attr ? Number.parseFloat(attr) : NaN
-    return !Number.isNaN(parsed) && parsed > 0 ? parsed : 1
+    const elementStrength = !Number.isNaN(parsed) && parsed > 0 ? parsed : 1
+    return elementStrength * this.debug.impulseMultiplier
   }
 
   private getImpulseBaseMagnitude() {
@@ -117,6 +126,12 @@ export class PortfolioWebGL {
   private pool: ElementPool | null = null
   private scheduler = new SimulationScheduler()
   private elementIds = new Map<HTMLElement, string>()
+  private debug = {
+    paused: false,
+    wireframe: false,
+    gravity: 9.81,
+    impulseMultiplier: 1,
+  }
   private onResize = () => this.handleResize()
   private onScroll = () => {
     this.syncStaticMeshes()
@@ -250,6 +265,7 @@ export class PortfolioWebGL {
     cloth.pinTopEdge()
     cloth.addTurbulence(0.06)
     setTimeout(() => cloth.releaseAllPins(), 900)
+    cloth.setGravity(new THREE.Vector3(0, -this.debug.gravity, 0))
 
     item.cloth = cloth
     item.record = record
@@ -260,7 +276,8 @@ export class PortfolioWebGL {
       this.pointer,
       this.collisionSystem,
       () => this.handleClothOffscreen(item),
-      record
+      record,
+      this.debug
     )
     this.scheduler.addBody(adapter)
     item.adapter = adapter
@@ -273,7 +290,9 @@ export class PortfolioWebGL {
     this.rafId = requestAnimationFrame(() => this.animate())
     const delta = Math.min(this.clock.getDelta(), 0.033)
 
-    this.scheduler.step(delta)
+    if (!this.debug.paused) {
+      this.scheduler.step(delta)
+    }
 
     if (this.pointer.needsImpulse) {
       this.pointer.velocity.multiplyScalar(0.65)
@@ -366,5 +385,30 @@ export class PortfolioWebGL {
     item.isActive = false
     item.cloth = undefined
     item.adapter = undefined
+  }
+
+  setPaused(paused: boolean) {
+    this.debug.paused = paused
+  }
+
+  setWireframe(enabled: boolean) {
+    this.debug.wireframe = enabled
+    for (const item of this.items.values()) {
+      const material = item.record?.mesh.material as THREE.MeshBasicMaterial | undefined
+      if (material) {
+        material.wireframe = enabled
+      }
+    }
+  }
+
+  setGravity(gravity: number) {
+    this.debug.gravity = gravity
+    for (const item of this.items.values()) {
+      item.cloth?.setGravity(new THREE.Vector3(0, -gravity, 0))
+    }
+  }
+
+  setImpulseMultiplier(multiplier: number) {
+    this.debug.impulseMultiplier = multiplier
   }
 }
