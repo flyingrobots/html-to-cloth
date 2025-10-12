@@ -77,4 +77,6 @@ Web design feels clunky not because the medium is doomed, but because we’ve le
 - Pointer input arrives in CSS pixels without guaranteed DPI metadata, pushing us toward canonical meter space and custom normalization for consistent forces.
 - Despite the constraints, WebGL’s ubiquity makes it the pragmatic choice for this demo; we can layer hybrid CPU/GPU techniques as needed without requiring bleeding-edge WebGPU support.
 
+
 - 2025-10-11: Added DOM integration specs covering capture/hide flow, resize refresh, and scheduler wake path.
+- 2025-10-12: README switched to npm commands for install/build/test so instructions match package-lock.

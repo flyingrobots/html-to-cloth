@@ -9,26 +9,26 @@ A proof-of-concept portfolio that hides a WebGL cloth simulation beneath an acce
 - Custom cloth solver (Verlet integration, constraint satisfaction, sleep/wake).
 - Simulation scheduler + SimWorld for active-body ticking and basic broad-phase sweeps.
 - Pointer impulses and collision clamps wired through a unified `applyImpulse` API.
-- Tests-as-specs workflow: Vitest coverage for cloth, pooling, scheduler, impulses, SimWorld.
+- Tests-as-specs workflow: Vitest coverage for cloth, impulses, scheduler, SimWorld, DOM integration.
 
 ## Getting Started
 
 ```bash
-pnpm install   # or npm install / yarn
-pnpm dev       # start Vite dev server
-pnpm build     # production build
-pnpm test      # run Vitest suites
+npm install
+npm run dev    # start Vite dev server
+npm run build  # production build
+npm test       # run Vitest suites
 ```
 
-The project uses React + Vite for rendering and TypeScript (for now) for static tooling. WebGL lives in `src/lib/` alongside the simulation modules.
+The project uses React + Vite for rendering and currently relies on npm (see `package-lock.json`). WebGL lives in `src/lib/` alongside the simulation modules.
 
 ## Key Scripts
 
 | Script | Description |
 | ------ | ----------- |
-| `pnpm dev` | Run the dev server with HMR. |
-| `pnpm build` | Type-check and bundle for production. |
-| `pnpm test` | Execute all Vitest specs (cloth, impulse, scheduler, SimWorld, pooling). |
+| `npm run dev` | Run the dev server with HMR. |
+| `npm run build` | Type-check and bundle for production. |
+| `npm test` | Execute all Vitest specs (cloth, impulse, scheduler, SimWorld, DOM integration). |
 
 ## Repository Workflow
 
