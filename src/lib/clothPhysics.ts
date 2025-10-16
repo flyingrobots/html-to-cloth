@@ -36,6 +36,7 @@ export class ClothPhysics {
   private sleepFrameCounter = 0
   private sleepVelocityThresholdSq = 1e-6
   private sleepFrameThreshold = 60
+  private storedSubsteps = 1
 
   constructor(mesh: THREE.Mesh<THREE.PlaneGeometry, THREE.MeshBasicMaterial>, options?: ClothOptions) {
     this.mesh = mesh
@@ -56,7 +57,23 @@ export class ClothPhysics {
     this.gravity.copy(value)
   }
 
+  setConstraintIterations(iterations: number) {
+    if (!Number.isFinite(iterations)) return
+    this.constraintIterations = Math.max(1, Math.round(iterations))
+  }
+
+  setSubsteps(substeps: number) {
+    if (!Number.isFinite(substeps)) return
+    this.storedSubsteps = Math.max(1, Math.round(substeps))
+  }
+
   releaseAllPins() {
+    for (const particle of this.particles) {
+      particle.pinned = false
+    }
+  }
+
+  clearPins() {
     for (const particle of this.particles) {
       particle.pinned = false
     }
@@ -192,6 +209,28 @@ export class ClothPhysics {
     }
   }
 
+  pinBottomEdge() {
+    for (let x = 0; x < this.widthSegments; x++) {
+      const index = this.index(x, 0)
+      this.particles[index].pinned = true
+    }
+  }
+
+  pinCorners() {
+    const topRow = this.heightSegments - 1
+    const rightCol = this.widthSegments - 1
+
+    const topLeft = this.index(0, topRow)
+    const topRight = this.index(rightCol, topRow)
+    const bottomLeft = this.index(0, 0)
+    const bottomRight = this.index(rightCol, 0)
+
+    this.particles[topLeft].pinned = true
+    this.particles[topRight].pinned = true
+    this.particles[bottomLeft].pinned = true
+    this.particles[bottomRight].pinned = true
+  }
+
   addTurbulence(amount = 0.05) {
     for (const particle of this.particles) {
       if (particle.pinned) continue
@@ -258,6 +297,19 @@ export class ClothPhysics {
     } else {
       this.sleepFrameCounter = 0
     }
+  }
+
+  relaxConstraints(iterations = this.constraintIterations) {
+    const count = Math.max(0, Math.round(iterations))
+    if (count === 0) return
+
+    for (let i = 0; i < count; i++) {
+      for (const constraint of this.constraints) {
+        this.satisfyConstraint(constraint)
+      }
+    }
+
+    this.syncGeometry()
   }
 
   isOffscreen(boundaryY: number) {
