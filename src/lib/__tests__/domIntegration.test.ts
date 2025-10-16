@@ -13,6 +13,8 @@ const domMocks = {
   pointerToCanonical: vi.fn((x: number, y: number) => ({ x: x / 100, y: y / 100 })),
   detach: vi.fn(),
   rendererDispose: vi.fn(),
+  sceneAdd: vi.fn(),
+  sceneRemove: vi.fn(),
   instances: [] as any[],
 }
 
@@ -66,6 +68,10 @@ vi.mock('../domToWebGL', () => {
     render = domMocks.render
     renderer = { dispose: vi.fn(() => domMocks.rendererDispose()) }
     detach = vi.fn(() => domMocks.detach())
+    scene = {
+      add: vi.fn((object: THREE.Object3D) => domMocks.sceneAdd(object)),
+      remove: vi.fn((object: THREE.Object3D) => domMocks.sceneRemove(object)),
+    } as unknown as THREE.Scene
 
     pointerToCanonical(x: number, y: number) {
       return domMocks.pointerToCanonical(x, y)
@@ -89,23 +95,26 @@ vi.mock('../elementPool', () => {
       poolMocks.instances.push(this)
     }
 
-    prepare = vi.fn(async (element: HTMLElement) => {
-      poolMocks.prepare(element)
-      if (!recordMap.has(element)) {
-        const geometry = new THREE.PlaneGeometry(1, 1, 1, 1)
-        const material = new THREE.MeshBasicMaterial()
-        const mesh = new THREE.Mesh(geometry, material)
-        const initialPositions = new Float32Array((geometry.attributes.position.array as Float32Array).slice())
-        recordMap.set(element, {
-          mesh,
-          baseWidthMeters: 1,
-          baseHeightMeters: 1,
-          widthMeters: 1,
-          heightMeters: 1,
-          texture: {} as THREE.Texture,
-          initialPositions,
-        })
+    prepare = vi.fn(async (element: HTMLElement, segments = 24) => {
+      const existing = recordMap.get(element)
+      if (existing && existing.segments === segments) {
+        return
       }
+      poolMocks.prepare(element, segments)
+      const geometry = new THREE.PlaneGeometry(1, 1, 1, 1)
+      const material = new THREE.MeshBasicMaterial()
+      const mesh = new THREE.Mesh(geometry, material)
+      const initialPositions = new Float32Array((geometry.attributes.position.array as Float32Array).slice())
+      recordMap.set(element, {
+        mesh,
+        baseWidthMeters: 1,
+        baseHeightMeters: 1,
+        widthMeters: 1,
+        heightMeters: 1,
+        texture: {} as THREE.Texture,
+        initialPositions,
+        segments,
+      })
     })
 
     mount = vi.fn((element: HTMLElement) => poolMocks.mount(element))
@@ -140,6 +149,7 @@ vi.mock('../simulationScheduler', () => {
     removeBody = vi.fn((id: string) => schedulerMocks.removeBody(id))
     notifyPointer = vi.fn((point: THREE.Vector2) => schedulerMocks.notifyPointer(point))
     step = vi.fn((dt: number) => schedulerMocks.step(dt))
+    stepCloth = vi.fn((dt: number) => schedulerMocks.step(dt))
     clear = vi.fn(() => schedulerMocks.clear())
   }
 
@@ -149,6 +159,9 @@ vi.mock('../simulationScheduler', () => {
 vi.mock('../clothPhysics', () => {
   class MockClothPhysics {
     public pinTopEdge = vi.fn()
+    public pinBottomEdge = vi.fn()
+    public pinCorners = vi.fn()
+    public clearPins = vi.fn()
     public addTurbulence = vi.fn()
     public releaseAllPins = vi.fn()
     public update = vi.fn()
@@ -159,6 +172,10 @@ vi.mock('../clothPhysics', () => {
     public isOffscreen = vi.fn(() => false)
     public wake = vi.fn()
     public wakeIfPointInside = vi.fn()
+    public setGravity = vi.fn()
+    public setConstraintIterations = vi.fn()
+    public setSubsteps = vi.fn()
+    public relaxConstraints = vi.fn()
 
     constructor(public mesh: THREE.Mesh) {
       clothMocks.instances.push(this)
@@ -182,6 +199,8 @@ const resetSpies = () => {
   domMocks.pointerToCanonical.mockClear()
   domMocks.detach.mockReset()
   domMocks.rendererDispose.mockReset()
+  domMocks.sceneAdd.mockReset()
+  domMocks.sceneRemove.mockReset()
   domMocks.instances.length = 0
 
   poolMocks.prepare.mockReset()
@@ -381,6 +400,115 @@ describe('PortfolioWebGL DOM integration', () => {
     button.dispatchEvent(new MouseEvent('click'))
     expect(schedulerMocks.addBody).toHaveBeenCalledTimes(1)
     expect(clothMocks.instances.length).toBe(2)
+
+    webgl.dispose()
+  })
+
+  it('steps physics using fixed substeps when stepping manually', async () => {
+    const webgl = new PortfolioWebGL()
+    await webgl.init()
+
+    schedulerMocks.step.mockClear()
+
+    ;(webgl as any).setSubsteps(3)
+    ;(webgl as any).stepOnce()
+
+    expect(schedulerMocks.step).toHaveBeenCalledTimes(3)
+    const calls = schedulerMocks.step.mock.calls.map(([dt]) => dt)
+    calls.forEach((dt) => {
+      expect(dt).toBeCloseTo(1 / 180, 5)
+    })
+
+    webgl.dispose()
+  })
+
+  it('resets pointer state and geometry before activating a cloth body', async () => {
+    const webgl = new PortfolioWebGL()
+    await webgl.init()
+
+    window.dispatchEvent(new PointerEvent('pointermove', { clientX: 200, clientY: 200 }))
+    window.dispatchEvent(new PointerEvent('pointermove', { clientX: 260, clientY: 220 }))
+
+    const pointer = (webgl as any).pointer as { active: boolean; needsImpulse: boolean; velocity: THREE.Vector2 }
+    expect(pointer.active).toBe(true)
+    expect(pointer.needsImpulse).toBe(true)
+
+    poolMocks.resetGeometry.mockClear()
+    const button = document.getElementById('cta') as HTMLElement
+    button.dispatchEvent(new MouseEvent('click'))
+
+    expect(poolMocks.resetGeometry).toHaveBeenCalledWith(button)
+    expect(pointer.active).toBe(false)
+    expect(pointer.needsImpulse).toBe(false)
+    expect(pointer.velocity.lengthSq()).toBe(0)
+
+    webgl.dispose()
+  })
+
+  it('applies configured pin mode and gravity to newly activated cloth', async () => {
+    const webgl = new PortfolioWebGL()
+    await webgl.init()
+
+    ;(webgl as any).setPinMode('corners')
+    ;(webgl as any).setGravity(14)
+
+    const button = document.getElementById('cta') as HTMLElement
+    button.dispatchEvent(new MouseEvent('click'))
+
+    const cloth = clothMocks.instances.at(-1) as any
+    expect(cloth.pinCorners).toHaveBeenCalled()
+    expect(cloth.setGravity).toHaveBeenCalled()
+    const gravityArg = cloth.setGravity.mock.calls.at(-1)?.[0] as THREE.Vector3
+    expect(gravityArg.y).toBeCloseTo(-14)
+
+    webgl.dispose()
+  })
+
+  it('rebuilds meshes when tessellation segments change', async () => {
+    const webgl = new PortfolioWebGL()
+    await webgl.init()
+
+    poolMocks.prepare.mockClear()
+    poolMocks.mount.mockClear()
+
+    await (webgl as any).setTessellationSegments(12)
+
+    const button = document.getElementById('cta') as HTMLElement
+    expect(poolMocks.prepare).toHaveBeenCalledWith(button, 12)
+    expect(poolMocks.mount).toHaveBeenCalledWith(button)
+
+    webgl.dispose()
+  })
+
+  it('updates constraint iterations for active cloth bodies', async () => {
+    const webgl = new PortfolioWebGL()
+    await webgl.init()
+
+    const button = document.getElementById('cta') as HTMLElement
+    button.dispatchEvent(new MouseEvent('click'))
+
+    const cloth = clothMocks.instances.at(-1) as any
+    cloth.setConstraintIterations.mockClear()
+
+    ;(webgl as any).setConstraintIterations(8)
+
+    expect(cloth.setConstraintIterations).toHaveBeenCalledWith(8)
+
+    webgl.dispose()
+  })
+
+  it('toggles pointer collider visualization in the scene', async () => {
+    const webgl = new PortfolioWebGL()
+    await webgl.init()
+
+    domMocks.sceneAdd.mockClear()
+    domMocks.sceneRemove.mockClear()
+
+    ;(webgl as any).setPointerColliderVisible(true)
+    expect(domMocks.sceneAdd).toHaveBeenCalledTimes(1)
+
+    ;(webgl as any).setPointerColliderVisible(false)
+    expect(domMocks.sceneRemove).toHaveBeenCalledTimes(1)
 
     webgl.dispose()
   })

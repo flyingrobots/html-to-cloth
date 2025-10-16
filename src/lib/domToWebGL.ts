@@ -17,6 +17,7 @@ export type DOMMeshRecord = {
   heightMeters: number
   texture: THREE.Texture
   initialPositions: Float32Array
+  segments: number
 }
 
 export class DOMToWebGL {
@@ -122,6 +123,7 @@ export class DOMToWebGL {
       heightMeters,
       texture,
       initialPositions,
+      segments,
     }
   }
 
