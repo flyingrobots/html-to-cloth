@@ -1,4 +1,18 @@
-import { MantineProvider } from '@mantine/core'
+import {
+  Button,
+  Container,
+  Group,
+  Kbd,
+  MantineProvider,
+  Modal,
+  Paper,
+  Select,
+  Slider,
+  Stack,
+  Switch,
+  Text,
+  Title,
+} from '@mantine/core'
 import { useEffect, useRef, useState } from 'react'
 import './App.css'
 import { PortfolioWebGL, type PinMode } from './lib/portfolioWebGL'
@@ -97,165 +111,190 @@ function AppInner() {
   const modifierKey =
     typeof navigator !== 'undefined' && navigator?.platform?.toLowerCase().includes('mac') ? '⌘' : 'Ctrl'
 
+  const resetControls = () => {
+    setWireframe(false)
+    setRealTime(true)
+    setGravity(9.81)
+    setImpulseMultiplier(1)
+    setTessellationSegments(24)
+    setConstraintIterations(4)
+    setSubsteps(1)
+    setPointerColliderVisible(false)
+    setPinMode('top')
+  }
+
+  const pinModeOptions = [
+    { value: 'top', label: 'Top Edge' },
+    { value: 'bottom', label: 'Bottom Edge' },
+    { value: 'corners', label: 'Corners' },
+    { value: 'none', label: 'None' },
+  ]
+
   return (
     <>
       <main className="demo-shell">
-        <h1 className="demo-title">Cloth Playground</h1>
-        <p className="demo-copy">
-          This minimal scene keeps the DOM simple while we tune the cloth overlay. Click the button below to peel it
-          away.
-        </p>
-        <button className="demo-button cloth-enabled" type="button">
-          Peel Back
-        </button>
+        <Container size="sm">
+          <Title order={1} className="demo-title">
+            Cloth Playground
+          </Title>
+          <Text className="demo-copy" size="lg">
+            This minimal scene keeps the DOM simple while we tune the cloth overlay. Click the button below to peel it
+            away.
+          </Text>
+          <Button className="demo-button cloth-enabled" size="lg" radius="xl">
+            Peel Back
+          </Button>
+        </Container>
       </main>
-      <div className="debug-toast">
-        Press <span className="kbd">{modifierKey}</span> + <span className="kbd">J</span> to open the debug palette
-      </div>
-      {debugOpen ? (
-        <div className="debug-overlay" role="dialog" aria-modal="true">
-          <div className="debug-card">
-            <header className="debug-card__header">
-              <div>
-                <h2>Debug Settings</h2>
-                <p>Control simulation parameters</p>
-              </div>
-              <button
-                className="debug-close"
-                onClick={() => setDebugOpen(false)}
-                aria-label="Close debug palette"
-                type="button"
-              >
-                ×
-              </button>
-            </header>
-            <div className="debug-card__content">
-              <label className="debug-checkbox">
-                <span>Wireframe</span>
-                <input
-                  type="checkbox"
-                  checked={wireframe}
-                  onChange={(event) => setWireframe(event.target.checked)}
-                />
-              </label>
-              <label className="debug-checkbox">
-                <span>Real-Time</span>
-                <input
-                  type="checkbox"
-                  checked={realTime}
-                  onChange={(event) => setRealTime(event.target.checked)}
-                />
-              </label>
-              <label className="debug-checkbox">
-                <span>Pointer Collider</span>
-                <input
-                  type="checkbox"
-                  checked={pointerColliderVisible}
-                  onChange={(event) => setPointerColliderVisible(event.target.checked)}
-                />
-              </label>
-              <label className="debug-label">
-                <span>Gravity ({gravity.toFixed(2)} m/s²)</span>
-                <input
-                  className="debug-range"
-                  type="range"
-                  min="0"
-                  max="30"
-                  step="0.5"
-                  value={gravity}
-                  onChange={(event) => setGravity(Number.parseFloat(event.target.value))}
-                />
-              </label>
-              <label className="debug-label">
-                <span>Impulse Multiplier ({impulseMultiplier.toFixed(2)})</span>
-                <input
-                  className="debug-range"
-                  type="range"
-                  min="0.1"
-                  max="3"
-                  step="0.1"
-                  value={impulseMultiplier}
-                  onChange={(event) => setImpulseMultiplier(Number.parseFloat(event.target.value))}
-                />
-              </label>
-              <label className="debug-label">
-                <span>Tessellation ({tessellationSegments} × {tessellationSegments})</span>
-                <input
-                  className="debug-range"
-                  type="range"
-                  min="1"
-                  max="32"
-                  step="1"
-                  value={tessellationSegments}
-                  onChange={(event) => setTessellationSegments(Number.parseInt(event.target.value, 10))}
-                />
-              </label>
-              <label className="debug-label">
-                <span>Constraint Iterations ({constraintIterations})</span>
-                <input
-                  className="debug-range"
-                  type="range"
-                  min="1"
-                  max="12"
-                  step="1"
-                  value={constraintIterations}
-                  onChange={(event) => setConstraintIterations(Number.parseInt(event.target.value, 10))}
-                />
-              </label>
-              <label className="debug-label">
-                <span>Substeps ({substeps})</span>
-                <input
-                  className="debug-range"
-                  type="range"
-                  min="1"
-                  max="8"
-                  step="1"
-                  value={substeps}
-                  onChange={(event) => setSubsteps(Number.parseInt(event.target.value, 10))}
-                />
-              </label>
-              <label className="debug-label">
-                <span>Pin Mode</span>
-                <select
-                  className="debug-select"
-                  value={pinMode}
-                  onChange={(event) => setPinMode(event.target.value as PinMode)}
-                >
-                  <option value="top">Top Edge</option>
-                  <option value="bottom">Bottom Edge</option>
-                  <option value="corners">Corners</option>
-                  <option value="none">None</option>
-                </select>
-              </label>
-              {!realTime ? (
-                <button type="button" className="debug-reset" onClick={() => controllerRef.current?.stepOnce()}>
-                  Step (Space)
-                </button>
-              ) : null}
-            </div>
-            <footer className="debug-card__footer">
-              <button
-                className="debug-reset"
-                type="button"
-                onClick={() => {
-                  setWireframe(false)
-                  setRealTime(true)
-                  setGravity(9.81)
-                  setImpulseMultiplier(1)
-                  setTessellationSegments(24)
-                  setConstraintIterations(4)
-                  setSubsteps(1)
-                  setPointerColliderVisible(false)
-                  setPinMode('top')
-                  setDebugOpen(false)
-                }}
-              >
-                Reset
-              </button>
-            </footer>
-          </div>
-        </div>
-      ) : null}
+
+      <Paper className="debug-toast" radius="xl" shadow="lg" withBorder>
+        Press{' '}
+        <Kbd>{modifierKey}</Kbd>
+        {' '}+{' '}
+        <Kbd>J</Kbd>
+        {' '}to open the debug palette
+      </Paper>
+
+      <Modal
+        opened={debugOpen}
+        onClose={() => setDebugOpen(false)}
+        title="Debug Settings"
+        centered
+        size="lg"
+        overlayProps={{ opacity: 0.4, blur: 4 }}
+      >
+        <Stack gap="md">
+          <Group justify="space-between" gap="md">
+            <Text fw={500}>Wireframe</Text>
+            <Switch
+              checked={wireframe}
+              onChange={(event) => setWireframe(event.currentTarget.checked)}
+              size="md"
+            />
+          </Group>
+
+          <Group justify="space-between" gap="md">
+            <Text fw={500}>Real-Time</Text>
+            <Switch
+              checked={realTime}
+              onChange={(event) => setRealTime(event.currentTarget.checked)}
+              size="md"
+            />
+          </Group>
+
+          <Group justify="space-between" gap="md">
+            <Text fw={500}>Pointer Collider</Text>
+            <Switch
+              checked={pointerColliderVisible}
+              onChange={(event) => setPointerColliderVisible(event.currentTarget.checked)}
+              size="md"
+            />
+          </Group>
+
+          <Stack gap="xs">
+            <Group justify="space-between">
+              <Text fw={500}>Gravity</Text>
+              <Text size="sm" c="dimmed">
+                {gravity.toFixed(2)} m/s²
+              </Text>
+            </Group>
+            <Slider value={gravity} min={0} max={30} step={0.5} onChange={setGravity} labelAlwaysOn />
+          </Stack>
+
+          <Stack gap="xs">
+            <Group justify="space-between">
+              <Text fw={500}>Impulse Multiplier</Text>
+              <Text size="sm" c="dimmed">
+                {impulseMultiplier.toFixed(2)}
+              </Text>
+            </Group>
+            <Slider value={impulseMultiplier} min={0.1} max={3} step={0.1} onChange={setImpulseMultiplier} labelAlwaysOn />
+          </Stack>
+
+          <Stack gap="xs">
+            <Group justify="space-between">
+              <Text fw={500}>Tessellation</Text>
+              <Text size="sm" c="dimmed">
+                {tessellationSegments} × {tessellationSegments}
+              </Text>
+            </Group>
+            <Slider
+              value={tessellationSegments}
+              min={1}
+              max={32}
+              step={1}
+              onChange={(value) => setTessellationSegments(Math.round(value))}
+            />
+          </Stack>
+
+          <Stack gap="xs">
+            <Group justify="space-between">
+              <Text fw={500}>Constraint Iterations</Text>
+              <Text size="sm" c="dimmed">
+                {constraintIterations}
+              </Text>
+            </Group>
+            <Slider
+              value={constraintIterations}
+              min={1}
+              max={12}
+              step={1}
+              onChange={(value) => setConstraintIterations(Math.round(value))}
+            />
+          </Stack>
+
+          <Stack gap="xs">
+            <Group justify="space-between">
+              <Text fw={500}>Substeps</Text>
+              <Text size="sm" c="dimmed">
+                {substeps}
+              </Text>
+            </Group>
+            <Slider
+              value={substeps}
+              min={1}
+              max={8}
+              step={1}
+              onChange={(value) => setSubsteps(Math.round(value))}
+            />
+          </Stack>
+
+          <Stack gap="xs">
+            <Text fw={500}>Pin Mode</Text>
+            <Select
+              data={pinModeOptions}
+              value={pinMode}
+              onChange={(value) => {
+                if (value) {
+                  setPinMode(value as PinMode)
+                }
+              }}
+            />
+          </Stack>
+
+          {!realTime ? (
+            <Button variant="light" onClick={() => controllerRef.current?.stepOnce()}>
+              Step (Space)
+            </Button>
+          ) : null}
+
+          <Group justify="flex-end" gap="sm">
+            <Button variant="default" onClick={() => setDebugOpen(false)}>
+              Close
+            </Button>
+            <Button
+              variant="filled"
+              color="dark"
+              onClick={() => {
+                resetControls()
+                setDebugOpen(false)
+              }}
+            >
+              Reset
+            </Button>
+          </Group>
+        </Stack>
+      </Modal>
     </>
   )
 }
