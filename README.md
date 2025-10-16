@@ -1,13 +1,15 @@
 # Cloth Web Demo
 
-A proof-of-concept portfolio that hides a WebGL cloth simulation beneath an accessible DOM layout. Clicking any `.cloth-enabled` element swaps it for a textured mesh, runs cloth physics with pointer-driven gusts, and lets the fabric tumble off screen before the DOM reappears.
+<img src="https://github.com/user-attachments/assets/976ff0de-e55b-46d6-990b-bba48cbe741e" width="500" align="right" />
 
-## Current Highlights
+A proof-of-concept portfolio that hides a WebGL cloth simulation beneath an accessible DOM layout. Clicking any `.cloth-enabled` element swaps it for a textured mesh, runs cloth physics with pointer-driven gusts, and lets the fabric tumble off screen before the DOM reappears. The goal is to create an unexpected effect that delights and entertains all ages and experience levels.
+
+### Current Highlights
 
 - Canonical meter-based render space layered over the DOM via Three.js.
-- DOM capture → tessellated mesh pipeline with lazy html2canvas snapshots.
+- DOM capture → tessellated mesh pipeline with lazy `html2canvas` snapshots.
 - Custom cloth solver (Verlet integration, constraint satisfaction, sleep/wake).
-- Simulation scheduler + SimWorld for active-body ticking and basic broad-phase sweeps.
+- `Simulation` scheduler + `SimWorld` for active-body ticking and basic broad-phase sweeps.
 - Pointer impulses and collision clamps wired through a unified `applyImpulse` API.
 - Tests-as-specs workflow: Vitest coverage for cloth, impulses, scheduler, SimWorld, DOM integration.
 
