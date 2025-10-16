@@ -2,7 +2,7 @@
 
 We will tackle the UI/tooling refactor in discrete steps. Each item gets its own commit.
 
-- [ ] Drop shadcn/Tailwind: remove related dependencies, configs, and generated components.
+- [x] Drop shadcn/Tailwind: remove related dependencies, configs, and generated components.
 - [ ] Install Mantine packages and wire a `MantineProvider` wrapper around the app.
 - [ ] Rebuild the debug palette and key UI widgets with Mantine components.
 - [ ] Clean up styling (replace Tailwind utilities with CSS or Mantine styles, update `index.css`).
