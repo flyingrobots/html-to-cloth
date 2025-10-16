@@ -1,8 +1,17 @@
+import { MantineProvider } from '@mantine/core'
 import { useEffect, useRef, useState } from 'react'
 import './App.css'
 import { PortfolioWebGL, type PinMode } from './lib/portfolioWebGL'
 
 function App() {
+  return (
+    <MantineProvider defaultColorScheme="dark">
+      <AppInner />
+    </MantineProvider>
+  )
+}
+
+function AppInner() {
   const controllerRef = useRef<PortfolioWebGL | null>(null)
   const realTimeRef = useRef(true)
   const [debugOpen, setDebugOpen] = useState(false)
