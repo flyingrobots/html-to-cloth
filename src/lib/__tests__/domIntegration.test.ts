@@ -19,7 +19,7 @@ const domMocks = {
 }
 
 const poolMocks = {
-  prepare: vi.fn(),
+  prepare: vi.fn<(element: HTMLElement, segments?: number) => void>(),
   mount: vi.fn(),
   getRecord: vi.fn(),
   recycle: vi.fn(),
@@ -54,9 +54,10 @@ const recordMap = new Map<HTMLElement, any>()
 
 vi.mock('../domToWebGL', () => {
   class MockDOMToWebGL {
-    constructor(public container: HTMLElement) {
-      domMocks.instances.push(this)
-    }
+    public container: HTMLElement
+    public renderer: { dispose: () => void }
+    public detach: () => void
+    public scene: THREE.Scene
 
     captureElement = domMocks.capture
     createMesh = domMocks.createMesh
@@ -66,12 +67,17 @@ vi.mock('../domToWebGL', () => {
     updateMeshTransform = domMocks.updateMeshTransform
     resize = domMocks.resize
     render = domMocks.render
-    renderer = { dispose: vi.fn(() => domMocks.rendererDispose()) }
-    detach = vi.fn(() => domMocks.detach())
-    scene = {
-      add: vi.fn((object: THREE.Object3D) => domMocks.sceneAdd(object)),
-      remove: vi.fn((object: THREE.Object3D) => domMocks.sceneRemove(object)),
-    } as unknown as THREE.Scene
+
+    constructor(container: HTMLElement) {
+      this.container = container
+      this.renderer = { dispose: () => domMocks.rendererDispose() }
+      this.detach = () => domMocks.detach()
+      this.scene = {
+        add: (object: THREE.Object3D) => domMocks.sceneAdd(object),
+        remove: (object: THREE.Object3D) => domMocks.sceneRemove(object),
+      } as unknown as THREE.Scene
+      domMocks.instances.push(this)
+    }
 
     pointerToCanonical(x: number, y: number) {
       return domMocks.pointerToCanonical(x, y)
@@ -158,6 +164,7 @@ vi.mock('../simulationScheduler', () => {
 
 vi.mock('../clothPhysics', () => {
   class MockClothPhysics {
+    public mesh: THREE.Mesh
     public pinTopEdge = vi.fn()
     public pinBottomEdge = vi.fn()
     public pinCorners = vi.fn()
@@ -177,7 +184,8 @@ vi.mock('../clothPhysics', () => {
     public setSubsteps = vi.fn()
     public relaxConstraints = vi.fn()
 
-    constructor(public mesh: THREE.Mesh) {
+    constructor(mesh: THREE.Mesh) {
+      this.mesh = mesh
       clothMocks.instances.push(this)
     }
   }
@@ -229,8 +237,8 @@ const resetSpies = () => {
   recordMap.clear()
 }
 
-let rafSpy: vi.SpyInstance<number, [FrameRequestCallback]>
-let cafSpy: vi.SpyInstance<void, [number]>
+let rafSpy: any
+let cafSpy: any
 
 beforeAll(() => {
   if (typeof (globalThis as any).PointerEvent === 'undefined') {
@@ -262,8 +270,8 @@ beforeEach(() => {
 })
 
 afterEach(() => {
-  rafSpy.mockRestore()
-  cafSpy.mockRestore()
+  rafSpy?.mockRestore()
+  cafSpy?.mockRestore()
   document.body.innerHTML = ''
 })
 

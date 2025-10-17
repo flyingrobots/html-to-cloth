@@ -2,7 +2,15 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('three', () => {
   class Vector3 {
-    constructor(public x = 0, public y = 0, public z = 0) {}
+    public x: number
+    public y: number
+    public z: number
+
+    constructor(x = 0, y = 0, z = 0) {
+      this.x = x
+      this.y = y
+      this.z = z
+    }
     set(x: number, y: number, z: number) {
       this.x = x
       this.y = y
@@ -28,9 +36,13 @@ vi.mock('three', () => {
   class Scene extends Group {}
 
   class PlaneGeometry {
+    public width: number
+    public height: number
     public parameters: any
     public attributes: any
-    constructor(public width: number, public height: number, widthSegments: number, heightSegments: number) {
+    constructor(width: number, height: number, widthSegments: number, heightSegments: number) {
+      this.width = width
+      this.height = height
       this.parameters = { widthSegments, heightSegments }
       const vertexCount = (widthSegments + 1) * (heightSegments + 1)
       this.attributes = {
@@ -42,15 +54,23 @@ vi.mock('three', () => {
   }
 
   class MeshBasicMaterial {
-    constructor(public config: any) {}
+    public config: any
+    constructor(config: any) {
+      this.config = config
+    }
     dispose() {}
   }
 
   class Mesh {
+    public geometry: any
+    public material: any
     public position = new Vector3()
     public scale = new Vector3(1, 1, 1)
     public frustumCulled = true
-    constructor(public geometry: any, public material: any) {}
+    constructor(geometry: any, material: any) {
+      this.geometry = geometry
+      this.material = material
+    }
   }
 
   class OrthographicCamera {
@@ -66,7 +86,10 @@ vi.mock('three', () => {
   }
 
   class CanvasTexture {
-    constructor(public canvas: HTMLCanvasElement) {}
+    public canvas: HTMLCanvasElement
+    constructor(canvas: HTMLCanvasElement) {
+      this.canvas = canvas
+    }
     needsUpdate = false
     minFilter = 0
     magFilter = 0
@@ -103,14 +126,7 @@ vi.mock('three', () => {
 })
 
 import { DOMToWebGL } from '../domToWebGL'
-import {
-  CANONICAL_HEIGHT_METERS,
-  CANONICAL_WIDTH_METERS,
-  toCanonicalHeightMeters,
-  toCanonicalWidthMeters,
-  toCanonicalX,
-  toCanonicalY,
-} from '../units'
+import { toCanonicalHeightMeters, toCanonicalWidthMeters, toCanonicalX, toCanonicalY } from '../units'
 
 const defaultRect = (left: number, top: number, width: number, height: number): DOMRect => ({
   left,

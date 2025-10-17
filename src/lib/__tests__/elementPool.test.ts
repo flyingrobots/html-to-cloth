@@ -23,6 +23,7 @@ const createMockDomBridge = () => {
     heightMeters: 1,
     texture,
     initialPositions: new Float32Array(mesh.geometry.attributes.position.array as Float32Array),
+    segments: 24,
   }
 
   const bridge: MockDOMBridge = {

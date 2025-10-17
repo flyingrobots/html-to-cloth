@@ -36,7 +36,6 @@ export class ClothPhysics {
   private sleepFrameCounter = 0
   private sleepVelocityThresholdSq = 1e-6
   private sleepFrameThreshold = 60
-  private storedSubsteps = 1
 
   constructor(mesh: THREE.Mesh<THREE.PlaneGeometry, THREE.MeshBasicMaterial>, options?: ClothOptions) {
     this.mesh = mesh
@@ -64,7 +63,6 @@ export class ClothPhysics {
 
   setSubsteps(substeps: number) {
     if (!Number.isFinite(substeps)) return
-    this.storedSubsteps = Math.max(1, Math.round(substeps))
   }
 
   releaseAllPins() {
