@@ -79,6 +79,7 @@ export class DOMToWebGL {
       scale: window.devicePixelRatio,
       logging: false,
       useCORS: true,
+      skipClone: true,
     })
 
     const texture = new THREE.CanvasTexture(canvas)

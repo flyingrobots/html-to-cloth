@@ -233,13 +233,18 @@ export class PortfolioWebGL {
   }
 
   async _prepareElements(elements) {
-    if (!this.domToWebGL || !this.pool) return
+    const domBridge = this.domToWebGL
+    const pool = this.pool
+    if (!domBridge || !pool || this.disposed) return
 
     for (const element of elements) {
-      await this.pool.prepare(element, this.debug.tessellationSegments)
-      this.pool.mount(element)
+      if (this.disposed) return
 
-      const record = this.pool.getRecord(element)
+      await pool.prepare(element, this.debug.tessellationSegments)
+      if (this.disposed) return
+      pool.mount(element)
+
+      const record = pool.getRecord(element)
 
       const originalOpacity = element.style.opacity
       element.style.opacity = '0'
