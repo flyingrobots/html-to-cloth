@@ -12,9 +12,9 @@ body {
 }
 
 body {
-  font-family: 'Inter', 'Helvetica Neue', Arial, sans-serif;
-  background: #f8fafc;
-  color: #0f172a;
+  font-family: var(--mantine-font-family, 'Inter', 'Helvetica Neue', Arial, sans-serif);
+  background: var(--mantine-color-body, #f8fafc);
+  color: var(--mantine-color-text, #0f172a);
   -webkit-font-smoothing: antialiased;
 }
 
