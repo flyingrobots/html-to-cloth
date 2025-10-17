@@ -1,32 +1,27 @@
 import { describe, expect, it, vi } from 'vitest'
 import * as THREE from 'three'
-import type { DOMMeshRecord } from '../domToWebGL'
 import { ElementPool } from '../elementPool'
 
-type MockDOMBridge = {
-  captureElement: ReturnType<typeof vi.fn>
-  createMesh: ReturnType<typeof vi.fn>
-  addMesh: ReturnType<typeof vi.fn>
-  removeMesh: ReturnType<typeof vi.fn>
-  disposeMesh: ReturnType<typeof vi.fn>
-  updateMeshTransform: ReturnType<typeof vi.fn>
-}
+/**
+ * @typedef {import('../domToWebGL.js').DOMMeshRecord} DOMMeshRecord
+ */
 
 const createMockDomBridge = () => {
   const texture = new THREE.Texture()
   const mesh = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), new THREE.MeshBasicMaterial())
-  const record: DOMMeshRecord = {
+  /** @type {DOMMeshRecord} */
+  const record = {
     mesh,
     baseWidthMeters: 1,
     baseHeightMeters: 1,
     widthMeters: 1,
     heightMeters: 1,
     texture,
-    initialPositions: new Float32Array(mesh.geometry.attributes.position.array as Float32Array),
+    initialPositions: Float32Array.from(mesh.geometry.attributes.position.array),
     segments: 24,
   }
 
-  const bridge: MockDOMBridge = {
+  const bridge = {
     captureElement: vi.fn(async () => texture),
     createMesh: vi.fn(() => record),
     addMesh: vi.fn(),
@@ -41,7 +36,7 @@ const createMockDomBridge = () => {
 describe('ElementPool', () => {
   it('captures a DOM element once and reuses its mesh across mounts', async () => {
     const { bridge } = createMockDomBridge()
-    const pool = new ElementPool(bridge as any)
+    const pool = new ElementPool(bridge)
 
     const element = document.createElement('button')
 
@@ -61,7 +56,7 @@ describe('ElementPool', () => {
 
   it('disposes mesh and texture when an element is destroyed', async () => {
     const { bridge } = createMockDomBridge()
-    const pool = new ElementPool(bridge as any)
+    const pool = new ElementPool(bridge)
 
     const element = document.createElement('div')
 
@@ -76,7 +71,7 @@ describe('ElementPool', () => {
 
   it('fails gracefully when activating an unknown element', async () => {
     const { bridge } = createMockDomBridge()
-    const pool = new ElementPool(bridge as any)
+    const pool = new ElementPool(bridge)
 
     const unknown = document.createElement('section')
 
@@ -88,7 +83,7 @@ describe('ElementPool', () => {
 
   it('restores geometry, scale, and cached dimensions on reset', async () => {
     const { bridge, record } = createMockDomBridge()
-    const pool = new ElementPool(bridge as any)
+    const pool = new ElementPool(bridge)
 
     const element = document.createElement('div')
 
@@ -97,7 +92,7 @@ describe('ElementPool', () => {
     expect(stored).toBe(record)
 
     const positions = record.mesh.geometry.attributes.position
-    const array = positions.array as Float32Array
+    const array = positions.array
 
     // disturb positions and dimensions
     for (let i = 0; i < array.length; i++) {
@@ -109,7 +104,7 @@ describe('ElementPool', () => {
 
     pool.resetGeometry(element)
 
-    expect(Array.from(positions.array as Float32Array)).toEqual(
+    expect(Array.from(positions.array)).toEqual(
       Array.from(record.initialPositions)
     )
     expect(record.mesh.scale.x).toBeCloseTo(1)

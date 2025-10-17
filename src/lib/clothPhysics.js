@@ -1,67 +1,69 @@
 import * as THREE from 'three'
 
-export type ClothOptions = {
-  damping?: number
-  constraintIterations?: number
-  gravity?: THREE.Vector3
-}
+/**
+ * @typedef {Object} ClothOptions
+ * @property {number} [damping]
+ * @property {number} [constraintIterations]
+ * @property {THREE.Vector3} [gravity]
+ */
 
-type Particle = {
-  position: THREE.Vector3
-  previous: THREE.Vector3
-  mass: number
-  pinned: boolean
-}
+/**
+ * @typedef {Object} Particle
+ * @property {THREE.Vector3} position
+ * @property {THREE.Vector3} previous
+ * @property {number} mass
+ * @property {boolean} pinned
+ */
 
-type Constraint = {
-  p1: number
-  p2: number
-  restLength: number
-}
+/**
+ * @typedef {Object} Constraint
+ * @property {number} p1
+ * @property {number} p2
+ * @property {number} restLength
+ */
 
 export class ClothPhysics {
-  public mesh: THREE.Mesh<THREE.PlaneGeometry, THREE.MeshBasicMaterial>
-
-  private particles: Particle[] = []
-  private constraints: Constraint[] = []
-  private tmpVector = new THREE.Vector3()
-  private accelVector = new THREE.Vector3()
-  private tmpVector2 = new THREE.Vector2()
-  private gravity = new THREE.Vector3(0, -9.81, 0)
-  private damping = 0.98
-  private constraintIterations = 3
-  private widthSegments: number
-  private heightSegments: number
-  private sleeping = false
-  private sleepFrameCounter = 0
-  private sleepVelocityThresholdSq = 1e-6
-  private sleepFrameThreshold = 60
-
-  constructor(mesh: THREE.Mesh<THREE.PlaneGeometry, THREE.MeshBasicMaterial>, options?: ClothOptions) {
+  /**
+   * @param {THREE.Mesh} mesh
+   * @param {ClothOptions} [options]
+   */
+  constructor(mesh, options = {}) {
     this.mesh = mesh
+    this.particles = []
+    this.constraints = []
+    this.tmpVector = new THREE.Vector3()
+    this.accelVector = new THREE.Vector3()
+    this.tmpVector2 = new THREE.Vector2()
+    this.gravity = new THREE.Vector3(0, -9.81, 0)
+    this.damping = 0.98
+    this.constraintIterations = 3
+    this.sleeping = false
+    this.sleepFrameCounter = 0
+    this.sleepVelocityThresholdSq = 1e-6
+    this.sleepFrameThreshold = 60
 
     const geom = mesh.geometry
     this.widthSegments = (geom.parameters.widthSegments ?? 1) + 1
     this.heightSegments = (geom.parameters.heightSegments ?? 1) + 1
 
-    if (options?.gravity) this.gravity.copy(options.gravity)
-    if (options?.damping) this.damping = options.damping
-    if (options?.constraintIterations) this.constraintIterations = options.constraintIterations
+    if (options.gravity) this.gravity.copy(options.gravity)
+    if (options.damping) this.damping = options.damping
+    if (options.constraintIterations) this.constraintIterations = options.constraintIterations
 
-    this.initializeParticles()
-    this.initializeConstraints()
+    this._initializeParticles()
+    this._initializeConstraints()
   }
 
-  setGravity(value: THREE.Vector3) {
+  setGravity(value) {
     this.gravity.copy(value)
   }
 
-  setConstraintIterations(iterations: number) {
+  setConstraintIterations(iterations) {
     if (!Number.isFinite(iterations)) return
     this.constraintIterations = Math.max(1, Math.round(iterations))
   }
 
-  setSubsteps(substeps: number) {
+  setSubsteps(substeps) {
     if (!Number.isFinite(substeps)) return
   }
 
@@ -90,7 +92,10 @@ export class ClothPhysics {
     this.sleepFrameCounter = 0
   }
 
-  wakeIfPointInside(point: THREE.Vector2) {
+  /**
+   * @param {THREE.Vector2} point
+   */
+  wakeIfPointInside(point) {
     if (!this.sleeping) return
     const sphere = this.getBoundingSphere()
     const dx = point.x - sphere.center.x
@@ -110,12 +115,13 @@ export class ClothPhysics {
     return (this.mesh.geometry.boundingSphere ?? fallback).clone()
   }
 
-  applyPointForce(
-    center: THREE.Vector2,
-    velocity: THREE.Vector2,
-    radius = 0.25,
-    strength = 1
-  ) {
+  /**
+   * @param {THREE.Vector2} center
+   * @param {THREE.Vector2} velocity
+   * @param {number} [radius]
+   * @param {number} [strength]
+   */
+  applyPointForce(center, velocity, radius = 0.25, strength = 1) {
     if (velocity.lengthSq() === 0) return
 
     this.wake()
@@ -137,7 +143,12 @@ export class ClothPhysics {
     }
   }
 
-  applyImpulse(point: THREE.Vector2, force: THREE.Vector2, radius = 0.25) {
+  /**
+   * @param {THREE.Vector2} point
+   * @param {THREE.Vector2} force
+   * @param {number} [radius]
+   */
+  applyImpulse(point, force, radius = 0.25) {
     if (force.lengthSq() === 0) return
     this.wake()
 
@@ -164,7 +175,12 @@ export class ClothPhysics {
     }
   }
 
-  constrainWithinAABB(min: THREE.Vector2, max: THREE.Vector2, damping = 0.6) {
+  /**
+   * @param {THREE.Vector2} min
+   * @param {THREE.Vector2} max
+   * @param {number} [damping]
+   */
+  constrainWithinAABB(min, max, damping = 0.6) {
     let anyCollided = false
 
     for (const particle of this.particles) {
@@ -196,7 +212,7 @@ export class ClothPhysics {
 
     if (anyCollided) {
       this.wake()
-      this.syncGeometry()
+      this._syncGeometry()
     }
   }
 
@@ -209,7 +225,7 @@ export class ClothPhysics {
 
   pinBottomEdge() {
     for (let x = 0; x < this.widthSegments; x++) {
-      const index = this.index(x, 0)
+      const index = this._index(x, 0)
       this.particles[index].pinned = true
     }
   }
@@ -218,10 +234,10 @@ export class ClothPhysics {
     const topRow = this.heightSegments - 1
     const rightCol = this.widthSegments - 1
 
-    const topLeft = this.index(0, topRow)
-    const topRight = this.index(rightCol, topRow)
-    const bottomLeft = this.index(0, 0)
-    const bottomRight = this.index(rightCol, 0)
+    const topLeft = this._index(0, topRow)
+    const topRight = this._index(rightCol, topRow)
+    const bottomLeft = this._index(0, 0)
+    const bottomRight = this._index(rightCol, 0)
 
     this.particles[topLeft].pinned = true
     this.particles[topRight].pinned = true
@@ -236,10 +252,10 @@ export class ClothPhysics {
       particle.position.y += (Math.random() - 0.5) * amount
     }
     this.wake()
-    this.syncGeometry()
+    this._syncGeometry()
   }
 
-  update(deltaSeconds: number) {
+  update(deltaSeconds) {
     if (deltaSeconds <= 0) return
     if (this.sleeping) return
 
@@ -281,11 +297,11 @@ export class ClothPhysics {
 
     for (let i = 0; i < this.constraintIterations; i++) {
       for (const constraint of this.constraints) {
-        this.satisfyConstraint(constraint)
+        this._satisfyConstraint(constraint)
       }
     }
 
-    this.syncGeometry()
+    this._syncGeometry()
 
     if (maxDeltaSq < this.sleepVelocityThresholdSq) {
       this.sleepFrameCounter++
@@ -303,18 +319,18 @@ export class ClothPhysics {
 
     for (let i = 0; i < count; i++) {
       for (const constraint of this.constraints) {
-        this.satisfyConstraint(constraint)
+        this._satisfyConstraint(constraint)
       }
     }
 
-    this.syncGeometry()
+    this._syncGeometry()
   }
 
-  isOffscreen(boundaryY: number) {
+  isOffscreen(boundaryY) {
     return this.particles.every((particle) => particle.position.y < boundaryY)
   }
 
-  private initializeParticles() {
+  _initializeParticles() {
     const positions = this.mesh.geometry.attributes.position
 
     for (let i = 0; i < positions.count; i++) {
@@ -328,28 +344,28 @@ export class ClothPhysics {
     }
   }
 
-  private initializeConstraints() {
+  _initializeConstraints() {
     for (let y = 0; y < this.heightSegments; y++) {
       for (let x = 0; x < this.widthSegments; x++) {
-        const index = this.index(x, y)
+        const index = this._index(x, y)
 
         if (x < this.widthSegments - 1) {
-          this.addConstraint(index, this.index(x + 1, y))
+          this._addConstraint(index, this._index(x + 1, y))
         }
 
         if (y < this.heightSegments - 1) {
-          this.addConstraint(index, this.index(x, y + 1))
+          this._addConstraint(index, this._index(x, y + 1))
         }
 
         if (x < this.widthSegments - 1 && y < this.heightSegments - 1) {
-          this.addConstraint(index, this.index(x + 1, y + 1))
-          this.addConstraint(this.index(x + 1, y), this.index(x, y + 1))
+          this._addConstraint(index, this._index(x + 1, y + 1))
+          this._addConstraint(this._index(x + 1, y), this._index(x, y + 1))
         }
       }
     }
   }
 
-  private addConstraint(p1: number, p2: number) {
+  _addConstraint(p1, p2) {
     const particle1 = this.particles[p1]
     const particle2 = this.particles[p2]
 
@@ -360,7 +376,7 @@ export class ClothPhysics {
     })
   }
 
-  private satisfyConstraint(constraint: Constraint) {
+  _satisfyConstraint(constraint) {
     const particle1 = this.particles[constraint.p1]
     const particle2 = this.particles[constraint.p2]
 
@@ -383,7 +399,7 @@ export class ClothPhysics {
     }
   }
 
-  private syncGeometry() {
+  _syncGeometry() {
     const positions = this.mesh.geometry.attributes.position
 
     for (let i = 0; i < this.particles.length; i++) {
@@ -396,7 +412,7 @@ export class ClothPhysics {
     this.mesh.geometry.computeBoundingSphere()
   }
 
-  private index(x: number, y: number) {
+  _index(x, y) {
     return y * this.widthSegments + x
   }
 }

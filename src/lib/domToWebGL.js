@@ -9,33 +9,25 @@ import {
   toCanonicalY,
 } from './units'
 
-export type DOMMeshRecord = {
-  mesh: THREE.Mesh<THREE.PlaneGeometry, THREE.MeshBasicMaterial>
-  baseWidthMeters: number
-  baseHeightMeters: number
-  widthMeters: number
-  heightMeters: number
-  texture: THREE.Texture
-  initialPositions: Float32Array
-  segments: number
-}
+/**
+ * @typedef {Object} DOMMeshRecord
+ * @property {import('three').Mesh} mesh
+ * @property {number} baseWidthMeters
+ * @property {number} baseHeightMeters
+ * @property {number} widthMeters
+ * @property {number} heightMeters
+ * @property {import('three').Texture} texture
+ * @property {Float32Array} initialPositions
+ * @property {number} segments
+ */
 
 export class DOMToWebGL {
-  public scene: THREE.Scene
-  public camera: THREE.OrthographicCamera
-  public renderer: THREE.WebGLRenderer
-  private rootGroup: THREE.Group
-
-  private container: HTMLElement
-  private html2canvasRef: typeof import('html2canvas')['default'] | null = null
-  private viewportWidth: number
-  private viewportHeight: number
-
-  constructor(container: HTMLElement) {
+  constructor(container) {
     this.container = container
     this.scene = new THREE.Scene()
     this.camera = new THREE.OrthographicCamera()
     this.renderer = new THREE.WebGLRenderer({ alpha: true, antialias: true })
+    this.html2canvasRef = null
 
     this.viewportWidth = window.innerWidth
     this.viewportHeight = window.innerHeight
@@ -79,7 +71,7 @@ export class DOMToWebGL {
     this.renderer.render(this.scene, this.camera)
   }
 
-  async captureElement(element: HTMLElement) {
+  async captureElement(element) {
     const html2canvas = await this.ensureHtml2Canvas()
 
     const canvas = await html2canvas(element, {
@@ -97,7 +89,7 @@ export class DOMToWebGL {
     return texture
   }
 
-  createMesh(element: HTMLElement, texture: THREE.Texture, segments = 24): DOMMeshRecord {
+  createMesh(element, texture, segments = 24) {
     const rect = element.getBoundingClientRect()
     const widthMeters = toCanonicalWidthMeters(rect.width, this.viewportWidth)
     const heightMeters = toCanonicalHeightMeters(rect.height, this.viewportHeight)
@@ -111,10 +103,10 @@ export class DOMToWebGL {
 
     const mesh = new THREE.Mesh(geometry, material)
     mesh.frustumCulled = false
-    mesh.position.set(...this.domPositionToWorld(rect))
+    mesh.position.set(...this._domPositionToWorld(rect))
 
     const positions = mesh.geometry.attributes.position
-    const initialPositions = new Float32Array(positions.array as Float32Array)
+    const initialPositions = new Float32Array(positions.array)
 
     return {
       mesh,
@@ -128,17 +120,17 @@ export class DOMToWebGL {
     }
   }
 
-  addMesh(mesh: THREE.Object3D) {
+  addMesh(mesh) {
     this.rootGroup.add(mesh)
   }
 
-  removeMesh(mesh: THREE.Object3D) {
+  removeMesh(mesh) {
     this.rootGroup.remove(mesh)
   }
 
-  updateMeshTransform(element: HTMLElement, record: DOMMeshRecord) {
+  updateMeshTransform(element, record) {
     const rect = element.getBoundingClientRect()
-    record.mesh.position.set(...this.domPositionToWorld(rect))
+    record.mesh.position.set(...this._domPositionToWorld(rect))
 
     const widthMeters = toCanonicalWidthMeters(rect.width, this.viewportWidth)
     const heightMeters = toCanonicalHeightMeters(rect.height, this.viewportHeight)
@@ -150,7 +142,7 @@ export class DOMToWebGL {
     record.heightMeters = heightMeters
   }
 
-  disposeMesh(record: DOMMeshRecord) {
+  disposeMesh(record) {
     record.mesh.geometry.dispose()
     record.mesh.material.dispose()
     record.texture.dispose()
@@ -163,11 +155,11 @@ export class DOMToWebGL {
     }
   }
 
-  pointerToCanonical(clientX: number, clientY: number) {
+  pointerToCanonical(clientX, clientY) {
     return fromPointerToCanonical(clientX, clientY, this.viewportWidth, this.viewportHeight)
   }
 
-  private updateCamera() {
+  updateCamera() {
     this.camera.left = -CANONICAL_WIDTH_METERS / 2
     this.camera.right = CANONICAL_WIDTH_METERS / 2
     this.camera.top = CANONICAL_HEIGHT_METERS / 2
@@ -179,7 +171,7 @@ export class DOMToWebGL {
     this.camera.updateProjectionMatrix()
   }
 
-  private domPositionToWorld(rect: DOMRect): [number, number, number] {
+  _domPositionToWorld(rect) {
     const centerX = rect.left + rect.width / 2
     const centerY = rect.top + rect.height / 2
     const x = toCanonicalX(centerX, this.viewportWidth)
@@ -187,7 +179,7 @@ export class DOMToWebGL {
     return [x, y, 0]
   }
 
-  private async ensureHtml2Canvas() {
+  async ensureHtml2Canvas() {
     if (this.html2canvasRef) return this.html2canvasRef
     const module = await import('html2canvas')
     this.html2canvasRef = module.default

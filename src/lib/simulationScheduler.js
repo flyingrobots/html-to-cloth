@@ -1,31 +1,37 @@
 import * as THREE from 'three'
 
-export type SleepableBody = {
-  id: string
-  update: (dt: number) => void
-  isSleeping: () => boolean
-  wake: () => void
-  wakeIfPointInside?: (point: THREE.Vector2) => void
-}
+/**
+ * @typedef {Object} SleepableBody
+ * @property {string} id
+ * @property {(dt: number) => void} update
+ * @property {() => boolean} isSleeping
+ * @property {() => void} wake
+ * @property {(point: THREE.Vector2) => void} [wakeIfPointInside]
+ */
 
 export class SimulationScheduler {
-  private bodies = new Map<string, SleepableBody>()
+  constructor() {
+    this.bodies = new Map()
+  }
 
-  addBody(body: SleepableBody) {
+  /**
+   * @param {SleepableBody} body
+   */
+  addBody(body) {
     this.bodies.set(body.id, body)
   }
 
-  removeBody(id: string) {
+  removeBody(id) {
     this.bodies.delete(id)
   }
 
-  wakeBody(id: string) {
+  wakeBody(id) {
     const body = this.bodies.get(id)
     if (!body) return
     body.wake()
   }
 
-  notifyPointer(point: THREE.Vector2) {
+  notifyPointer(point) {
     for (const body of this.bodies.values()) {
       if (!body.isSleeping()) continue
       if (body.wakeIfPointInside) {
@@ -34,7 +40,7 @@ export class SimulationScheduler {
     }
   }
 
-  step(dt: number) {
+  step(dt) {
     for (const body of this.bodies.values()) {
       if (body.isSleeping()) continue
       body.update(dt)

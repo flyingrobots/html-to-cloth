@@ -1,25 +1,21 @@
 import { describe, expect, it } from 'vitest'
 import * as THREE from 'three'
 import { SimulationScheduler } from '../simulationScheduler'
-import { SimWorld, type SimBody } from '../simWorld'
+import { SimWorld } from '../simWorld'
 
-class MockBody implements SimBody {
-  id: string
-  private position: THREE.Vector2
-  private radius: number
-  private sleeping: boolean
-  updates = 0
-  wakes = 0
-  wakeIfPointInsideCalls: THREE.Vector2[] = []
-
-  constructor(id: string, position: THREE.Vector2, radius: number, sleeping = false) {
+class MockBody {
+  constructor(id, position, radius, sleeping = false) {
     this.id = id
     this.position = position
     this.radius = radius
     this.sleeping = sleeping
+    this.updates = 0
+    this.wakes = 0
+    /** @type {THREE.Vector2[]} */
+    this.wakeIfPointInsideCalls = []
   }
 
-  setPosition(x: number, y: number) {
+  setPosition(x, y) {
     this.position.set(x, y)
   }
 
@@ -27,7 +23,7 @@ class MockBody implements SimBody {
     return { center: this.position.clone(), radius: this.radius }
   }
 
-  update(_dt: number) {
+  update() {
     this.updates += 1
   }
 
@@ -40,7 +36,7 @@ class MockBody implements SimBody {
     this.wakes += 1
   }
 
-  wakeIfPointInside(point: THREE.Vector2) {
+  wakeIfPointInside(point) {
     this.wakeIfPointInsideCalls.push(point)
     const { center, radius } = this.getBoundingSphere()
     if (point.distanceTo(center) <= radius) {

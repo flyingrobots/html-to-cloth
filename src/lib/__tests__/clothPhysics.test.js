@@ -10,8 +10,13 @@ const makeCloth = (widthVertices = 3, heightVertices = 3) => {
   return { cloth, mesh, geometry }
 }
 
-const buildNeighborPairs = (widthVertices: number, heightVertices: number) => {
-  const pairs: Array<[number, number]> = []
+/**
+ * @param {number} widthVertices
+ * @param {number} heightVertices
+ */
+const buildNeighborPairs = (widthVertices, heightVertices) => {
+  /** @type {Array<[number, number]>} */
+  const pairs = []
   for (let y = 0; y < heightVertices; y++) {
     for (let x = 0; x < widthVertices; x++) {
       const idx = y * widthVertices + x
@@ -26,7 +31,10 @@ const buildNeighborPairs = (widthVertices: number, heightVertices: number) => {
   return pairs
 }
 
-const findTopIndices = (positions: THREE.Vector3[]) => {
+/**
+ * @param {THREE.Vector3[]} positions
+ */
+const findTopIndices = (positions) => {
   const maxY = Math.max(...positions.map((p) => p.y))
   return positions
     .map((p, index) => ({ index, y: p.y }))

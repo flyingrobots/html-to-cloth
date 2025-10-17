@@ -3,17 +3,12 @@ import * as THREE from 'three'
 import { SimulationScheduler } from '../simulationScheduler'
 
 class MockBody {
-  id: string
-  updates: number
-  sleeping: boolean
-  wakeCalls: number
-  wakeIfPointInsideCalls: Array<THREE.Vector2>
-
-  constructor(id: string, sleeping = false) {
+  constructor(id, sleeping = false) {
     this.id = id
     this.updates = 0
     this.sleeping = sleeping
     this.wakeCalls = 0
+    /** @type {THREE.Vector2[]} */
     this.wakeIfPointInsideCalls = []
   }
 
@@ -30,7 +25,7 @@ class MockBody {
     this.wakeCalls += 1
   }
 
-  wakeIfPointInside(point: THREE.Vector2) {
+  wakeIfPointInside(point) {
     this.wakeIfPointInsideCalls.push(point)
   }
 }

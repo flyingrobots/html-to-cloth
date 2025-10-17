@@ -1,23 +1,29 @@
-import type { DOMMeshRecord, DOMToWebGL } from './domToWebGL'
+/**
+ * @typedef {import('./domToWebGL.js').DOMMeshRecord} DOMMeshRecord
+ * @typedef {object} DOMBridge
+ * @property {(element: HTMLElement) => Promise<import('three').Texture>} captureElement
+ * @property {(element: HTMLElement, texture: import('three').Texture, segments?: number) => DOMMeshRecord} createMesh
+ * @property {(mesh: import('three').Object3D) => void} addMesh
+ * @property {(mesh: import('three').Object3D) => void} removeMesh
+ * @property {(record: DOMMeshRecord) => void} disposeMesh
+ * @property {(element: HTMLElement, record: DOMMeshRecord) => void} updateMeshTransform
+ */
 
 export class ElementPool {
-  private domBridge: Pick<
-    DOMToWebGL,
-    'captureElement' | 'createMesh' | 'addMesh' | 'removeMesh' | 'disposeMesh' | 'updateMeshTransform'
-  >
-  private elements = new Map<HTMLElement, DOMMeshRecord>()
-  private mounted = new Set<HTMLElement>()
-
-  constructor(
-    domBridge: Pick<
-      DOMToWebGL,
-      'captureElement' | 'createMesh' | 'addMesh' | 'removeMesh' | 'disposeMesh' | 'updateMeshTransform'
-    >
-  ) {
+  /**
+   * @param {DOMBridge} domBridge
+   */
+  constructor(domBridge) {
     this.domBridge = domBridge
+    this.elements = new Map()
+    this.mounted = new Set()
   }
 
-  async prepare(element: HTMLElement, segments = 24) {
+  /**
+   * @param {HTMLElement} element
+   * @param {number} [segments]
+   */
+  async prepare(element, segments = 24) {
     const existing = this.elements.get(element)
     if (existing && existing.segments === segments) return
 
@@ -31,11 +37,11 @@ export class ElementPool {
     this.elements.set(element, record)
   }
 
-  getRecord(element: HTMLElement) {
+  getRecord(element) {
     return this.elements.get(element)
   }
 
-  mount(element: HTMLElement) {
+  mount(element) {
     const record = this.elements.get(element)
     if (!record) return
     if (this.mounted.has(element)) return
@@ -45,7 +51,7 @@ export class ElementPool {
     this.mounted.add(element)
   }
 
-  recycle(element: HTMLElement) {
+  recycle(element) {
     const record = this.elements.get(element)
     if (!record) return
     if (!this.mounted.has(element)) return
@@ -54,7 +60,7 @@ export class ElementPool {
     this.mounted.delete(element)
   }
 
-  destroy(element: HTMLElement) {
+  destroy(element) {
     const record = this.elements.get(element)
     if (!record) return
 
@@ -64,19 +70,22 @@ export class ElementPool {
     this.mounted.delete(element)
   }
 
-  has(element: HTMLElement) {
+  has(element) {
     return this.elements.has(element)
   }
 
-  resetGeometry(element: HTMLElement) {
+  resetGeometry(element) {
     const record = this.elements.get(element)
     if (!record) return
 
     const positions = record.mesh.geometry.attributes.position
     if (!positions) return
 
-    const array = positions.array as Float32Array
-    array.set(record.initialPositions)
+    const array = positions.array
+    const source = record.initialPositions
+    for (let i = 0; i < source.length; i++) {
+      array[i] = source[i]
+    }
     positions.needsUpdate = true
     record.mesh.geometry.computeVertexNormals()
     record.mesh.geometry.computeBoundingSphere()

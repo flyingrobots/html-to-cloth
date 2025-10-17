@@ -2,45 +2,51 @@ import * as THREE from 'three'
 import { edgeToCanonicalX, edgeToCanonicalY } from './units'
 import { ClothPhysics } from './clothPhysics'
 
-type StaticBody = {
-  element: HTMLElement
-  min: THREE.Vector2
-  max: THREE.Vector2
-}
+/**
+ * @typedef {Object} StaticBody
+ * @property {HTMLElement} element
+ * @property {import('three').Vector2} min
+ * @property {import('three').Vector2} max
+ */
 
 export class CollisionSystem {
-  private staticBodies: StaticBody[] = []
-  private viewportWidth = window.innerWidth
-  private viewportHeight = window.innerHeight
+  constructor() {
+    this.staticBodies = []
+    this.viewportWidth = window.innerWidth
+    this.viewportHeight = window.innerHeight
+  }
 
-  setViewportDimensions(width: number, height: number) {
+  setViewportDimensions(width, height) {
     this.viewportWidth = width
     this.viewportHeight = height
     this.refresh()
   }
 
-  addStaticBody(element: HTMLElement) {
+  addStaticBody(element) {
     const rect = element.getBoundingClientRect()
     this.staticBodies.push({
       element,
-      min: this.rectMin(rect),
-      max: this.rectMax(rect),
+      min: this._rectMin(rect),
+      max: this._rectMax(rect),
     })
   }
 
-  removeStaticBody(element: HTMLElement) {
+  removeStaticBody(element) {
     this.staticBodies = this.staticBodies.filter((body) => body.element !== element)
   }
 
   refresh() {
     for (const body of this.staticBodies) {
       const rect = body.element.getBoundingClientRect()
-      body.min = this.rectMin(rect)
-      body.max = this.rectMax(rect)
+      body.min = this._rectMin(rect)
+      body.max = this._rectMax(rect)
     }
   }
 
-  apply(cloth: ClothPhysics) {
+  /**
+   * @param {ClothPhysics} cloth
+   */
+  apply(cloth) {
     for (const body of this.staticBodies) {
       cloth.constrainWithinAABB(body.min, body.max)
     }
@@ -50,14 +56,14 @@ export class CollisionSystem {
     this.staticBodies = []
   }
 
-  private rectMin(rect: DOMRect) {
+  _rectMin(rect) {
     return new THREE.Vector2(
       edgeToCanonicalX(rect.left, this.viewportWidth),
       edgeToCanonicalY(rect.bottom, this.viewportHeight)
     )
   }
 
-  private rectMax(rect: DOMRect) {
+  _rectMax(rect) {
     return new THREE.Vector2(
       edgeToCanonicalX(rect.right, this.viewportWidth),
       edgeToCanonicalY(rect.top, this.viewportHeight)

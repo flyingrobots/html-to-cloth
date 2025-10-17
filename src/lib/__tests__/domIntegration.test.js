@@ -10,22 +10,22 @@ const domMocks = {
   updateMeshTransform: vi.fn(),
   resize: vi.fn(),
   render: vi.fn(),
-  pointerToCanonical: vi.fn((x: number, y: number) => ({ x: x / 100, y: y / 100 })),
+  pointerToCanonical: vi.fn((x, y) => ({ x: x / 100, y: y / 100 })),
   detach: vi.fn(),
   rendererDispose: vi.fn(),
   sceneAdd: vi.fn(),
   sceneRemove: vi.fn(),
-  instances: [] as any[],
+  instances: [],
 }
 
 const poolMocks = {
-  prepare: vi.fn<(element: HTMLElement, segments?: number) => void>(),
+  prepare: vi.fn(),
   mount: vi.fn(),
   getRecord: vi.fn(),
   recycle: vi.fn(),
   resetGeometry: vi.fn(),
   destroy: vi.fn(),
-  instances: [] as any[],
+  instances: [],
 }
 
 const collisionMocks = {
@@ -46,40 +46,42 @@ const schedulerMocks = {
 }
 
 const clothMocks = {
-  instances: [] as any[],
+  instances: [],
   applyImpulse: vi.fn(),
 }
 
-const recordMap = new Map<HTMLElement, any>()
+const recordMap = new Map()
+
+const getCtaButton = () => {
+  const button = document.getElementById('cta')
+  if (!button) {
+    throw new Error('CTA button not found')
+  }
+  return button
+}
 
 vi.mock('../domToWebGL', () => {
   class MockDOMToWebGL {
-    public container: HTMLElement
-    public renderer: { dispose: () => void }
-    public detach: () => void
-    public scene: THREE.Scene
-
-    captureElement = domMocks.capture
-    createMesh = domMocks.createMesh
-    addMesh = domMocks.addMesh
-    removeMesh = domMocks.removeMesh
-    disposeMesh = domMocks.disposeMesh
-    updateMeshTransform = domMocks.updateMeshTransform
-    resize = domMocks.resize
-    render = domMocks.render
-
-    constructor(container: HTMLElement) {
+    constructor(container) {
       this.container = container
       this.renderer = { dispose: () => domMocks.rendererDispose() }
       this.detach = () => domMocks.detach()
       this.scene = {
-        add: (object: THREE.Object3D) => domMocks.sceneAdd(object),
-        remove: (object: THREE.Object3D) => domMocks.sceneRemove(object),
-      } as unknown as THREE.Scene
+        add: (object) => domMocks.sceneAdd(object),
+        remove: (object) => domMocks.sceneRemove(object),
+      }
+      this.captureElement = domMocks.capture
+      this.createMesh = domMocks.createMesh
+      this.addMesh = domMocks.addMesh
+      this.removeMesh = domMocks.removeMesh
+      this.disposeMesh = domMocks.disposeMesh
+      this.updateMeshTransform = domMocks.updateMeshTransform
+      this.resize = domMocks.resize
+      this.render = domMocks.render
       domMocks.instances.push(this)
     }
 
-    pointerToCanonical(x: number, y: number) {
+    pointerToCanonical(x, y) {
       return domMocks.pointerToCanonical(x, y)
     }
 
@@ -101,7 +103,7 @@ vi.mock('../elementPool', () => {
       poolMocks.instances.push(this)
     }
 
-    prepare = vi.fn(async (element: HTMLElement, segments = 24) => {
+    prepare = vi.fn(async (element, segments = 24) => {
       const existing = recordMap.get(element)
       if (existing && existing.segments === segments) {
         return
@@ -110,26 +112,28 @@ vi.mock('../elementPool', () => {
       const geometry = new THREE.PlaneGeometry(1, 1, 1, 1)
       const material = new THREE.MeshBasicMaterial()
       const mesh = new THREE.Mesh(geometry, material)
-      const initialPositions = new Float32Array((geometry.attributes.position.array as Float32Array).slice())
+      const baseArray = geometry.attributes.position.array
+      const initialPositions = new Float32Array(baseArray.length)
+      initialPositions.set(baseArray)
       recordMap.set(element, {
         mesh,
         baseWidthMeters: 1,
         baseHeightMeters: 1,
         widthMeters: 1,
         heightMeters: 1,
-        texture: {} as THREE.Texture,
+        texture: new THREE.Texture(),
         initialPositions,
         segments,
       })
     })
 
-    mount = vi.fn((element: HTMLElement) => poolMocks.mount(element))
-    getRecord = vi.fn((element: HTMLElement) => {
+    mount = vi.fn((element) => poolMocks.mount(element))
+    getRecord = vi.fn((element) => {
       poolMocks.getRecord(element)
       return recordMap.get(element)
     })
-    recycle = vi.fn((element: HTMLElement) => poolMocks.recycle(element))
-    resetGeometry = vi.fn((element: HTMLElement) => poolMocks.resetGeometry(element))
+    recycle = vi.fn((element) => poolMocks.recycle(element))
+    resetGeometry = vi.fn((element) => poolMocks.resetGeometry(element))
     destroy = vi.fn(() => poolMocks.destroy())
   }
 
@@ -138,10 +142,10 @@ vi.mock('../elementPool', () => {
 
 vi.mock('../collisionSystem', () => {
   class MockCollisionSystem {
-    addStaticBody = vi.fn((element: HTMLElement) => collisionMocks.addStaticBody(element))
-    removeStaticBody = vi.fn((element: HTMLElement) => collisionMocks.removeStaticBody(element))
+    addStaticBody = vi.fn((element) => collisionMocks.addStaticBody(element))
+    removeStaticBody = vi.fn((element) => collisionMocks.removeStaticBody(element))
     apply = vi.fn(() => collisionMocks.apply())
-    setViewportDimensions = vi.fn((w: number, h: number) => collisionMocks.setViewportDimensions(w, h))
+    setViewportDimensions = vi.fn((w, h) => collisionMocks.setViewportDimensions(w, h))
     refresh = vi.fn(() => collisionMocks.refresh())
     clear = vi.fn(() => collisionMocks.clear())
   }
@@ -151,11 +155,11 @@ vi.mock('../collisionSystem', () => {
 
 vi.mock('../simulationScheduler', () => {
   class MockSimulationScheduler {
-    addBody = vi.fn((body: any) => schedulerMocks.addBody(body))
-    removeBody = vi.fn((id: string) => schedulerMocks.removeBody(id))
-    notifyPointer = vi.fn((point: THREE.Vector2) => schedulerMocks.notifyPointer(point))
-    step = vi.fn((dt: number) => schedulerMocks.step(dt))
-    stepCloth = vi.fn((dt: number) => schedulerMocks.step(dt))
+    addBody = vi.fn((body) => schedulerMocks.addBody(body))
+    removeBody = vi.fn((id) => schedulerMocks.removeBody(id))
+    notifyPointer = vi.fn((point) => schedulerMocks.notifyPointer(point))
+    step = vi.fn((dt) => schedulerMocks.step(dt))
+    stepCloth = vi.fn((dt) => schedulerMocks.step(dt))
     clear = vi.fn(() => schedulerMocks.clear())
   }
 
@@ -164,28 +168,24 @@ vi.mock('../simulationScheduler', () => {
 
 vi.mock('../clothPhysics', () => {
   class MockClothPhysics {
-    public mesh: THREE.Mesh
-    public pinTopEdge = vi.fn()
-    public pinBottomEdge = vi.fn()
-    public pinCorners = vi.fn()
-    public clearPins = vi.fn()
-    public addTurbulence = vi.fn()
-    public releaseAllPins = vi.fn()
-    public update = vi.fn()
-    public applyPointForce = vi.fn()
-    public applyImpulse = vi.fn((point: THREE.Vector2, force: THREE.Vector2, radius: number) =>
-      clothMocks.applyImpulse(point, force, radius)
-    )
-    public isOffscreen = vi.fn(() => false)
-    public wake = vi.fn()
-    public wakeIfPointInside = vi.fn()
-    public setGravity = vi.fn()
-    public setConstraintIterations = vi.fn()
-    public setSubsteps = vi.fn()
-    public relaxConstraints = vi.fn()
-
-    constructor(mesh: THREE.Mesh) {
+    constructor(mesh) {
       this.mesh = mesh
+      this.pinTopEdge = vi.fn()
+      this.pinBottomEdge = vi.fn()
+      this.pinCorners = vi.fn()
+      this.clearPins = vi.fn()
+      this.addTurbulence = vi.fn()
+      this.releaseAllPins = vi.fn()
+      this.update = vi.fn()
+      this.applyPointForce = vi.fn()
+      this.applyImpulse = vi.fn((point, force, radius) => clothMocks.applyImpulse(point, force, radius))
+      this.isOffscreen = vi.fn(() => false)
+      this.wake = vi.fn()
+      this.wakeIfPointInside = vi.fn()
+      this.setGravity = vi.fn()
+      this.setConstraintIterations = vi.fn()
+      this.setSubsteps = vi.fn()
+      this.relaxConstraints = vi.fn()
       clothMocks.instances.push(this)
     }
   }
@@ -237,18 +237,18 @@ const resetSpies = () => {
   recordMap.clear()
 }
 
-let rafSpy: any
-let cafSpy: any
+let rafSpy = null
+let cafSpy = null
 
 beforeAll(() => {
-  if (typeof (globalThis as any).PointerEvent === 'undefined') {
-    ;(globalThis as any).PointerEvent = MouseEvent as unknown as typeof PointerEvent
+  if (typeof globalThis.PointerEvent === 'undefined') {
+    globalThis.PointerEvent = MouseEvent
   }
 })
 
 beforeEach(() => {
   resetSpies()
-  rafSpy = vi.spyOn(globalThis, 'requestAnimationFrame').mockReturnValue(1 as any)
+  rafSpy = vi.spyOn(globalThis, 'requestAnimationFrame').mockReturnValue(1)
   cafSpy = vi.spyOn(globalThis, 'cancelAnimationFrame').mockImplementation(() => {})
   document.body.innerHTML = `
     <main class="demo">
@@ -256,7 +256,9 @@ beforeEach(() => {
       <button id="cta" class="cloth-enabled">Peel Back</button>
     </main>
   `
-  ;(document.getElementById('cta') as HTMLElement).getBoundingClientRect = () => ({
+  const cta = document.getElementById('cta')
+  if (!cta) throw new Error('CTA not found in test setup')
+  cta.getBoundingClientRect = () => ({
     left: 100,
     top: 200,
     right: 220,
@@ -280,7 +282,7 @@ describe('PortfolioWebGL DOM integration', () => {
     const webgl = new PortfolioWebGL()
     await webgl.init()
 
-    const clothElements = Array.from(document.querySelectorAll<HTMLElement>('.cloth-enabled'))
+    const clothElements = Array.from(document.querySelectorAll('.cloth-enabled'))
 
     expect(clothElements).toHaveLength(1)
     expect(poolMocks.prepare).toHaveBeenCalledTimes(1)
@@ -298,6 +300,7 @@ describe('PortfolioWebGL DOM integration', () => {
     const webgl = new PortfolioWebGL()
     await webgl.init()
 
+    collisionMocks.setViewportDimensions.mockClear()
     const initialSetCalls = collisionMocks.setViewportDimensions.mock.calls.length
     window.dispatchEvent(new Event('resize'))
     expect(domMocks.resize).toHaveBeenCalled()
@@ -313,7 +316,7 @@ describe('PortfolioWebGL DOM integration', () => {
     const webgl = new PortfolioWebGL()
     await webgl.init()
 
-    const button = document.getElementById('cta') as HTMLElement
+    const button = getCtaButton()
     button.dispatchEvent(new MouseEvent('click'))
 
     expect(clothMocks.instances).toHaveLength(1)
@@ -329,12 +332,12 @@ describe('PortfolioWebGL DOM integration', () => {
     const webgl = new PortfolioWebGL()
     await webgl.init()
 
-    const button = document.getElementById('cta') as HTMLElement
+    const button = getCtaButton()
     button.dispatchEvent(new MouseEvent('click'))
 
     const adapter = schedulerMocks.addBody.mock.calls[0][0]
     const cloth = clothMocks.instances[0]
-    const pointer = (webgl as any).pointer as any
+    const pointer = webgl.pointer
 
     pointer.previous.set(0, 0)
     pointer.position.set(0.2, 0.1)
@@ -355,7 +358,7 @@ describe('PortfolioWebGL DOM integration', () => {
   })
 
   it('honors per-element impulse tuning via data attributes', async () => {
-    const button = document.getElementById('cta') as HTMLElement
+    const button = getCtaButton()
     button.dataset.clothImpulseRadius = '0.9'
     button.dataset.clothImpulseStrength = '1.5'
 
@@ -365,7 +368,7 @@ describe('PortfolioWebGL DOM integration', () => {
     button.dispatchEvent(new MouseEvent('click'))
     const adapter = schedulerMocks.addBody.mock.calls[0][0]
     const cloth = clothMocks.instances[0]
-    const pointer = (webgl as any).pointer as any
+    const pointer = webgl.pointer
 
     pointer.previous.set(0, 0)
     pointer.position.set(0.3, 0.2)
@@ -388,7 +391,7 @@ describe('PortfolioWebGL DOM integration', () => {
     const webgl = new PortfolioWebGL()
     await webgl.init()
 
-    const button = document.getElementById('cta') as HTMLElement
+    const button = getCtaButton()
     button.dispatchEvent(new MouseEvent('click'))
 
     expect(schedulerMocks.addBody).toHaveBeenCalledTimes(1)
@@ -418,8 +421,8 @@ describe('PortfolioWebGL DOM integration', () => {
 
     schedulerMocks.step.mockClear()
 
-    ;(webgl as any).setSubsteps(3)
-    ;(webgl as any).stepOnce()
+    webgl.setSubsteps(3)
+    webgl.stepOnce()
 
     expect(schedulerMocks.step).toHaveBeenCalledTimes(3)
     const calls = schedulerMocks.step.mock.calls.map(([dt]) => dt)
@@ -437,12 +440,12 @@ describe('PortfolioWebGL DOM integration', () => {
     window.dispatchEvent(new PointerEvent('pointermove', { clientX: 200, clientY: 200 }))
     window.dispatchEvent(new PointerEvent('pointermove', { clientX: 260, clientY: 220 }))
 
-    const pointer = (webgl as any).pointer as { active: boolean; needsImpulse: boolean; velocity: THREE.Vector2 }
+    const pointer = webgl.pointer
     expect(pointer.active).toBe(true)
     expect(pointer.needsImpulse).toBe(true)
 
     poolMocks.resetGeometry.mockClear()
-    const button = document.getElementById('cta') as HTMLElement
+    const button = getCtaButton()
     button.dispatchEvent(new MouseEvent('click'))
 
     expect(poolMocks.resetGeometry).toHaveBeenCalledWith(button)
@@ -457,16 +460,16 @@ describe('PortfolioWebGL DOM integration', () => {
     const webgl = new PortfolioWebGL()
     await webgl.init()
 
-    ;(webgl as any).setPinMode('corners')
-    ;(webgl as any).setGravity(14)
+    webgl.setPinMode('corners')
+    webgl.setGravity(14)
 
-    const button = document.getElementById('cta') as HTMLElement
+    const button = getCtaButton()
     button.dispatchEvent(new MouseEvent('click'))
 
-    const cloth = clothMocks.instances.at(-1) as any
+    const cloth = clothMocks.instances.at(-1)
     expect(cloth.pinCorners).toHaveBeenCalled()
     expect(cloth.setGravity).toHaveBeenCalled()
-    const gravityArg = cloth.setGravity.mock.calls.at(-1)?.[0] as THREE.Vector3
+    const gravityArg = cloth.setGravity.mock.calls.at(-1)?.[0]
     expect(gravityArg.y).toBeCloseTo(-14)
 
     webgl.dispose()
@@ -479,9 +482,9 @@ describe('PortfolioWebGL DOM integration', () => {
     poolMocks.prepare.mockClear()
     poolMocks.mount.mockClear()
 
-    await (webgl as any).setTessellationSegments(12)
+    await webgl.setTessellationSegments(12)
 
-    const button = document.getElementById('cta') as HTMLElement
+    const button = getCtaButton()
     expect(poolMocks.prepare).toHaveBeenCalledWith(button, 12)
     expect(poolMocks.mount).toHaveBeenCalledWith(button)
 
@@ -492,13 +495,13 @@ describe('PortfolioWebGL DOM integration', () => {
     const webgl = new PortfolioWebGL()
     await webgl.init()
 
-    const button = document.getElementById('cta') as HTMLElement
+    const button = getCtaButton()
     button.dispatchEvent(new MouseEvent('click'))
 
-    const cloth = clothMocks.instances.at(-1) as any
+    const cloth = clothMocks.instances.at(-1)
     cloth.setConstraintIterations.mockClear()
 
-    ;(webgl as any).setConstraintIterations(8)
+    webgl.setConstraintIterations(8)
 
     expect(cloth.setConstraintIterations).toHaveBeenCalledWith(8)
 
@@ -512,10 +515,10 @@ describe('PortfolioWebGL DOM integration', () => {
     domMocks.sceneAdd.mockClear()
     domMocks.sceneRemove.mockClear()
 
-    ;(webgl as any).setPointerColliderVisible(true)
+    webgl.setPointerColliderVisible(true)
     expect(domMocks.sceneAdd).toHaveBeenCalledTimes(1)
 
-    ;(webgl as any).setPointerColliderVisible(false)
+    webgl.setPointerColliderVisible(false)
     expect(domMocks.sceneRemove).toHaveBeenCalledTimes(1)
 
     webgl.dispose()

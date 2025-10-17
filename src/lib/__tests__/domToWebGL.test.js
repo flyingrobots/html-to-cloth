@@ -2,16 +2,12 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('three', () => {
   class Vector3 {
-    public x: number
-    public y: number
-    public z: number
-
     constructor(x = 0, y = 0, z = 0) {
       this.x = x
       this.y = y
       this.z = z
     }
-    set(x: number, y: number, z: number) {
+    set(x, y, z) {
       this.x = x
       this.y = y
       this.z = z
@@ -23,12 +19,14 @@ vi.mock('three', () => {
   }
 
   class Group {
-    public children: any[] = []
-    public scale = new Vector3(1, 1, 1)
-    add(child: any) {
+    constructor() {
+      this.children = []
+      this.scale = new Vector3(1, 1, 1)
+    }
+    add(child) {
       this.children.push(child)
     }
-    remove(child: any) {
+    remove(child) {
       this.children = this.children.filter((c) => c !== child)
     }
   }
@@ -36,11 +34,7 @@ vi.mock('three', () => {
   class Scene extends Group {}
 
   class PlaneGeometry {
-    public width: number
-    public height: number
-    public parameters: any
-    public attributes: any
-    constructor(width: number, height: number, widthSegments: number, heightSegments: number) {
+    constructor(width, height, widthSegments, heightSegments) {
       this.width = width
       this.height = height
       this.parameters = { widthSegments, heightSegments }
@@ -54,56 +48,53 @@ vi.mock('three', () => {
   }
 
   class MeshBasicMaterial {
-    public config: any
-    constructor(config: any) {
+    constructor(config) {
       this.config = config
     }
     dispose() {}
   }
 
   class Mesh {
-    public geometry: any
-    public material: any
-    public position = new Vector3()
-    public scale = new Vector3(1, 1, 1)
-    public frustumCulled = true
-    constructor(geometry: any, material: any) {
+    constructor(geometry, material) {
       this.geometry = geometry
       this.material = material
+      this.position = new Vector3()
+      this.scale = new Vector3(1, 1, 1)
+      this.frustumCulled = true
     }
   }
 
   class OrthographicCamera {
-    public left = 0
-    public right = 0
-    public top = 0
-    public bottom = 0
-    public near = 0
-    public far = 0
-    public position = new Vector3()
+    constructor() {
+      this.left = 0
+      this.right = 0
+      this.top = 0
+      this.bottom = 0
+      this.near = 0
+      this.far = 0
+      this.position = new Vector3()
+    }
     updateProjectionMatrix() {}
     lookAt() {}
   }
 
   class CanvasTexture {
-    public canvas: HTMLCanvasElement
-    constructor(canvas: HTMLCanvasElement) {
+    constructor(canvas) {
       this.canvas = canvas
+      this.needsUpdate = false
+      this.minFilter = 0
+      this.magFilter = 0
     }
-    needsUpdate = false
-    minFilter = 0
-    magFilter = 0
     dispose() {}
   }
 
   class WebGLRenderer {
-    public domElement: HTMLCanvasElement
-    public lastSize: { width: number; height: number } | null = null
-    constructor(_options: any) {
+    constructor() {
       this.domElement = document.createElement('canvas')
+      this.lastSize = null
     }
     setPixelRatio() {}
-    setSize(width: number, height: number) {
+    setSize(width, height) {
       this.lastSize = { width, height }
     }
     render() {}
@@ -128,7 +119,7 @@ vi.mock('three', () => {
 import { DOMToWebGL } from '../domToWebGL'
 import { toCanonicalHeightMeters, toCanonicalWidthMeters, toCanonicalX, toCanonicalY } from '../units'
 
-const defaultRect = (left: number, top: number, width: number, height: number): DOMRect => ({
+const defaultRect = (left, top, width, height) => ({
   left,
   top,
   width,
@@ -140,7 +131,7 @@ const defaultRect = (left: number, top: number, width: number, height: number): 
   toJSON() {
     return {}
   },
-}) as DOMRect
+})
 
 beforeEach(() => {
   Object.defineProperty(window, 'innerWidth', { configurable: true, value: 1200 })
@@ -155,7 +146,7 @@ describe('DOMToWebGL canonical mapping', () => {
     const element = document.createElement('div')
     let rect = defaultRect(100, 200, 120, 60)
     element.getBoundingClientRect = () => rect
-    const texture = { dispose: vi.fn() } as any
+    const texture = { dispose: vi.fn() }
 
     const record = dom.createMesh(element, texture, 1)
 
@@ -174,7 +165,7 @@ describe('DOMToWebGL canonical mapping', () => {
     const element = document.createElement('div')
     let rect = defaultRect(50, 50, 80, 40)
     element.getBoundingClientRect = () => rect
-    const record = dom.createMesh(element, {} as any, 1)
+    const record = dom.createMesh(element, { dispose() {} }, 1)
 
     rect = defaultRect(150, 120, 160, 80)
     dom.updateMeshTransform(element, record)
@@ -194,7 +185,7 @@ describe('DOMToWebGL canonical mapping', () => {
 
   it('updates root group scale when resizing the viewport', () => {
     const dom = new DOMToWebGL(document.body)
-    const rootGroup = (dom as any).rootGroup as { scale: { x: number; y: number } }
+    const rootGroup = dom.rootGroup
     expect(rootGroup.scale.x).toBe(1)
     expect(rootGroup.scale.y).toBe(1)
 

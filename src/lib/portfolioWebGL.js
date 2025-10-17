@@ -1,66 +1,55 @@
 import * as THREE from 'three'
 import { DOMToWebGL } from './domToWebGL'
-import type { DOMMeshRecord } from './domToWebGL'
 import { ClothPhysics } from './clothPhysics'
 import { CollisionSystem } from './collisionSystem'
 import { CANONICAL_HEIGHT_METERS } from './units'
 import { ElementPool } from './elementPool'
-import { SimulationScheduler, type SleepableBody } from './simulationScheduler'
+import { SimulationScheduler } from './simulationScheduler'
 
 const FIXED_DT = 1 / 60
 const MAX_ACCUMULATED_TIME = FIXED_DT * 5
 const WARM_START_PASSES = 2
 
-export type PinMode = 'top' | 'bottom' | 'corners' | 'none'
+/**
+ * @typedef {import('./domToWebGL.js').DOMMeshRecord} DOMMeshRecord
+ * @typedef {'top' | 'bottom' | 'corners' | 'none'} PinMode
+ * @typedef {Object} DebugSettings
+ * @property {boolean} realTime
+ * @property {boolean} wireframe
+ * @property {number} gravity
+ * @property {number} impulseMultiplier
+ * @property {number} constraintIterations
+ * @property {number} substeps
+ * @property {number} tessellationSegments
+ * @property {boolean} pointerCollider
+ * @property {PinMode} pinMode
+ * @typedef {Object} PointerState
+ * @property {THREE.Vector2} position
+ * @property {THREE.Vector2} previous
+ * @property {THREE.Vector2} velocity
+ * @property {boolean} active
+ * @property {boolean} needsImpulse
+ * @typedef {Object} ClothItem
+ * @property {HTMLElement} element
+ * @property {ClothPhysics | undefined} cloth
+ * @property {string} originalOpacity
+ * @property {(event: MouseEvent) => void} clickHandler
+ * @property {boolean} isActive
+ * @property {DOMMeshRecord | undefined} record
+ * @property {ClothBodyAdapter | undefined} adapter
+ */
 
-type DebugSettings = {
-  realTime: boolean
-  wireframe: boolean
-  gravity: number
-  impulseMultiplier: number
-  constraintIterations: number
-  substeps: number
-  tessellationSegments: number
-  pointerCollider: boolean
-  pinMode: PinMode
-}
-
-type PointerState = {
-  position: THREE.Vector2
-  previous: THREE.Vector2
-  velocity: THREE.Vector2
-  active: boolean
-  needsImpulse: boolean
-}
-
-type ClothItem = {
-  element: HTMLElement
-  cloth?: ClothPhysics
-  originalOpacity: string
-  clickHandler: (event: MouseEvent) => void
-  isActive: boolean
-  record?: DOMMeshRecord
-  adapter?: ClothBodyAdapter
-}
-
-class ClothBodyAdapter implements SleepableBody {
-  public readonly id: string
-  private item: ClothItem
-  private pointer: PointerState
-  private collisionSystem: CollisionSystem
-  private handleOffscreen: () => void
-  private record: DOMMeshRecord
-  private debug: Pick<DebugSettings, 'impulseMultiplier'>
-
-  constructor(
-    id: string,
-    item: ClothItem,
-    pointer: PointerState,
-    collisionSystem: CollisionSystem,
-    handleOffscreen: () => void,
-    record: DOMMeshRecord,
-    debug: Pick<DebugSettings, 'impulseMultiplier'>
-  ) {
+class ClothBodyAdapter {
+  /**
+   * @param {string} id
+   * @param {ClothItem} item
+   * @param {PointerState} pointer
+   * @param {CollisionSystem} collisionSystem
+   * @param {() => void} handleOffscreen
+   * @param {DOMMeshRecord} record
+   * @param {{ impulseMultiplier: number }} debug
+   */
+  constructor(id, item, pointer, collisionSystem, handleOffscreen, record, debug) {
     this.id = id
     this.item = item
     this.pointer = pointer
@@ -70,13 +59,13 @@ class ClothBodyAdapter implements SleepableBody {
     this.debug = debug
   }
 
-  update(dt: number) {
+  update(dt) {
     const cloth = this.item.cloth
     if (!cloth) return
 
     if (this.pointer.needsImpulse) {
-      const radius = this.getImpulseRadius()
-      const strength = this.getImpulseStrength()
+      const radius = this._getImpulseRadius()
+      const strength = this._getImpulseStrength()
       const scaledForce = this.pointer.velocity.clone().multiplyScalar(strength)
       cloth.applyImpulse(this.pointer.position, scaledForce, radius)
       this.pointer.needsImpulse = false
@@ -100,11 +89,11 @@ class ClothBodyAdapter implements SleepableBody {
     this.item.cloth?.wake()
   }
 
-  wakeIfPointInside(point: THREE.Vector2) {
+  wakeIfPointInside(point) {
     this.item.cloth?.wakeIfPointInside(point)
   }
 
-  private getImpulseRadius() {
+  _getImpulseRadius() {
     const attr = this.item.element.dataset.clothImpulseRadius
     const parsed = attr ? Number.parseFloat(attr) : NaN
     if (!Number.isNaN(parsed) && parsed > 0) {
@@ -115,7 +104,7 @@ class ClothBodyAdapter implements SleepableBody {
     return base > 0 ? base / 2 : 0.25
   }
 
-  private getImpulseStrength() {
+  _getImpulseStrength() {
     const attr = this.item.element.dataset.clothImpulseStrength
     const parsed = attr ? Number.parseFloat(attr) : NaN
     const elementStrength = !Number.isNaN(parsed) && parsed > 0 ? parsed : 1
@@ -124,44 +113,47 @@ class ClothBodyAdapter implements SleepableBody {
 }
 
 export class PortfolioWebGL {
-  private domToWebGL: DOMToWebGL | null = null
-  private collisionSystem = new CollisionSystem()
-  private items = new Map<HTMLElement, ClothItem>()
-  private rafId: number | null = null
-  private clock = new THREE.Clock()
-  private disposed = false
-  private pool: ElementPool | null = null
-  private scheduler = new SimulationScheduler()
-  private accumulator = 0
-  private elementIds = new Map<HTMLElement, string>()
-  private onResize = () => this.handleResize()
-  private onScroll = () => {
-    this.syncStaticMeshes()
-    this.collisionSystem.refresh()
+  constructor() {
+    this.domToWebGL = null
+    this.collisionSystem = new CollisionSystem()
+    this.items = new Map()
+    this.rafId = null
+    this.clock = new THREE.Clock()
+    this.disposed = false
+    this.pool = null
+    this.scheduler = new SimulationScheduler()
+    this.accumulator = 0
+    this.elementIds = new Map()
+    this.pointer = {
+      position: new THREE.Vector2(),
+      previous: new THREE.Vector2(),
+      velocity: new THREE.Vector2(),
+      active: false,
+      needsImpulse: false,
+    }
+    this.pointerHelper = null
+    this.pointerHelperAttached = false
+    this.pointerColliderVisible = false
+    this.debug = {
+      realTime: true,
+      wireframe: false,
+      gravity: 9.81,
+      impulseMultiplier: 1,
+      constraintIterations: 4,
+      substeps: 1,
+      tessellationSegments: 24,
+      pointerCollider: false,
+      pinMode: 'top',
+    }
+
+    this.onResize = () => this._handleResize()
+    this.onScroll = () => {
+      this._syncStaticMeshes()
+      this.collisionSystem.refresh()
+    }
+    this.onPointerMove = (event) => this._handlePointerMove(event)
+    this.onPointerLeave = () => this._resetPointer()
   }
-  private pointer: PointerState = {
-    position: new THREE.Vector2(),
-    previous: new THREE.Vector2(),
-    velocity: new THREE.Vector2(),
-    active: false,
-    needsImpulse: false,
-  }
-  private pointerHelper: THREE.Mesh | null = null
-  private pointerHelperAttached = false
-  private pointerColliderVisible = false
-  private debug: DebugSettings = {
-    realTime: true,
-    wireframe: false,
-    gravity: 9.81,
-    impulseMultiplier: 1,
-    constraintIterations: 4,
-    substeps: 1,
-    tessellationSegments: 24,
-    pointerCollider: false,
-    pinMode: 'top',
-  }
-  private onPointerMove = (event: PointerEvent) => this.handlePointerMove(event)
-  private onPointerLeave = () => this.resetPointer()
 
   async init() {
     if (this.domToWebGL) return
@@ -172,12 +164,12 @@ export class PortfolioWebGL {
     this.collisionSystem.setViewportDimensions(viewport.width, viewport.height)
 
     const clothElements = Array.from(
-      document.querySelectorAll<HTMLElement>('.cloth-enabled')
+      document.querySelectorAll('.cloth-enabled')
     )
 
     if (!clothElements.length) return
 
-    await this.prepareElements(clothElements)
+    await this._prepareElements(clothElements)
 
     window.addEventListener('resize', this.onResize, { passive: true })
     window.addEventListener('scroll', this.onScroll, { passive: true })
@@ -187,7 +179,7 @@ export class PortfolioWebGL {
     window.addEventListener('pointercancel', this.onPointerLeave, { passive: true })
 
     this.clock.start()
-    this.animate()
+    this._animate()
 
     if (this.pointerColliderVisible) {
       this.setPointerColliderVisible(true)
@@ -205,8 +197,10 @@ export class PortfolioWebGL {
         this.domToWebGL.scene.remove(this.pointerHelper)
       }
       this.pointerHelper.geometry.dispose()
-      const material = this.pointerHelper.material as THREE.Material
-      material.dispose()
+      const material = this.pointerHelper.material
+      if (material && typeof material.dispose === 'function') {
+        material.dispose()
+      }
       this.pointerHelper = null
       this.pointerHelperAttached = false
     }
@@ -238,7 +232,7 @@ export class PortfolioWebGL {
     this.elementIds.clear()
   }
 
-  private async prepareElements(elements: HTMLElement[]) {
+  async _prepareElements(elements) {
     if (!this.domToWebGL || !this.pool) return
 
     for (const element of elements) {
@@ -250,9 +244,9 @@ export class PortfolioWebGL {
       const originalOpacity = element.style.opacity
       element.style.opacity = '0'
 
-      const clickHandler = (event: MouseEvent) => {
+      const clickHandler = (event) => {
         event.preventDefault()
-        this.activate(element)
+        this._activate(element)
       }
 
       element.addEventListener('click', clickHandler)
@@ -268,7 +262,7 @@ export class PortfolioWebGL {
     }
   }
 
-  private activate(element: HTMLElement) {
+  _activate(element) {
     if (!this.domToWebGL || !this.pool) return
 
     const item = this.items.get(element)
@@ -276,7 +270,7 @@ export class PortfolioWebGL {
 
     item.isActive = true
     this.collisionSystem.removeStaticBody(element)
-    this.resetPointer()
+    this._resetPointer()
 
     const record = this.pool.getRecord(element)
     if (!record) return
@@ -290,10 +284,10 @@ export class PortfolioWebGL {
 
     cloth.setConstraintIterations(this.debug.constraintIterations)
     cloth.setSubsteps(this.debug.substeps)
-    this.applyPinMode(cloth)
+    this._applyPinMode(cloth)
 
     const gravityVector = new THREE.Vector3(0, -this.debug.gravity, 0)
-    this.runWarmStart(cloth)
+    this._runWarmStart(cloth)
     cloth.setGravity(gravityVector)
 
     cloth.addTurbulence(0.06)
@@ -301,17 +295,17 @@ export class PortfolioWebGL {
 
     item.cloth = cloth
     item.record = record
-    const material = record.mesh.material as THREE.MeshBasicMaterial | undefined
-    if (material) {
+    const material = record.mesh.material
+    if (material && 'wireframe' in material) {
       material.wireframe = this.debug.wireframe
     }
-    const adapterId = this.getBodyId(element)
+    const adapterId = this._getBodyId(element)
     const adapter = new ClothBodyAdapter(
       adapterId,
       item,
       this.pointer,
       this.collisionSystem,
-      () => this.handleClothOffscreen(item),
+      () => this._handleClothOffscreen(item),
       record,
       this.debug
     )
@@ -320,35 +314,35 @@ export class PortfolioWebGL {
     element.removeEventListener('click', item.clickHandler)
   }
 
-  private animate() {
+  _animate() {
     if (this.disposed || !this.domToWebGL) return
 
-    this.rafId = requestAnimationFrame(() => this.animate())
+    this.rafId = requestAnimationFrame(() => this._animate())
     const delta = Math.min(this.clock.getDelta(), 0.05)
 
     if (this.debug.realTime) {
       this.accumulator = Math.min(this.accumulator + delta, MAX_ACCUMULATED_TIME)
       while (this.accumulator >= FIXED_DT) {
-        this.stepCloth(FIXED_DT)
+        this._stepCloth(FIXED_DT)
         this.accumulator -= FIXED_DT
       }
     }
 
-    this.decayPointerImpulse()
-    this.updatePointerHelper()
+    this._decayPointerImpulse()
+    this._updatePointerHelper()
     this.domToWebGL.render()
   }
 
-  private handleResize() {
+  _handleResize() {
     if (!this.domToWebGL) return
     this.domToWebGL.resize()
     const viewport = this.domToWebGL.getViewportPixels()
     this.collisionSystem.setViewportDimensions(viewport.width, viewport.height)
     this.collisionSystem.refresh()
-    this.syncStaticMeshes()
+    this._syncStaticMeshes()
   }
 
-  private syncStaticMeshes() {
+  _syncStaticMeshes() {
     if (!this.domToWebGL) return
 
     for (const item of this.items.values()) {
@@ -360,7 +354,7 @@ export class PortfolioWebGL {
     }
   }
 
-  private handlePointerMove(event: PointerEvent) {
+  _handlePointerMove(event) {
     if (!this.domToWebGL) return
     const canonical = this.domToWebGL.pointerToCanonical(event.clientX, event.clientY)
     const x = canonical.x
@@ -373,7 +367,7 @@ export class PortfolioWebGL {
       this.pointer.active = true
       this.pointer.previous.copy(this.pointer.position)
       this.scheduler.notifyPointer(this.pointer.position)
-      this.updatePointerHelper()
+      this._updatePointerHelper()
       return
     }
 
@@ -385,17 +379,17 @@ export class PortfolioWebGL {
     }
 
     this.scheduler.notifyPointer(this.pointer.position)
-    this.updatePointerHelper()
+    this._updatePointerHelper()
   }
 
-  private resetPointer() {
+  _resetPointer() {
     this.pointer.active = false
     this.pointer.needsImpulse = false
     this.pointer.velocity.set(0, 0)
-    this.updatePointerHelper()
+    this._updatePointerHelper()
   }
 
-  private getBodyId(element: HTMLElement) {
+  _getBodyId(element) {
     let id = this.elementIds.get(element)
     if (!id) {
       id = `cloth-${this.elementIds.size + 1}`
@@ -404,7 +398,7 @@ export class PortfolioWebGL {
     return id
   }
 
-  private handleClothOffscreen(item: ClothItem) {
+  _handleClothOffscreen(item) {
     if (!this.pool) return
 
     const element = item.element
@@ -424,28 +418,28 @@ export class PortfolioWebGL {
     item.adapter = undefined
   }
 
-  setWireframe(enabled: boolean) {
+  setWireframe(enabled) {
     this.debug.wireframe = enabled
     for (const item of this.items.values()) {
-      const material = item.record?.mesh.material as THREE.MeshBasicMaterial | undefined
-      if (material) {
+      const material = item.record?.mesh.material
+      if (material && 'wireframe' in material) {
         material.wireframe = enabled
       }
     }
   }
 
-  setGravity(gravity: number) {
+  setGravity(gravity) {
     this.debug.gravity = gravity
     for (const item of this.items.values()) {
       item.cloth?.setGravity(new THREE.Vector3(0, -gravity, 0))
     }
   }
 
-  setImpulseMultiplier(multiplier: number) {
+  setImpulseMultiplier(multiplier) {
     this.debug.impulseMultiplier = multiplier
   }
 
-  setRealTime(enabled: boolean) {
+  setRealTime(enabled) {
     this.debug.realTime = enabled
     if (enabled) {
       this.accumulator = 0
@@ -453,7 +447,7 @@ export class PortfolioWebGL {
     }
   }
 
-  setSubsteps(substeps: number) {
+  setSubsteps(substeps) {
     const clamped = Math.max(1, Math.round(substeps))
     this.debug.substeps = clamped
     for (const item of this.items.values()) {
@@ -461,7 +455,7 @@ export class PortfolioWebGL {
     }
   }
 
-  setConstraintIterations(iterations: number) {
+  setConstraintIterations(iterations) {
     const clamped = Math.max(1, Math.round(iterations))
     this.debug.constraintIterations = clamped
     for (const item of this.items.values()) {
@@ -469,27 +463,27 @@ export class PortfolioWebGL {
     }
   }
 
-  setPinMode(mode: PinMode) {
+  setPinMode(mode) {
     this.debug.pinMode = mode
     const gravityVector = new THREE.Vector3(0, -this.debug.gravity, 0)
     for (const item of this.items.values()) {
       const cloth = item.cloth
       if (!cloth) continue
       cloth.clearPins()
-      this.applyPinMode(cloth)
-      this.runWarmStart(cloth)
+      this._applyPinMode(cloth)
+      this._runWarmStart(cloth)
       cloth.setGravity(gravityVector)
     }
   }
 
-  async setTessellationSegments(segments: number) {
+  async setTessellationSegments(segments) {
     const pool = this.pool
     if (!pool) return
     const clamped = Math.max(1, Math.min(segments, 32))
     if (this.debug.tessellationSegments === clamped) return
     this.debug.tessellationSegments = clamped
 
-    const tasks: Promise<void>[] = []
+    const tasks = []
 
     for (const item of this.items.values()) {
       if (item.isActive) continue
@@ -500,8 +494,8 @@ export class PortfolioWebGL {
           .then(() => {
             pool.mount(element)
             item.record = pool.getRecord(element)
-            const material = item.record?.mesh.material as THREE.MeshBasicMaterial | undefined
-            if (material) {
+            const material = item.record?.mesh.material
+            if (material && 'wireframe' in material) {
               material.wireframe = this.debug.wireframe
             }
           })
@@ -512,12 +506,12 @@ export class PortfolioWebGL {
     this.collisionSystem.refresh()
   }
 
-  setPointerColliderVisible(enabled: boolean) {
+  setPointerColliderVisible(enabled) {
     this.debug.pointerCollider = enabled
     this.pointerColliderVisible = enabled
     if (!this.domToWebGL) return
 
-    const helper = this.ensurePointerHelper()
+    const helper = this._ensurePointerHelper()
 
     if (enabled) {
       if (!this.pointerHelperAttached) {
@@ -525,7 +519,7 @@ export class PortfolioWebGL {
         this.pointerHelperAttached = true
       }
       helper.visible = true
-      this.updatePointerHelper()
+      this._updatePointerHelper()
     } else {
       helper.visible = false
       if (this.pointerHelperAttached) {
@@ -536,12 +530,12 @@ export class PortfolioWebGL {
   }
 
   stepOnce() {
-    this.stepCloth(FIXED_DT)
-    this.decayPointerImpulse()
-    this.updatePointerHelper()
+    this._stepCloth(FIXED_DT)
+    this._decayPointerImpulse()
+    this._updatePointerHelper()
   }
 
-  private stepCloth(dt: number) {
+  _stepCloth(dt) {
     const substeps = Math.max(1, this.debug.substeps)
     const stepSize = dt / substeps
     for (let i = 0; i < substeps; i++) {
@@ -549,7 +543,7 @@ export class PortfolioWebGL {
     }
   }
 
-  private decayPointerImpulse() {
+  _decayPointerImpulse() {
     if (this.pointer.needsImpulse) {
       this.pointer.velocity.multiplyScalar(0.65)
       if (this.pointer.velocity.lengthSq() < 0.25) {
@@ -559,14 +553,14 @@ export class PortfolioWebGL {
     }
   }
 
-  private updatePointerHelper() {
+  _updatePointerHelper() {
     if (!this.pointerHelper) return
     this.pointerHelper.visible = this.pointerColliderVisible
     if (!this.pointerColliderVisible) return
     this.pointerHelper.position.set(this.pointer.position.x, this.pointer.position.y, 0.2)
   }
 
-  private ensurePointerHelper() {
+  _ensurePointerHelper() {
     if (!this.pointerHelper) {
       const geometry = new THREE.SphereGeometry(0.12, 16, 16)
       const material = new THREE.MeshBasicMaterial({ color: 0xff6699, wireframe: true })
@@ -576,7 +570,7 @@ export class PortfolioWebGL {
     return this.pointerHelper
   }
 
-  private applyPinMode(cloth: ClothPhysics) {
+  _applyPinMode(cloth) {
     switch (this.debug.pinMode) {
       case 'top':
         cloth.pinTopEdge()
@@ -593,7 +587,7 @@ export class PortfolioWebGL {
     }
   }
 
-  private runWarmStart(cloth: ClothPhysics) {
+  _runWarmStart(cloth) {
     if (WARM_START_PASSES <= 0) return
     cloth.wake()
     cloth.setGravity(new THREE.Vector3(0, 0, 0))

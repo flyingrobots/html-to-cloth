@@ -1,25 +1,36 @@
 import * as THREE from 'three'
-import { SimulationScheduler, type SleepableBody } from './simulationScheduler'
+import { SimulationScheduler } from './simulationScheduler'
 
-export type BoundingSphere = {
-  center: THREE.Vector2
-  radius: number
-}
+/**
+ * @typedef {Object} BoundingSphere
+ * @property {THREE.Vector2} center
+ * @property {number} radius
+ */
 
-export interface SimBody extends SleepableBody {
-  getBoundingSphere: () => BoundingSphere
-}
+/**
+ * @typedef {Object} SimBody
+ * @property {string} id
+ * @property {(dt: number) => void} update
+ * @property {() => boolean} isSleeping
+ * @property {() => void} wake
+ * @property {(point: THREE.Vector2) => void} [wakeIfPointInside]
+ * @property {() => BoundingSphere} getBoundingSphere
+ */
 
 export class SimWorld {
-  private scheduler: SimulationScheduler
-  private bodies = new Map<string, SimBody>()
-  private previousCenters = new Map<string, THREE.Vector2>()
-
-  constructor(scheduler?: SimulationScheduler) {
+  /**
+   * @param {SimulationScheduler} [scheduler]
+   */
+  constructor(scheduler) {
     this.scheduler = scheduler ?? new SimulationScheduler()
+    this.bodies = new Map()
+    this.previousCenters = new Map()
   }
 
-  addBody(body: SimBody) {
+  /**
+   * @param {SimBody} body
+   */
+  addBody(body) {
     if (this.bodies.has(body.id)) {
       throw new Error(`Cannot add duplicate body id: ${body.id}`)
     }
@@ -28,13 +39,13 @@ export class SimWorld {
     this.previousCenters.set(body.id, body.getBoundingSphere().center.clone())
   }
 
-  removeBody(id: string) {
+  removeBody(id) {
     this.bodies.delete(id)
     this.scheduler.removeBody(id)
     this.previousCenters.delete(id)
   }
 
-  step(dt: number) {
+  step(dt) {
     for (const [id, body] of this.bodies.entries()) {
       this.previousCenters.set(id, body.getBoundingSphere().center.clone())
     }
@@ -46,13 +57,13 @@ export class SimWorld {
       for (let j = i + 1; j < entries.length; j++) {
         const bodyA = entries[i]
         const bodyB = entries[j]
-        this.checkSweep(bodyA, bodyB)
-        this.checkSweep(bodyB, bodyA)
+        this._checkSweep(bodyA, bodyB)
+        this._checkSweep(bodyB, bodyA)
       }
     }
   }
 
-  notifyPointer(point: THREE.Vector2) {
+  notifyPointer(point) {
     this.scheduler.notifyPointer(point)
   }
 
@@ -64,7 +75,7 @@ export class SimWorld {
     this.previousCenters.clear()
   }
 
-  private checkSweep(moving: SimBody, target: SimBody) {
+  _checkSweep(moving, target) {
     if (!target.isSleeping()) return
 
     const prev = this.previousCenters.get(moving.id)
@@ -73,7 +84,7 @@ export class SimWorld {
     const currentSphere = moving.getBoundingSphere()
     const targetSphere = target.getBoundingSphere()
 
-    const intersects = this.segmentIntersectsSphere(
+    const intersects = this._segmentIntersectsSphere(
       prev,
       currentSphere.center,
       targetSphere.center,
@@ -85,12 +96,7 @@ export class SimWorld {
     }
   }
 
-  private segmentIntersectsSphere(
-    start: THREE.Vector2,
-    end: THREE.Vector2,
-    center: THREE.Vector2,
-    radius: number
-  ) {
+  _segmentIntersectsSphere(start, end, center, radius) {
     const ab = end.clone().sub(start)
     const ac = center.clone().sub(start)
 
