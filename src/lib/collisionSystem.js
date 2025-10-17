@@ -1,6 +1,5 @@
 import * as THREE from 'three'
 import { edgeToCanonicalX, edgeToCanonicalY } from './units'
-import { ClothPhysics } from './clothPhysics'
 
 /**
  * @typedef {Object} StaticBody
@@ -44,7 +43,7 @@ export class CollisionSystem {
   }
 
   /**
-   * @param {ClothPhysics} cloth
+   * @param {import('./clothPhysics.js').ClothPhysics} cloth
    */
   apply(cloth) {
     for (const body of this.staticBodies) {

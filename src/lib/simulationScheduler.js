@@ -1,12 +1,10 @@
-import * as THREE from 'three'
-
 /**
  * @typedef {Object} SleepableBody
  * @property {string} id
  * @property {(dt: number) => void} update
  * @property {() => boolean} isSleeping
  * @property {() => void} wake
- * @property {(point: THREE.Vector2) => void} [wakeIfPointInside]
+ * @property {(point: import('three').Vector2) => void} [wakeIfPointInside]
  */
 
 export class SimulationScheduler {

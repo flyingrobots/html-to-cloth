@@ -1,4 +1,5 @@
 import {
+  Box,
   Button,
   Container,
   Group,
@@ -12,9 +13,9 @@ import {
   Switch,
   Text,
   Title,
+  useMantineTheme,
 } from '@mantine/core'
 import { useEffect, useRef, useState } from 'react'
-import './App.css'
 import { PortfolioWebGL } from './lib/portfolioWebGL'
 
 /**
@@ -33,6 +34,7 @@ function AppInner() {
   const controllerRef = /** @type {import('react').MutableRefObject<PortfolioWebGL | null>} */ (
     useRef(null)
   )
+  const theme = useMantineTheme()
   const realTimeRef = useRef(true)
   const [debugOpen, setDebugOpen] = useState(false)
   const [wireframe, setWireframe] = useState(false)
@@ -136,29 +138,68 @@ function AppInner() {
     { value: 'none', label: 'None' },
   ]
 
+  const heroGradient = theme.colorScheme === 'dark'
+    ? theme.fn.radialGradient(theme.colors.dark[8], theme.colors.dark[6])
+    : theme.fn.radialGradient(theme.colors.indigo[0], theme.colors.gray[0])
+
   return (
     <>
-      <main className="demo-shell">
+      <Box
+        component="main"
+        style={{
+          background: heroGradient,
+          minHeight: '100vh',
+        }}
+        py={{ base: 64, md: 96 }}
+      >
         <Container size="sm">
-          <Title order={1} className="demo-title">
-            Cloth Playground
-          </Title>
-          <Text className="demo-copy" size="lg">
-            This minimal scene keeps the DOM simple while we tune the cloth overlay. Click the button below to peel it
-            away.
-          </Text>
-          <Button className="demo-button cloth-enabled" size="lg" radius="xl">
-            Peel Back
-          </Button>
+          <Stack align="center" gap="lg">
+            <Title order={1} ta="center">
+              Cloth Playground
+            </Title>
+            <Text ta="center" size="lg" c="dimmed">
+              This minimal scene keeps the DOM simple while we tune the cloth overlay. Click the button below to peel it
+              away.
+            </Text>
+            <Button
+              component="button"
+              type="button"
+              className="cloth-enabled"
+              size="lg"
+              radius="xl"
+              variant="gradient"
+              gradient={{ from: 'indigo', to: 'grape' }}
+            >
+              Peel Back
+            </Button>
+          </Stack>
         </Container>
-      </main>
+      </Box>
 
-      <Paper className="debug-toast" radius="xl" shadow="lg" withBorder>
-        Press{' '}
-        <Kbd>{modifierKey}</Kbd>
-        {' '}+{' '}
-        <Kbd>J</Kbd>
-        {' '}to open the debug palette
+      <Paper
+        withBorder
+        shadow="lg"
+        radius="xl"
+        px="md"
+        py="xs"
+        pos="fixed"
+        bottom="var(--mantine-spacing-lg)"
+        left="50%"
+        style={{ transform: 'translateX(-50%)', zIndex: 400 }}
+      >
+        <Group gap="xs" justify="center">
+          <Text size="sm" c="dimmed">
+            Press
+          </Text>
+          <Kbd>{modifierKey}</Kbd>
+          <Text size="sm" c="dimmed">
+            +
+          </Text>
+          <Kbd>J</Kbd>
+          <Text size="sm" c="dimmed">
+            to open the debug palette
+          </Text>
+        </Group>
       </Paper>
 
       <Modal
@@ -170,7 +211,7 @@ function AppInner() {
         overlayProps={{ opacity: 0.4, blur: 4 }}
       >
         <Stack gap="md">
-          <Group justify="space-between" gap="md">
+          <Group justify="space-between" align="center">
             <Text fw={500}>Wireframe</Text>
             <Switch
               checked={wireframe}
@@ -179,7 +220,7 @@ function AppInner() {
             />
           </Group>
 
-          <Group justify="space-between" gap="md">
+          <Group justify="space-between" align="center">
             <Text fw={500}>Real-Time</Text>
             <Switch
               checked={realTime}
@@ -188,7 +229,7 @@ function AppInner() {
             />
           </Group>
 
-          <Group justify="space-between" gap="md">
+          <Group justify="space-between" align="center">
             <Text fw={500}>Pointer Collider</Text>
             <Switch
               checked={pointerColliderVisible}

@@ -101,40 +101,38 @@ vi.mock('../elementPool', () => {
   class MockElementPool {
     constructor() {
       poolMocks.instances.push(this)
-    }
-
-    prepare = vi.fn(async (element, segments = 24) => {
-      const existing = recordMap.get(element)
-      if (existing && existing.segments === segments) {
-        return
-      }
-      poolMocks.prepare(element, segments)
-      const geometry = new THREE.PlaneGeometry(1, 1, 1, 1)
-      const material = new THREE.MeshBasicMaterial()
-      const mesh = new THREE.Mesh(geometry, material)
-      const baseArray = geometry.attributes.position.array
-      const initialPositions = new Float32Array(baseArray.length)
-      initialPositions.set(baseArray)
-      recordMap.set(element, {
-        mesh,
-        baseWidthMeters: 1,
-        baseHeightMeters: 1,
-        widthMeters: 1,
-        heightMeters: 1,
-        texture: new THREE.Texture(),
-        initialPositions,
-        segments,
+      this.prepare = vi.fn(async (element, segments = 24) => {
+        const existing = recordMap.get(element)
+        if (existing && existing.segments === segments) {
+          return
+        }
+        poolMocks.prepare(element, segments)
+        const geometry = new THREE.PlaneGeometry(1, 1, 1, 1)
+        const material = new THREE.MeshBasicMaterial()
+        const mesh = new THREE.Mesh(geometry, material)
+        const baseArray = geometry.attributes.position.array
+        const initialPositions = Float32Array.from(baseArray)
+        recordMap.set(element, {
+          mesh,
+          baseWidthMeters: 1,
+          baseHeightMeters: 1,
+          widthMeters: 1,
+          heightMeters: 1,
+          texture: new THREE.Texture(),
+          initialPositions,
+          segments,
+        })
       })
-    })
 
-    mount = vi.fn((element) => poolMocks.mount(element))
-    getRecord = vi.fn((element) => {
-      poolMocks.getRecord(element)
-      return recordMap.get(element)
-    })
-    recycle = vi.fn((element) => poolMocks.recycle(element))
-    resetGeometry = vi.fn((element) => poolMocks.resetGeometry(element))
-    destroy = vi.fn(() => poolMocks.destroy())
+      this.mount = vi.fn((element) => poolMocks.mount(element))
+      this.getRecord = vi.fn((element) => {
+        poolMocks.getRecord(element)
+        return recordMap.get(element)
+      })
+      this.recycle = vi.fn((element) => poolMocks.recycle(element))
+      this.resetGeometry = vi.fn((element) => poolMocks.resetGeometry(element))
+      this.destroy = vi.fn(() => poolMocks.destroy())
+    }
   }
 
   return { ElementPool: MockElementPool }
@@ -142,12 +140,14 @@ vi.mock('../elementPool', () => {
 
 vi.mock('../collisionSystem', () => {
   class MockCollisionSystem {
-    addStaticBody = vi.fn((element) => collisionMocks.addStaticBody(element))
-    removeStaticBody = vi.fn((element) => collisionMocks.removeStaticBody(element))
-    apply = vi.fn(() => collisionMocks.apply())
-    setViewportDimensions = vi.fn((w, h) => collisionMocks.setViewportDimensions(w, h))
-    refresh = vi.fn(() => collisionMocks.refresh())
-    clear = vi.fn(() => collisionMocks.clear())
+    constructor() {
+      this.addStaticBody = vi.fn((element) => collisionMocks.addStaticBody(element))
+      this.removeStaticBody = vi.fn((element) => collisionMocks.removeStaticBody(element))
+      this.apply = vi.fn(() => collisionMocks.apply())
+      this.setViewportDimensions = vi.fn((w, h) => collisionMocks.setViewportDimensions(w, h))
+      this.refresh = vi.fn(() => collisionMocks.refresh())
+      this.clear = vi.fn(() => collisionMocks.clear())
+    }
   }
 
   return { CollisionSystem: MockCollisionSystem }
@@ -155,12 +155,14 @@ vi.mock('../collisionSystem', () => {
 
 vi.mock('../simulationScheduler', () => {
   class MockSimulationScheduler {
-    addBody = vi.fn((body) => schedulerMocks.addBody(body))
-    removeBody = vi.fn((id) => schedulerMocks.removeBody(id))
-    notifyPointer = vi.fn((point) => schedulerMocks.notifyPointer(point))
-    step = vi.fn((dt) => schedulerMocks.step(dt))
-    stepCloth = vi.fn((dt) => schedulerMocks.step(dt))
-    clear = vi.fn(() => schedulerMocks.clear())
+    constructor() {
+      this.addBody = vi.fn((body) => schedulerMocks.addBody(body))
+      this.removeBody = vi.fn((id) => schedulerMocks.removeBody(id))
+      this.notifyPointer = vi.fn((point) => schedulerMocks.notifyPointer(point))
+      this.step = vi.fn((dt) => schedulerMocks.step(dt))
+      this.stepCloth = vi.fn((dt) => schedulerMocks.step(dt))
+      this.clear = vi.fn(() => schedulerMocks.clear())
+    }
   }
 
   return { SimulationScheduler: MockSimulationScheduler }
