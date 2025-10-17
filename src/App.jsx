@@ -139,8 +139,8 @@ function AppInner() {
   ]
 
   const heroGradient = theme.colorScheme === 'dark'
-    ? theme.fn.radialGradient(theme.colors.dark[8], theme.colors.dark[6])
-    : theme.fn.radialGradient(theme.colors.indigo[0], theme.colors.gray[0])
+    ? `radial-gradient(circle at top, ${theme.colors.dark[6]} 0%, ${theme.colors.dark[8]} 100%)`
+    : `radial-gradient(circle at top, ${theme.colors.indigo[1]} 0%, ${theme.colors.gray[0]} 100%)`
 
   return (
     <>
