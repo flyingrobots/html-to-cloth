@@ -117,7 +117,14 @@ vi.mock('three', () => {
 })
 
 import { DOMToWebGL } from '../domToWebGL'
-import { toCanonicalHeightMeters, toCanonicalWidthMeters, toCanonicalX, toCanonicalY } from '../units'
+import {
+  CANONICAL_HEIGHT_METERS,
+  CANONICAL_WIDTH_METERS,
+  toCanonicalHeightMeters,
+  toCanonicalWidthMeters,
+  toCanonicalX,
+  toCanonicalY,
+} from '../units'
 
 const defaultRect = (left, top, width, height) => ({
   left,
@@ -160,13 +167,14 @@ describe('DOMToWebGL canonical mapping', () => {
     dom.detach()
   })
 
-  it('updates mesh transform when DOM rect changes', () => {
+  it('updates mesh transform from DOM rect when layout metadata is absent', () => {
     const dom = new DOMToWebGL(document.body)
     const element = document.createElement('div')
     let rect = defaultRect(50, 50, 80, 40)
     element.getBoundingClientRect = () => rect
     const record = dom.createMesh(element, { dispose() {} }, 1)
 
+    delete record.layout
     rect = defaultRect(150, 120, 160, 80)
     dom.updateMeshTransform(element, record)
 
@@ -204,6 +212,65 @@ describe('DOMToWebGL canonical mapping', () => {
     const canonical = dom.pointerToCanonical(600, 450)
     expect(canonical.x).toBeCloseTo(0)
     expect(canonical.y).toBeCloseTo(0)
+    dom.detach()
+  })
+
+  it('captures layout metadata from dataset overrides', () => {
+    const dom = new DOMToWebGL(document.body)
+    const element = document.createElement('div')
+    element.dataset.clothAnchor = 'top-right'
+    element.dataset.clothScale = 'width height'
+    element.dataset.clothPadding = 'right:120,top:40'
+    const rect = defaultRect(900, 100, 200, 120)
+    element.getBoundingClientRect = () => rect
+    const record = dom.createMesh(element, { dispose() {} }, 4)
+
+    expect(record.layout.anchorX).toBe('right')
+    expect(record.layout.anchorY).toBe('top')
+    expect(record.layout.scaleX).toBe(true)
+    expect(record.layout.scaleY).toBe(true)
+    expect(record.layout.paddingRightPx).toBeCloseTo(120)
+    expect(record.layout.paddingTopPx).toBeCloseTo(40)
+    expect(record.layout.referenceWidthPx).toBe(1200)
+    expect(record.layout.referenceHeightPx).toBe(900)
+    expect(record.layout.centerRatioX).toBeCloseTo((rect.left + rect.width / 2) / 1200)
+    expect(record.layout.centerRatioY).toBeCloseTo((rect.top + rect.height / 2) / 900)
+
+    dom.detach()
+  })
+
+  it('applies layout metadata when resizing the viewport', () => {
+    const dom = new DOMToWebGL(document.body)
+    const element = document.createElement('div')
+    element.dataset.clothAnchor = 'top-right'
+    element.dataset.clothScale = 'width height'
+    const baseRect = defaultRect(900, 100, 200, 120)
+    element.getBoundingClientRect = () => baseRect
+    const record = dom.createMesh(element, { dispose() {} }, 1)
+
+    Object.defineProperty(window, 'innerWidth', { configurable: true, value: 1600 })
+    Object.defineProperty(window, 'innerHeight', { configurable: true, value: 1000 })
+    dom.resize()
+
+    dom.updateMeshTransform(element, record)
+
+    const scaleX = 1600 / 1200
+    const scaleY = 1000 / 900
+    const expectedWidth = record.baseWidthMeters * scaleX
+    const expectedHeight = record.baseHeightMeters * scaleY
+    const padRightPx = (1200 - (baseRect.left + baseRect.width)) * scaleX
+    const padTopPx = baseRect.top * scaleY
+    const padRightMeters = toCanonicalWidthMeters(padRightPx, 1600)
+    const padTopMeters = toCanonicalHeightMeters(padTopPx, 1000)
+
+    const expectedX = CANONICAL_WIDTH_METERS / 2 - padRightMeters - expectedWidth / 2
+    const expectedY = CANONICAL_HEIGHT_METERS / 2 - padTopMeters - expectedHeight / 2
+
+    expect(record.mesh.position.x).toBeCloseTo(expectedX)
+    expect(record.mesh.position.y).toBeCloseTo(expectedY)
+    expect(record.mesh.scale.x).toBeCloseTo(expectedWidth / record.baseWidthMeters)
+    expect(record.mesh.scale.y).toBeCloseTo(expectedHeight / record.baseHeightMeters)
+
     dom.detach()
   })
 })

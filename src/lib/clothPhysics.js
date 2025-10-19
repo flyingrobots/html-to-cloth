@@ -34,7 +34,7 @@ export class ClothPhysics {
     this.tmpVector = new THREE.Vector3()
     this.accelVector = new THREE.Vector3()
     this.tmpVector2 = new THREE.Vector2()
-    this.gravity = new THREE.Vector3(0, -9.81, 0)
+    this.gravity = new THREE.Vector3(0, -2, 0)
     this.damping = 0.98
     this.constraintIterations = 3
     this.sleeping = false
@@ -61,6 +61,11 @@ export class ClothPhysics {
   setConstraintIterations(iterations) {
     if (!Number.isFinite(iterations)) return
     this.constraintIterations = Math.max(1, Math.round(iterations))
+  }
+
+  setDamping(value) {
+    if (!Number.isFinite(value)) return
+    this.damping = Math.max(0, Math.min(value, 0.999))
   }
 
   setSubsteps(substeps) {
@@ -323,11 +328,44 @@ export class ClothPhysics {
       }
     }
 
+    for (const particle of this.particles) {
+      particle.previous.copy(particle.position)
+    }
+
     this._syncGeometry()
   }
 
   isOffscreen(boundaryY) {
     return this.particles.every((particle) => particle.position.y < boundaryY)
+  }
+
+  getParticleCount() {
+    return this.particles.length
+  }
+
+  getConstraintStats() {
+    if (this.constraints.length === 0) {
+      return { averageError: 0, maxError: 0 }
+    }
+    let totalError = 0
+    let maxError = 0
+
+    for (const constraint of this.constraints) {
+      const p1 = this.particles[constraint.p1]
+      const p2 = this.particles[constraint.p2]
+      if (!p1 || !p2) continue
+      const distance = p1.position.distanceTo(p2.position)
+      const error = Math.abs(distance - constraint.restLength)
+      totalError += error
+      if (error > maxError) {
+        maxError = error
+      }
+    }
+
+    return {
+      averageError: totalError / this.constraints.length,
+      maxError,
+    }
   }
 
   _initializeParticles() {

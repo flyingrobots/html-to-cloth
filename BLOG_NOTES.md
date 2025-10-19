@@ -52,7 +52,7 @@ Web design feels clunky not because the medium is doomed, but because we’ve le
 - CSS’s relative units mean “size” is really about readability: `1em` scales with the current font, letting zoom and accessibility settings win without extra effort.
 - True SI units would demand accurate display DPI plus respect for user zoom. Browsers quietly translate anyway, so “1 meter” would get normalized back to something practical.
 - Our tactic: leave typography in ems/percentages for accessibility, but convert to meters inside the WebGL layer so physics and animation math stay grounded in real-world intuition.
-- **Meters vs Pixels**: Setting `1 unit = 1 meter` keeps physical intuition intact—gravity remains `-9.81`, constraint lengths resemble real fabric dimensions, and forces feel consistent across devices. Pixel units would tie the sim to viewport DPI, forcing per-device tuning and breaking when users zoom.
+- **Meters vs Pixels**: Setting `1 unit = 1 meter` keeps physical intuition intact—gravity stays consistent (we’re currently running `-2` for aesthetics), constraint lengths resemble real fabric dimensions, and forces feel the same across devices. Pixel units would tie the sim to viewport DPI, forcing per-device tuning and breaking when users zoom.
 - **Pointer DPI Gotchas**: Mouse and touch inputs report in device pixels, but every platform applies its own DPI scaling. Normalizing to meters lets us process pointer velocity once and adapt per OS, without guessing the hardware reporting resolution each time.
 
 ### Production Workflow Aside
@@ -89,3 +89,48 @@ Web design feels clunky not because the medium is doomed, but because we’ve le
 
 - 2025-10-12: Swapped PortfolioWebGL to fixed-step substepping, added solver/tessellation/pin debug controls with pointer collider viz, and warmed cloth activation via geometry resets.
 - 2025-10-17: Replaced shadcn/Tailwind with Mantine UI, rebuilt the debug palette/components, and refreshed tests to match the new scaffolding.
+
+## 2025-10-17 – Warm start stabilizer
+
+- Investigated first-frame cloth explosion despite warm start.
+- Added clothPhysics spec ensuring relaxConstraints does not inject velocity after stabilization.
+- Synced particle.previous to particle.position inside relaxConstraints so warm start yields zero initial velocity.
+
+## 2025-10-17 – Pointer collider tuning
+
+- Debug overlay sphere showed the full canonical width because radius was hard-coded at 0.12 m.
+- Added pointer radius state driven by cloth geometry so the helper scales with the real impulse radius.
+- Switched default impulse radius to half of the smaller DOM dimension and lowered the minimum to 5 cm.
+- Pointer debug sphere now tracks the live radius instead of a one-size-fits-all constant.
+
+## 2025-10-17 – Adaptive tessellation
+
+- High triangle counts on tiny elements traced to fixed 24x24 tessellation grid.
+- ElementPool now derives segment count from screen area (sqrt of coverage between 6 and max slider).
+- Added dataset override `data-cloth-segments` plus tests verifying small DOM nodes get coarse meshes.
+
+## 2025-10-17 – Pointer radius tweak
+
+- Debug sphere still dominated screen because default canonical radius stayed at 5cm when no cloth active.
+- Dropped default to 1cm with 0.5cm floor and scaled element-based radius to one-third of the smaller dimension so buttons feel precise.
+- Updated integration spec for new radius heuristic.
+
+- Lowered pointer default to 3mm radius with 1.5mm floor and scaled element impulse radius to 1/6 of the smaller canonical dimension.
+
+- Added orthographic aspect correction so the pointer helper stays circular regardless of viewport ratio.
+
+## 2025-10-17 – Canonical layout pipeline
+
+- Added data-driven anchors and scaling (data-cloth-anchor/scale/padding) when capturing DOM -> WebGL meshes.
+- DOMToWebGL now stores layout metadata and replays it on resize so meshes follow canonical offsets instead of re-measuring DOM.
+- Debug pointer helper compensates for viewport aspect; integration specs cover layout metadata and resize transforms.
+
+- Default gravity tuned to 2 m/s^2 for cleaner reveal timing; cloth density data attribute lets elements feel lighter/heavier.
+
+## 2025-10-17 – Debug inspector and presets
+
+- Debug palette now auto-pauses the sim, disables pointer impulses, and supports entity picking for multi-cloth pages.
+- Added dataset-driven physics overrides (density, damping, iterations, substeps, turbulence, release) plus UI presets (light/default/heavy).
+- Pointer helper respects viewport aspect and hides while the palette is open; inspector surfaces per-element layout/physics metadata.
+
+- Inspector now surfaces per-cloth metrics (vertex counts, constraint error) and preset buttons write back to data attributes.

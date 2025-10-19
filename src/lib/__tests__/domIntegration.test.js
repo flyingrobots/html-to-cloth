@@ -47,6 +47,7 @@ const schedulerMocks = {
 
 const clothMocks = {
   instances: [],
+  options: [],
   applyImpulse: vi.fn(),
 }
 
@@ -112,6 +113,16 @@ vi.mock('../elementPool', () => {
         const mesh = new THREE.Mesh(geometry, material)
         const baseArray = geometry.attributes.position.array
         const initialPositions = Float32Array.from(baseArray)
+        const dataset = element.dataset ?? {}
+        /** @type {Record<string, any>} */
+        const physics = {}
+        if (dataset.clothDensity) physics.density = Number.parseFloat(dataset.clothDensity)
+        if (dataset.clothDamping) physics.damping = Number.parseFloat(dataset.clothDamping)
+        if (dataset.clothIterations) physics.constraintIterations = Number.parseInt(dataset.clothIterations, 10)
+        if (dataset.clothSubsteps) physics.substeps = Number.parseInt(dataset.clothSubsteps, 10)
+        if (dataset.clothTurbulence) physics.turbulence = Number.parseFloat(dataset.clothTurbulence)
+        if (dataset.clothRelease) physics.releaseDelayMs = Number.parseFloat(dataset.clothRelease)
+        if (dataset.clothPin) physics.pinMode = dataset.clothPin
         recordMap.set(element, {
           mesh,
           baseWidthMeters: 1,
@@ -121,6 +132,8 @@ vi.mock('../elementPool', () => {
           texture: new THREE.Texture(),
           initialPositions,
           segments,
+          layout: null,
+          physics,
         })
       })
 
@@ -170,8 +183,9 @@ vi.mock('../simulationScheduler', () => {
 
 vi.mock('../clothPhysics', () => {
   class MockClothPhysics {
-    constructor(mesh) {
+    constructor(mesh, options = {}) {
       this.mesh = mesh
+      this.options = options
       this.pinTopEdge = vi.fn()
       this.pinBottomEdge = vi.fn()
       this.pinCorners = vi.fn()
@@ -189,6 +203,7 @@ vi.mock('../clothPhysics', () => {
       this.setSubsteps = vi.fn()
       this.relaxConstraints = vi.fn()
       clothMocks.instances.push(this)
+      clothMocks.options.push(options)
     }
   }
 
@@ -235,6 +250,7 @@ const resetSpies = () => {
   schedulerMocks.clear.mockReset()
 
   clothMocks.instances.length = 0
+  clothMocks.options.length = 0
   clothMocks.applyImpulse.mockReset()
   recordMap.clear()
 }
@@ -352,11 +368,69 @@ describe('PortfolioWebGL DOM integration', () => {
 
     expect(cloth.applyImpulse).toHaveBeenCalledTimes(1)
     const [, force, radius] = cloth.applyImpulse.mock.calls[0]
-    expect(radius).toBeCloseTo(0.5)
+    expect(radius).toBeCloseTo(1 / 12, 5)
     expect(force.x).toBeCloseTo(initialVelocity.x)
     expect(force.y).toBeCloseTo(initialVelocity.y)
 
     webgl.dispose()
+  })
+
+  it('applies per-element physics overrides from dataset', async () => {
+    vi.useFakeTimers()
+    const button = getCtaButton()
+    button.dataset.clothDensity = '1.5'
+    button.dataset.clothDamping = '0.92'
+    button.dataset.clothIterations = '6'
+    button.dataset.clothSubsteps = '2'
+    button.dataset.clothTurbulence = '0.12'
+    button.dataset.clothPin = 'bottom'
+    button.dataset.clothRelease = '450'
+
+    const webgl = new PortfolioWebGL()
+    try {
+      await webgl.init()
+
+      const record = recordMap.get(button)
+      if (record) {
+        record.physics = {
+          density: 1.5,
+          damping: 0.92,
+          constraintIterations: 6,
+          substeps: 2,
+          turbulence: 0.12,
+          releaseDelayMs: 450,
+          pinMode: 'bottom',
+        }
+      }
+
+      button.dispatchEvent(new MouseEvent('click'))
+
+      const cloth = clothMocks.instances.at(-1)
+      const options = clothMocks.options.at(-1)
+      expect(options.damping).toBeCloseTo(0.92)
+      expect(options.constraintIterations).toBe(6)
+      expect(cloth.setConstraintIterations).toHaveBeenCalledWith(6)
+      expect(cloth.setSubsteps).toHaveBeenCalledWith(2)
+      expect(cloth.addTurbulence).toHaveBeenCalledWith(0.12)
+      const gravityArg = cloth.setGravity.mock.calls.at(-1)?.[0]
+      expect(gravityArg?.y).toBeCloseTo(-3) // gravity (2) * density (1.5)
+      expect(cloth.pinBottomEdge).toHaveBeenCalled()
+
+      const releaseSpy = cloth.releaseAllPins
+      vi.runAllTimers()
+      expect(releaseSpy).toHaveBeenCalled()
+
+      expect(button.dataset.clothDensity).toBe('1.5')
+      expect(button.dataset.clothDamping).toBe('0.92')
+      expect(button.dataset.clothIterations).toBe('6')
+      expect(button.dataset.clothSubsteps).toBe('2')
+      expect(button.dataset.clothTurbulence).toBe('0.12')
+      expect(button.dataset.clothPin).toBe('bottom')
+      expect(button.dataset.clothRelease).toBe('450')
+    } finally {
+      webgl.dispose()
+      vi.useRealTimers()
+    }
   })
 
   it('honors per-element impulse tuning via data attributes', async () => {

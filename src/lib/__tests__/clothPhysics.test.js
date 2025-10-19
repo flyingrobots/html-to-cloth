@@ -164,4 +164,28 @@ describe('ClothPhysics', () => {
 
     expect(cloth.isSleeping()).toBe(false)
   })
+
+  it('does not introduce spurious velocity after relaxing constraints', () => {
+    const { cloth } = makeCloth(4, 4)
+    cloth.setGravity(new THREE.Vector3(0, 0, 0))
+
+    cloth.applyImpulse(new THREE.Vector2(0, 0), new THREE.Vector2(0.6, -0.3), 1)
+    const postImpulse = cloth.getVertexPositions().map((p) => p.clone())
+
+    cloth.relaxConstraints(cloth.constraintIterations * 4)
+    const settled = cloth.getVertexPositions().map((p) => p.clone())
+
+    // Ensure relax pass actually changed positions (cloth snapped back toward rest)
+    const moved = settled.some((pos, index) => !pos.equals(postImpulse[index]))
+    expect(moved).toBe(true)
+
+    cloth.update(0.016)
+    const after = cloth.getVertexPositions()
+
+    after.forEach((pos, index) => {
+      expect(pos.x).toBeCloseTo(settled[index].x, 3)
+      expect(pos.y).toBeCloseTo(settled[index].y, 3)
+      expect(pos.z).toBeCloseTo(settled[index].z, 3)
+    })
+  })
 })

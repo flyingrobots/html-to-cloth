@@ -15,8 +15,50 @@ import {
   Title,
   useMantineTheme,
 } from '@mantine/core'
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { PortfolioWebGL } from './lib/portfolioWebGL'
+
+const CLOTH_PRESETS = [
+  {
+    value: 'light',
+    label: 'Light Fabric',
+    overrides: {
+      density: 0.6,
+      damping: 0.94,
+      constraintIterations: 4,
+      substeps: 1,
+      turbulence: 0.08,
+      releaseDelayMs: 700,
+      pinMode: 'top',
+    },
+  },
+  {
+    value: 'default',
+    label: 'Default',
+    overrides: {
+      density: 1,
+      damping: 0.97,
+      constraintIterations: 4,
+      substeps: 1,
+      turbulence: 0.06,
+      releaseDelayMs: 900,
+      pinMode: 'top',
+    },
+  },
+  {
+    value: 'heavy',
+    label: 'Heavy Drape',
+    overrides: {
+      density: 1.4,
+      damping: 0.985,
+      constraintIterations: 6,
+      substeps: 2,
+      turbulence: 0.04,
+      releaseDelayMs: 1200,
+      pinMode: 'top',
+    },
+  },
+]
 
 /**
  * @typedef {'top' | 'bottom' | 'corners' | 'none'} PinMode
@@ -36,16 +78,35 @@ function AppInner() {
   )
   const theme = useMantineTheme()
   const realTimeRef = useRef(true)
+  const realTimeBeforeDebugRef = useRef(true)
   const [debugOpen, setDebugOpen] = useState(false)
   const [wireframe, setWireframe] = useState(false)
   const [realTime, setRealTime] = useState(true)
-  const [gravity, setGravity] = useState(9.81)
+  const [gravity, setGravity] = useState(2)
   const [impulseMultiplier, setImpulseMultiplier] = useState(1)
   const [tessellationSegments, setTessellationSegments] = useState(24)
   const [constraintIterations, setConstraintIterations] = useState(4)
   const [substeps, setSubsteps] = useState(1)
   const [pointerColliderVisible, setPointerColliderVisible] = useState(false)
   const [pinMode, setPinMode] = useState('top')
+  const [entities, setEntities] = useState([])
+  const [selectedEntityId, setSelectedEntityId] = useState(null)
+  const [selectedEntityDetails, setSelectedEntityDetails] = useState(null)
+  const modalContentRef = useRef(null)
+  const pinModeInitializedRef = useRef(false)
+
+  const updateEntities = useCallback(() => {
+    const controller = controllerRef.current
+    if (!controller) return
+    const list = controller.getEntities()
+    setEntities(list)
+    setSelectedEntityId((prev) => {
+      if (prev && list.some((entity) => entity.id === prev)) {
+        return prev
+      }
+      return list[0]?.id ?? null
+    })
+  }, [])
 
   useEffect(() => {
     if (typeof window === 'undefined') return
@@ -54,7 +115,9 @@ function AppInner() {
 
     const controller = new PortfolioWebGL()
     controllerRef.current = controller
-    void controller.init()
+    void controller.init().then(() => {
+      updateEntities()
+    })
 
     const handler = (event) => {
       if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'j') {
@@ -82,8 +145,11 @@ function AppInner() {
   }, [wireframe])
 
   useEffect(() => {
-    realTimeRef.current = realTime
     controllerRef.current?.setRealTime(realTime)
+  }, [realTime])
+
+  useEffect(() => {
+    realTimeRef.current = realTime
   }, [realTime])
 
   useEffect(() => {
@@ -109,12 +175,89 @@ function AppInner() {
   }, [tessellationSegments])
 
   useEffect(() => {
-    controllerRef.current?.setPointerColliderVisible(pointerColliderVisible)
-  }, [pointerColliderVisible])
+    controllerRef.current?.setPointerColliderVisible(debugOpen ? false : pointerColliderVisible)
+  }, [pointerColliderVisible, debugOpen])
 
   useEffect(() => {
-    controllerRef.current?.setPinMode(pinMode)
+    const controller = controllerRef.current
+    if (!controller) return
+
+    if (debugOpen) {
+      realTimeBeforeDebugRef.current = realTimeRef.current
+      if (realTimeRef.current) {
+        controller.setRealTime(false)
+        realTimeRef.current = false
+        setRealTime(false)
+      }
+      controller.setPointerInteractionEnabled(false)
+      controller.setPointerColliderVisible(false)
+      updateEntities()
+    } else {
+      controller.setPointerInteractionEnabled(true)
+      controller.setPointerColliderVisible(pointerColliderVisible)
+      if (realTimeBeforeDebugRef.current !== realTimeRef.current) {
+        controller.setRealTime(realTimeRef.current)
+      }
+    }
+  }, [debugOpen, pointerColliderVisible, updateEntities])
+
+  useEffect(() => {
+    const controller = controllerRef.current
+    if (!controller) return
+    if (!pinModeInitializedRef.current) {
+      pinModeInitializedRef.current = true
+      return
+    }
+    controller.setPinMode(pinMode)
   }, [pinMode])
+
+  useEffect(() => {
+    const controller = controllerRef.current
+    if (!controller || !debugOpen) return
+
+    const handlePointerDown = (event) => {
+      if (event.defaultPrevented || event.button !== 0) return
+      if (modalContentRef.current && modalContentRef.current.contains(event.target)) {
+        return
+      }
+      const picked = controller.pickEntityAt(event.clientX, event.clientY)
+      if (picked) {
+        event.preventDefault()
+        event.stopPropagation()
+        setSelectedEntityId(picked.id)
+        setSelectedEntityDetails(controller.getEntityDetails(picked.id))
+      }
+    }
+
+    document.addEventListener('pointerdown', handlePointerDown, true)
+    return () => {
+      document.removeEventListener('pointerdown', handlePointerDown, true)
+    }
+  }, [debugOpen])
+
+  useEffect(() => {
+    const controller = controllerRef.current
+    if (!controller) {
+      setSelectedEntityDetails(null)
+      return
+    }
+    if (!selectedEntityId) {
+      setSelectedEntityDetails(null)
+      return
+    }
+    setSelectedEntityDetails(controller.getEntityDetails(selectedEntityId))
+  }, [selectedEntityId, entities, debugOpen])
+
+  const handleApplyPreset = useCallback(
+    (overrides) => {
+      const controller = controllerRef.current
+      if (!controller || !selectedEntityId) return
+      controller.applyPhysicsPreset(selectedEntityId, overrides)
+      updateEntities()
+      setSelectedEntityDetails(controller.getEntityDetails(selectedEntityId))
+    },
+    [selectedEntityId, updateEntities]
+  )
 
   const modifierKey =
     typeof navigator !== 'undefined' && navigator?.platform?.toLowerCase().includes('mac') ? '⌘' : 'Ctrl'
@@ -122,7 +265,7 @@ function AppInner() {
   const resetControls = () => {
     setWireframe(false)
     setRealTime(true)
-    setGravity(9.81)
+    setGravity(2)
     setImpulseMultiplier(1)
     setTessellationSegments(24)
     setConstraintIterations(4)
@@ -141,6 +284,14 @@ function AppInner() {
   const heroGradient = theme.colorScheme === 'dark'
     ? `radial-gradient(circle at top, ${theme.colors.dark[6]} 0%, ${theme.colors.dark[8]} 100%)`
     : `radial-gradient(circle at top, ${theme.colors.indigo[1]} 0%, ${theme.colors.gray[0]} 100%)`
+
+  const entityOptions = entities.map((entity) => ({
+    value: entity.id,
+    label: `${entity.label}${entity.isActive ? ' (Active)' : ''}`,
+  }))
+
+  const selectedPhysics = selectedEntityDetails?.physics ?? {}
+  const selectedMetrics = selectedEntityDetails?.metrics ?? {}
 
   return (
     <>
@@ -210,7 +361,7 @@ function AppInner() {
         size="lg"
         overlayProps={{ opacity: 0.4, blur: 4 }}
       >
-        <Stack gap="md">
+        <Stack ref={modalContentRef} gap="md">
           <Group justify="space-between" align="center">
             <Text fw={500}>Wireframe</Text>
             <Switch
@@ -317,6 +468,74 @@ function AppInner() {
                 }
               }}
             />
+          </Stack>
+
+          <Stack gap="xs">
+            <Text fw={500}>Entity Inspector</Text>
+            <Select
+              data={entityOptions}
+              placeholder={entityOptions.length ? 'Select cloth entity' : 'No cloth elements'}
+              value={selectedEntityId}
+              onChange={(value) => {
+                if (value) {
+                  setSelectedEntityId(value)
+                }
+              }}
+              searchable={entityOptions.length > 6}
+              nothingFound="No entities"
+              disabled={!entityOptions.length}
+            />
+            {selectedEntityDetails ? (
+              <Paper
+                withBorder
+                radius="md"
+                p="sm"
+                style={{
+                  background: theme.colorScheme === 'dark' ? theme.colors.dark[7] : theme.colors.gray[1],
+                }}
+              >
+                <Stack gap={4}>
+                  <Text size="sm" fw={600}>{selectedEntityDetails.label}</Text>
+                  <Text size="sm" c="dimmed">
+                    Status: {selectedEntityDetails.isActive ? 'Active cloth' : 'Idle (DOM)'}
+                  </Text>
+                  <Text size="sm" c="dimmed">
+                    Density: {(selectedPhysics.density ?? 1).toFixed(2)} | Damping: {(selectedPhysics.damping ?? 0.97).toFixed(3)}
+                  </Text>
+                  <Text size="sm" c="dimmed">
+                    Iterations: {selectedPhysics.constraintIterations ?? constraintIterations} | Substeps: {selectedPhysics.substeps ?? substeps}
+                  </Text>
+                  <Text size="sm" c="dimmed">
+                    Pin: {selectedPhysics.pinMode ?? pinMode} | Release: {(selectedPhysics.releaseDelayMs ?? 900).toFixed(0)} ms
+                  </Text>
+                  <Text size="sm" c="dimmed">
+                    Vertices: {selectedMetrics.vertexCount ?? 0} | Triangles: {selectedMetrics.triangleCount ?? 0}
+                  </Text>
+                  {selectedEntityDetails.isActive ? (
+                    <Text size="sm" c="dimmed">
+                      Constraint error avg: {(selectedMetrics.averageError ?? 0).toFixed(4)} m | max: {(selectedMetrics.maxError ?? 0).toFixed(4)} m
+                    </Text>
+                  ) : null}
+                </Stack>
+              </Paper>
+            ) : (
+              <Text size="sm" c="dimmed">
+                Click a cloth-enabled element to inspect while the debug panel is open.
+              </Text>
+            )}
+            <Group gap="xs">
+              {CLOTH_PRESETS.map((preset) => (
+                <Button
+                  key={preset.value}
+                  size="xs"
+                  variant="outline"
+                  disabled={!selectedEntityId}
+                  onClick={() => handleApplyPreset(preset.overrides)}
+                >
+                  {preset.label}
+                </Button>
+              ))}
+            </Group>
           </Stack>
 
           {!realTime ? (

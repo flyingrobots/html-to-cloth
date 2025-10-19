@@ -7,6 +7,7 @@
  * @property {(mesh: import('three').Object3D) => void} removeMesh
  * @property {(record: DOMMeshRecord) => void} disposeMesh
  * @property {(element: HTMLElement, record: DOMMeshRecord) => void} updateMeshTransform
+  * @property {() => { width: number, height: number }} getViewportPixels
  */
 
 export class ElementPool {
@@ -24,15 +25,17 @@ export class ElementPool {
    * @param {number} [segments]
    */
   async prepare(element, segments = 24) {
+    const resolvedSegments = this._resolveSegments(element, segments)
     const existing = this.elements.get(element)
-    if (existing && existing.segments === segments) return
+    if (existing && existing.segments === resolvedSegments) return
 
     if (existing) {
       this.destroy(element)
     }
 
     const texture = await this.domBridge.captureElement(element)
-    const record = this.domBridge.createMesh(element, texture, segments)
+    const record = this.domBridge.createMesh(element, texture, resolvedSegments)
+    record.segments = resolvedSegments
 
     this.elements.set(element, record)
   }
@@ -93,5 +96,36 @@ export class ElementPool {
     record.widthMeters = record.baseWidthMeters
     record.heightMeters = record.baseHeightMeters
     record.mesh.scale.set(1, 1, 1)
+  }
+
+  _resolveSegments(element, maxSegments) {
+    const attr = element.dataset?.clothSegments
+    const override = attr ? Number.parseInt(attr, 10) : NaN
+    if (!Number.isNaN(override) && override > 0) {
+      return Math.max(1, Math.round(override))
+    }
+
+    const { scaleMin, scaleMax } = this._segmentBounds(maxSegments)
+    const rect = typeof element.getBoundingClientRect === 'function'
+      ? element.getBoundingClientRect()
+      : { width: 0, height: 0 }
+
+    const viewport = typeof this.domBridge.getViewportPixels === 'function'
+      ? this.domBridge.getViewportPixels()
+      : { width: window.innerWidth || 1, height: window.innerHeight || 1 }
+
+    const viewportArea = Math.max(1, viewport.width * viewport.height)
+    const elementArea = Math.max(0, rect.width * rect.height)
+    const areaRatio = Math.min(1, elementArea / viewportArea)
+
+    const normalized = Number.isFinite(areaRatio) ? Math.sqrt(areaRatio) : 0
+    const segments = scaleMin + normalized * (scaleMax - scaleMin)
+    return Math.max(scaleMin, Math.min(scaleMax, Math.round(segments)))
+  }
+
+  _segmentBounds(maxSegments) {
+    const min = 6
+    const max = Math.max(min, Math.round(maxSegments ?? 24))
+    return { scaleMin: min, scaleMax: max }
   }
 }

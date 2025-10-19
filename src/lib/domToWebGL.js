@@ -19,6 +19,37 @@ import {
  * @property {import('three').Texture} texture
  * @property {Float32Array} initialPositions
  * @property {number} segments
+ * @property {CanonicalLayout} layout
+ * @property {ClothPhysicsMetadata} physics
+ */
+
+/**
+ * @typedef {Object} CanonicalLayout
+ * @property {'left'|'center'|'right'} anchorX
+ * @property {'top'|'center'|'bottom'} anchorY
+ * @property {boolean} scaleX
+ * @property {boolean} scaleY
+ * @property {number} paddingLeftPx
+ * @property {number} paddingRightPx
+ * @property {number} paddingTopPx
+ * @property {number} paddingBottomPx
+ * @property {number} centerRatioX
+ * @property {number} centerRatioY
+ * @property {number} widthPx
+ * @property {number} heightPx
+ * @property {number} referenceWidthPx
+ * @property {number} referenceHeightPx
+ */
+
+/**
+ * @typedef {Object} ClothPhysicsMetadata
+ * @property {number | undefined} density
+ * @property {number | undefined} damping
+ * @property {number | undefined} constraintIterations
+ * @property {number | undefined} substeps
+ * @property {number | undefined} turbulence
+ * @property {number | undefined} releaseDelayMs
+ * @property {'top'|'bottom'|'corners'|'none'|undefined} pinMode
  */
 
 export class DOMToWebGL {
@@ -108,6 +139,8 @@ export class DOMToWebGL {
 
     const positions = mesh.geometry.attributes.position
     const initialPositions = new Float32Array(positions.array)
+    const layout = this._computeLayout(element, rect)
+    const physics = this._computePhysics(element)
 
     return {
       mesh,
@@ -118,6 +151,8 @@ export class DOMToWebGL {
       texture,
       initialPositions,
       segments,
+      layout,
+      physics,
     }
   }
 
@@ -130,6 +165,11 @@ export class DOMToWebGL {
   }
 
   updateMeshTransform(element, record) {
+    if (record.layout) {
+      this._applyLayoutTransform(record)
+      return
+    }
+
     const rect = element.getBoundingClientRect()
     record.mesh.position.set(...this._domPositionToWorld(rect))
 
@@ -185,5 +225,284 @@ export class DOMToWebGL {
     const module = await import('html2canvas')
     this.html2canvasRef = module.default
     return this.html2canvasRef
+  }
+
+  _computeLayout(element, rect) {
+    const referenceWidthPx = this.viewportWidth || window.innerWidth || 1
+    const referenceHeightPx = this.viewportHeight || window.innerHeight || 1
+    const dataset = element.dataset ?? {}
+    const parsedAnchor = this._parseAnchor(dataset.clothAnchor)
+    const inferredAnchor = this._inferAnchor(rect, referenceWidthPx, referenceHeightPx)
+    const anchorX = parsedAnchor?.x ?? inferredAnchor.x
+    const anchorY = parsedAnchor?.y ?? inferredAnchor.y
+    const scale = this._parseScale(dataset.clothScale)
+    const paddingOverrides = this._parsePadding(dataset.clothPadding)
+
+    const layout = {
+      anchorX,
+      anchorY,
+      scaleX: scale.scaleX,
+      scaleY: scale.scaleY,
+      paddingLeftPx: paddingOverrides.left ?? rect.left,
+      paddingRightPx: paddingOverrides.right ?? Math.max(0, referenceWidthPx - rect.right),
+      paddingTopPx: paddingOverrides.top ?? rect.top,
+      paddingBottomPx: paddingOverrides.bottom ?? Math.max(0, referenceHeightPx - rect.bottom),
+      centerRatioX: referenceWidthPx === 0 ? 0.5 : (rect.left + rect.width / 2) / referenceWidthPx,
+      centerRatioY: referenceHeightPx === 0 ? 0.5 : (rect.top + rect.height / 2) / referenceHeightPx,
+      widthPx: rect.width,
+      heightPx: rect.height,
+      referenceWidthPx,
+      referenceHeightPx,
+    }
+
+    return layout
+  }
+
+  _computePhysics(element) {
+    const dataset = element.dataset ?? {}
+    return {
+      density: this._parseDensity(dataset.clothDensity),
+      damping: this._parseNumber(dataset.clothDamping, 0, 0.999, undefined),
+      constraintIterations: this._parseInteger(dataset.clothIterations, 1),
+      substeps: this._parseInteger(dataset.clothSubsteps, 1),
+      turbulence: this._parseNumber(dataset.clothTurbulence, 0, 5, undefined),
+      releaseDelayMs: this._parseNumber(dataset.clothRelease, 0, Number.MAX_SAFE_INTEGER, undefined),
+      pinMode: this._parsePinMode(dataset.clothPin),
+    }
+  }
+
+  _parseAnchor(value) {
+    if (!value) return null
+    const normalized = value.trim().toLowerCase()
+    const parts = normalized.split('-')
+    if (parts.length === 1) {
+      const single = parts[0]
+      switch (single) {
+        case 'center':
+          return { x: 'center', y: 'center' }
+        case 'top':
+          return { x: 'center', y: 'top' }
+        case 'bottom':
+          return { x: 'center', y: 'bottom' }
+        case 'left':
+          return { x: 'left', y: 'center' }
+        case 'right':
+          return { x: 'right', y: 'center' }
+        default:
+          return null
+      }
+    }
+
+    const [partA, partB] = parts
+    const axis = { x: 'center', y: 'center' }
+
+    const assign = (token) => {
+      switch (token) {
+        case 'top':
+          axis.y = 'top'
+          break
+        case 'bottom':
+          axis.y = 'bottom'
+          break
+        case 'left':
+          axis.x = 'left'
+          break
+        case 'right':
+          axis.x = 'right'
+          break
+        case 'center':
+          axis.x = axis.x === 'center' ? 'center' : axis.x
+          axis.y = axis.y === 'center' ? 'center' : axis.y
+          break
+        default:
+          break
+      }
+    }
+
+    assign(partA)
+    assign(partB)
+    return axis
+  }
+
+  _parseDensity(value) {
+    if (!value) return undefined
+    const lower = value.trim().toLowerCase()
+    switch (lower) {
+      case 'light':
+        return 0.6
+      case 'medium':
+        return 1
+      case 'heavy':
+        return 1.4
+      default: {
+        const parsed = Number.parseFloat(lower)
+        if (!Number.isFinite(parsed)) return undefined
+        return Math.max(0.1, Math.min(parsed, 3))
+      }
+    }
+  }
+
+  _parseNumber(value, min, max, fallback = 0) {
+    if (value === undefined || value === null || value === '') return fallback
+    const parsed = Number.parseFloat(String(value))
+    if (!Number.isFinite(parsed)) return fallback
+    if (min !== undefined && parsed < min) return min
+    if (max !== undefined && parsed > max) return max
+    return parsed
+  }
+
+  _parseInteger(value, min) {
+    if (!value) return undefined
+    const parsed = Number.parseInt(value, 10)
+    if (!Number.isFinite(parsed)) return undefined
+    return Math.max(min, parsed)
+  }
+
+  _parsePinMode(value) {
+    if (!value) return undefined
+    const normalized = value.trim().toLowerCase()
+    switch (normalized) {
+      case 'top':
+      case 'bottom':
+      case 'corners':
+      case 'none':
+        return normalized
+      default:
+        return undefined
+    }
+  }
+
+  _inferAnchor(rect, viewportWidth, viewportHeight) {
+    const left = rect.left
+    const right = Math.max(0, viewportWidth - rect.right)
+    const top = rect.top
+    const bottom = Math.max(0, viewportHeight - rect.bottom)
+
+    const horizontal = this._chooseAxis(left, right, viewportWidth)
+    const vertical = this._chooseAxis(top, bottom, viewportHeight, true)
+
+    return { x: horizontal, y: vertical }
+  }
+
+  _chooseAxis(minPad, maxPad, total, isVertical = false) {
+    const threshold = Math.max(12, total * 0.05)
+    const diff = Math.abs(minPad - maxPad)
+    if (diff < threshold) {
+      return 'center'
+    }
+    if (minPad < maxPad) {
+      return isVertical ? 'top' : 'left'
+    }
+    return isVertical ? 'bottom' : 'right'
+  }
+
+  _parseScale(value) {
+    if (!value) {
+      return { scaleX: true, scaleY: true }
+    }
+    const tokens = value
+      .split(/[\s,]+/)
+      .map((token) => token.trim().toLowerCase())
+      .filter(Boolean)
+
+    if (tokens.includes('none')) {
+      return { scaleX: false, scaleY: false }
+    }
+
+    const explicit = tokens.length > 0
+    const scaleX = tokens.includes('width') || tokens.includes('both')
+    const scaleY = tokens.includes('height') || tokens.includes('both')
+
+    return {
+      scaleX: explicit ? scaleX : true,
+      scaleY: explicit ? scaleY : true,
+    }
+  }
+
+  _parsePadding(value) {
+    if (!value) return {}
+    const result = {}
+    const entries = value.split(/[, ]+/).filter(Boolean)
+    for (const entry of entries) {
+      const [key, raw] = entry.split(':')
+      if (!key || !raw) continue
+      const parsed = Number.parseFloat(raw)
+      if (!Number.isFinite(parsed)) continue
+      switch (key.trim().toLowerCase()) {
+        case 'left':
+          result.left = parsed
+          break
+        case 'right':
+          result.right = parsed
+          break
+        case 'top':
+          result.top = parsed
+          break
+        case 'bottom':
+          result.bottom = parsed
+          break
+        default:
+          break
+      }
+    }
+    return result
+  }
+
+  _applyLayoutTransform(record) {
+    const layout = record.layout
+    const viewport = this.getViewportPixels()
+    const widthScaleFactor =
+      layout.referenceWidthPx <= 0 ? 1 : viewport.width / layout.referenceWidthPx
+    const heightScaleFactor =
+      layout.referenceHeightPx <= 0 ? 1 : viewport.height / layout.referenceHeightPx
+
+    const sizeScaleX = layout.scaleX ? widthScaleFactor : 1
+    const sizeScaleY = layout.scaleY ? heightScaleFactor : 1
+
+    const targetWidthMeters = record.baseWidthMeters * sizeScaleX
+    const targetHeightMeters = record.baseHeightMeters * sizeScaleY
+
+    const padLeftMeters = toCanonicalWidthMeters(layout.paddingLeftPx * widthScaleFactor, viewport.width)
+    const padRightMeters = toCanonicalWidthMeters(layout.paddingRightPx * widthScaleFactor, viewport.width)
+    const padTopMeters = toCanonicalHeightMeters(layout.paddingTopPx * heightScaleFactor, viewport.height)
+    const padBottomMeters = toCanonicalHeightMeters(layout.paddingBottomPx * heightScaleFactor, viewport.height)
+
+    let positionX = 0
+    switch (layout.anchorX) {
+      case 'left':
+        positionX = -CANONICAL_WIDTH_METERS / 2 + padLeftMeters + targetWidthMeters / 2
+        break
+      case 'right':
+        positionX = CANONICAL_WIDTH_METERS / 2 - padRightMeters - targetWidthMeters / 2
+        break
+      case 'center':
+      default:
+        positionX = (layout.centerRatioX - 0.5) * CANONICAL_WIDTH_METERS
+        break
+    }
+
+    let positionY = 0
+    switch (layout.anchorY) {
+      case 'top':
+        positionY = CANONICAL_HEIGHT_METERS / 2 - padTopMeters - targetHeightMeters / 2
+        break
+      case 'bottom':
+        positionY = -CANONICAL_HEIGHT_METERS / 2 + padBottomMeters + targetHeightMeters / 2
+        break
+      case 'center':
+      default:
+        positionY = (0.5 - layout.centerRatioY) * CANONICAL_HEIGHT_METERS
+        break
+    }
+
+    record.mesh.position.set(positionX, positionY, 0)
+    record.mesh.scale.set(
+      targetWidthMeters / record.baseWidthMeters,
+      targetHeightMeters / record.baseHeightMeters,
+      1
+    )
+
+    record.widthMeters = targetWidthMeters
+    record.heightMeters = targetHeightMeters
   }
 }

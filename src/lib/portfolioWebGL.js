@@ -2,13 +2,19 @@ import * as THREE from 'three'
 import { DOMToWebGL } from './domToWebGL'
 import { ClothPhysics } from './clothPhysics'
 import { CollisionSystem } from './collisionSystem'
-import { CANONICAL_HEIGHT_METERS } from './units'
+import { CANONICAL_HEIGHT_METERS, CANONICAL_WIDTH_METERS } from './units'
 import { ElementPool } from './elementPool'
 import { SimulationScheduler } from './simulationScheduler'
 
 const FIXED_DT = 1 / 60
 const MAX_ACCUMULATED_TIME = FIXED_DT * 5
 const WARM_START_PASSES = 2
+const DEFAULT_POINTER_RADIUS = 0.0012
+const MIN_POINTER_RADIUS = 0.0006
+const POINTER_RADIUS_DIVISOR = 12
+const DEFAULT_TURBULENCE = 0.06
+const DEFAULT_PIN_RELEASE_MS = null
+const DEFAULT_LABEL = 'Cloth Element'
 
 /**
  * @typedef {import('./domToWebGL.js').DOMMeshRecord} DOMMeshRecord
@@ -29,7 +35,10 @@ const WARM_START_PASSES = 2
  * @property {THREE.Vector2} velocity
  * @property {boolean} active
  * @property {boolean} needsImpulse
+ * @property {number} radius
  * @typedef {Object} ClothItem
+ * @property {string} id
+ * @property {string} label
  * @property {HTMLElement} element
  * @property {ClothPhysics | undefined} cloth
  * @property {string} originalOpacity
@@ -63,8 +72,10 @@ class ClothBodyAdapter {
     const cloth = this.item.cloth
     if (!cloth) return
 
+    const radius = this._getImpulseRadius()
+    this.pointer.radius = radius
+
     if (this.pointer.needsImpulse) {
-      const radius = this._getImpulseRadius()
       const strength = this._getImpulseStrength()
       const scaledForce = this.pointer.velocity.clone().multiplyScalar(strength)
       cloth.applyImpulse(this.pointer.position, scaledForce, radius)
@@ -100,8 +111,11 @@ class ClothBodyAdapter {
       return parsed
     }
     const { widthMeters = 0, heightMeters = 0 } = this.record ?? {}
-    const base = Math.max(widthMeters, heightMeters)
-    return base > 0 ? base / 2 : 0.25
+    const base = Math.min(widthMeters || 0, heightMeters || 0)
+    if (base > 0) {
+      return Math.max(MIN_POINTER_RADIUS, base / POINTER_RADIUS_DIVISOR)
+    }
+    return DEFAULT_POINTER_RADIUS
   }
 
   _getImpulseStrength() {
@@ -130,14 +144,16 @@ export class PortfolioWebGL {
       velocity: new THREE.Vector2(),
       active: false,
       needsImpulse: false,
+      radius: DEFAULT_POINTER_RADIUS,
     }
     this.pointerHelper = null
     this.pointerHelperAttached = false
     this.pointerColliderVisible = false
+    this.pointerInteractionEnabled = true
     this.debug = {
       realTime: true,
       wireframe: false,
-      gravity: 9.81,
+      gravity: 2,
       impulseMultiplier: 1,
       constraintIterations: 4,
       substeps: 1,
@@ -245,6 +261,13 @@ export class PortfolioWebGL {
       pool.mount(element)
 
       const record = pool.getRecord(element)
+      if (record) {
+        record.physics = record.physics ?? {}
+        if (record.physics.pinMode === undefined) {
+          record.physics.pinMode = this.debug.pinMode
+          this._updateDatasetWithPhysics({ element, record })
+        }
+      }
 
       const originalOpacity = element.style.opacity
       element.style.opacity = '0'
@@ -257,7 +280,12 @@ export class PortfolioWebGL {
       element.addEventListener('click', clickHandler)
       this.collisionSystem.addStaticBody(element)
 
+      const id = this._getBodyId(element)
+      const label = this._deriveLabel(element, id)
+
       this.items.set(element, {
+        id,
+        label,
         element,
         originalOpacity,
         clickHandler,
@@ -265,6 +293,7 @@ export class PortfolioWebGL {
         record,
       })
     }
+    this._syncStaticMeshes()
   }
 
   _activate(element) {
@@ -274,6 +303,12 @@ export class PortfolioWebGL {
     if (!item || item.isActive) return
 
     item.isActive = true
+    if (!item.id) {
+      item.id = this._getBodyId(element)
+    }
+    if (!item.label) {
+      item.label = this._deriveLabel(element, item.id)
+    }
     this.collisionSystem.removeStaticBody(element)
     this._resetPointer()
 
@@ -282,21 +317,32 @@ export class PortfolioWebGL {
 
     this.pool.resetGeometry(element)
 
+    const physics = record.physics ?? {}
+    const damping = physics.damping ?? 0.97
+    const iterations = physics.constraintIterations ?? this.debug.constraintIterations
+    const substeps = physics.substeps ?? this.debug.substeps
+    const density = physics.density ?? 1
+    const turbulence = physics.turbulence ?? DEFAULT_TURBULENCE
+    const releaseDelayMs = physics.releaseDelayMs ?? DEFAULT_PIN_RELEASE_MS
+    const pinOverride = physics.pinMode
+
     const cloth = new ClothPhysics(record.mesh, {
-      damping: 0.97,
-      constraintIterations: this.debug.constraintIterations,
+      damping,
+      constraintIterations: iterations,
     })
 
-    cloth.setConstraintIterations(this.debug.constraintIterations)
-    cloth.setSubsteps(this.debug.substeps)
-    this._applyPinMode(cloth)
+    cloth.setConstraintIterations(iterations)
+    cloth.setSubsteps(substeps)
+    this._applyPinMode(cloth, pinOverride ?? this.debug.pinMode)
 
-    const gravityVector = new THREE.Vector3(0, -this.debug.gravity, 0)
+    const gravityVector = new THREE.Vector3(0, -(this.debug.gravity * density), 0)
     this._runWarmStart(cloth)
     cloth.setGravity(gravityVector)
 
-    cloth.addTurbulence(0.06)
-    setTimeout(() => cloth.releaseAllPins(), 900)
+    cloth.addTurbulence(turbulence)
+    if (releaseDelayMs !== null && releaseDelayMs !== undefined) {
+      setTimeout(() => cloth.releaseAllPins(), Math.max(0, releaseDelayMs))
+    }
 
     item.cloth = cloth
     item.record = record
@@ -360,7 +406,7 @@ export class PortfolioWebGL {
   }
 
   _handlePointerMove(event) {
-    if (!this.domToWebGL) return
+    if (!this.domToWebGL || !this.pointerInteractionEnabled) return
     const canonical = this.domToWebGL.pointerToCanonical(event.clientX, event.clientY)
     const x = canonical.x
     const y = canonical.y
@@ -391,6 +437,7 @@ export class PortfolioWebGL {
     this.pointer.active = false
     this.pointer.needsImpulse = false
     this.pointer.velocity.set(0, 0)
+    this.pointer.radius = DEFAULT_POINTER_RADIUS
     this._updatePointerHelper()
   }
 
@@ -436,7 +483,8 @@ export class PortfolioWebGL {
   setGravity(gravity) {
     this.debug.gravity = gravity
     for (const item of this.items.values()) {
-      item.cloth?.setGravity(new THREE.Vector3(0, -gravity, 0))
+      const density = item.record?.physics?.density ?? 1
+      item.cloth?.setGravity(new THREE.Vector3(0, -(gravity * density), 0))
     }
   }
 
@@ -470,13 +518,24 @@ export class PortfolioWebGL {
 
   setPinMode(mode) {
     this.debug.pinMode = mode
-    const gravityVector = new THREE.Vector3(0, -this.debug.gravity, 0)
     for (const item of this.items.values()) {
+      if (item.record) {
+        if (!item.record.physics) {
+          item.record.physics = {}
+        }
+        item.record.physics.pinMode = mode
+        this._updateDatasetWithPhysics(item)
+        if (!item.isActive) {
+          this.domToWebGL?.updateMeshTransform(item.element, item.record)
+        }
+      }
       const cloth = item.cloth
       if (!cloth) continue
       cloth.clearPins()
-      this._applyPinMode(cloth)
+      this._applyPinMode(cloth, this.debug.pinMode)
       this._runWarmStart(cloth)
+      const density = item.record?.physics?.density ?? 1
+      const gravityVector = new THREE.Vector3(0, -(this.debug.gravity * density), 0)
       cloth.setGravity(gravityVector)
     }
   }
@@ -563,20 +622,26 @@ export class PortfolioWebGL {
     this.pointerHelper.visible = this.pointerColliderVisible
     if (!this.pointerColliderVisible) return
     this.pointerHelper.position.set(this.pointer.position.x, this.pointer.position.y, 0.2)
+    const radius = Math.max(MIN_POINTER_RADIUS, this.pointer.radius || DEFAULT_POINTER_RADIUS)
+    const correction = this._getPointerAspectCorrection()
+    this.pointerHelper.scale.set(radius * correction, radius, radius)
   }
 
   _ensurePointerHelper() {
     if (!this.pointerHelper) {
-      const geometry = new THREE.SphereGeometry(0.12, 16, 16)
+      const geometry = new THREE.SphereGeometry(1, 16, 16)
       const material = new THREE.MeshBasicMaterial({ color: 0xff6699, wireframe: true })
       this.pointerHelper = new THREE.Mesh(geometry, material)
       this.pointerHelper.visible = false
+      const radius = Math.max(MIN_POINTER_RADIUS, this.pointer.radius || DEFAULT_POINTER_RADIUS)
+      const correction = this._getPointerAspectCorrection()
+      this.pointerHelper.scale.set(radius * correction, radius, radius)
     }
     return this.pointerHelper
   }
 
-  _applyPinMode(cloth) {
-    switch (this.debug.pinMode) {
+  _applyPinMode(cloth, pinMode = this.debug.pinMode) {
+    switch (pinMode) {
       case 'top':
         cloth.pinTopEdge()
         break
@@ -597,5 +662,225 @@ export class PortfolioWebGL {
     cloth.wake()
     cloth.setGravity(new THREE.Vector3(0, 0, 0))
     cloth.relaxConstraints(this.debug.constraintIterations * WARM_START_PASSES)
+  }
+
+  _getPointerAspectCorrection() {
+    if (!this.domToWebGL) return 1
+    const viewport = this.domToWebGL.getViewportPixels()
+    const canonicalAspect = CANONICAL_WIDTH_METERS / CANONICAL_HEIGHT_METERS
+    const viewportAspect = viewport.height === 0 ? canonicalAspect : viewport.width / viewport.height
+    if (viewportAspect === 0) return 1
+    return canonicalAspect / viewportAspect
+  }
+
+  setPointerInteractionEnabled(enabled) {
+    this.pointerInteractionEnabled = enabled
+    if (!enabled) {
+      this._resetPointer()
+    }
+  }
+
+  getEntities() {
+    const entities = []
+    for (const item of this.items.values()) {
+      const record = item.record ?? this.pool?.getRecord(item.element)
+      const metrics = this._collectMetrics(item, record)
+      entities.push({
+        id: item.id ?? this._getBodyId(item.element),
+        label: item.label,
+        elementId: item.element.id || null,
+        isActive: item.isActive,
+        hasCloth: !!item.cloth,
+        physics: record?.physics ?? {},
+        layout: record?.layout ?? null,
+        metrics,
+      })
+    }
+    return entities
+  }
+
+  getEntityDetails(id) {
+    const item = this._findItemById(id)
+    if (!item) return null
+    const record = item.record ?? this.pool?.getRecord(item.element)
+    const dataset = { ...item.element.dataset }
+    const metrics = this._collectMetrics(item, record)
+    return {
+      id: item.id ?? this._getBodyId(item.element),
+      label: item.label,
+      elementId: item.element.id || null,
+      isActive: item.isActive,
+      hasCloth: !!item.cloth,
+      physics: record?.physics ?? {},
+      layout: record?.layout ?? null,
+      metrics,
+      dataset,
+    }
+  }
+
+  applyPhysicsPreset(id, overrides) {
+    const item = this._findItemById(id)
+    if (!item || !item.record) return
+    const current = item.record.physics ?? {}
+    item.record.physics = { ...current, ...overrides }
+    this._updateDatasetWithPhysics(item)
+    if (item.cloth) {
+      this._updateActiveClothPhysics(item)
+    }
+  }
+
+  pickEntityAt(clientX, clientY) {
+    if (!this.domToWebGL) return null
+    const pointer = this.domToWebGL.pointerToCanonical(clientX, clientY)
+    let best = null
+    let bestDistance = Infinity
+
+    for (const item of this.items.values()) {
+      const record = item.record ?? this.pool?.getRecord(item.element)
+      if (!record) continue
+      const mesh = record.mesh
+      const center = mesh.position
+      let inside = false
+      let distance = Infinity
+
+      if (item.isActive && item.cloth) {
+        const sphere = item.cloth.getBoundingSphere()
+        if (sphere) {
+          const worldCenter = sphere.center.clone().add(center)
+          const dx = pointer.x - worldCenter.x
+          const dy = pointer.y - worldCenter.y
+          const distSq = dx * dx + dy * dy
+          if (distSq <= sphere.radius * sphere.radius) {
+            inside = true
+            distance = Math.sqrt(distSq)
+          }
+        }
+      } else {
+        const width = record.widthMeters ?? record.baseWidthMeters ?? 0
+        const height = record.heightMeters ?? record.baseHeightMeters ?? 0
+        const halfWidth = width / 2
+        const halfHeight = height / 2
+        const left = center.x - halfWidth
+        const right = center.x + halfWidth
+        const top = center.y + halfHeight
+        const bottom = center.y - halfHeight
+        if (pointer.x >= left && pointer.x <= right && pointer.y >= bottom && pointer.y <= top) {
+          inside = true
+          const dx = pointer.x - center.x
+          const dy = pointer.y - center.y
+          distance = Math.sqrt(dx * dx + dy * dy)
+        }
+      }
+
+      if (!inside) continue
+      if (distance < bestDistance) {
+        best = item
+        bestDistance = distance
+      }
+    }
+
+    if (!best) return null
+
+    return {
+      id: best.id ?? this._getBodyId(best.element),
+      label: best.label,
+      isActive: best.isActive,
+    }
+  }
+
+  _findItemById(id) {
+    for (const item of this.items.values()) {
+      const itemId = item.id ?? this._getBodyId(item.element)
+      if (itemId === id) {
+        return item
+      }
+    }
+    return null
+  }
+
+  _updateActiveClothPhysics(item) {
+    if (!item.cloth || !item.record) return
+    const physics = item.record.physics ?? {}
+    if (physics.damping !== undefined) {
+      item.cloth.setDamping(physics.damping)
+    }
+    if (physics.constraintIterations !== undefined) {
+      item.cloth.setConstraintIterations(physics.constraintIterations)
+    }
+    if (physics.substeps !== undefined) {
+      item.cloth.setSubsteps(physics.substeps)
+    }
+    if (physics.pinMode) {
+      item.cloth.clearPins()
+      this._applyPinMode(item.cloth, physics.pinMode)
+    }
+    const density = physics.density ?? 1
+    const gravityVector = new THREE.Vector3(0, -(this.debug.gravity * density), 0)
+    item.cloth.setGravity(gravityVector)
+  }
+
+  _deriveLabel(element, fallbackId) {
+    const dataLabel = element.dataset?.clothLabel
+    if (dataLabel && dataLabel.trim().length > 0) return dataLabel.trim()
+    const ariaLabel = element.getAttribute('aria-label')
+    if (ariaLabel && ariaLabel.trim().length > 0) return ariaLabel.trim()
+    const text = element.textContent?.trim()
+    if (text) return text
+    if (element.id) return element.id
+    return fallbackId || DEFAULT_LABEL
+  }
+
+  _collectMetrics(item, record) {
+    const mesh = record?.mesh
+    const geometry = mesh?.geometry
+    const vertexCount = geometry?.attributes?.position?.count ?? 0
+    const triangleCount = geometry?.index?.count
+      ? geometry.index.count / 3
+      : Math.max(0, vertexCount - 2)
+
+    if (item.cloth) {
+      const stats = item.cloth.getConstraintStats()
+      return {
+        vertexCount,
+        triangleCount,
+        averageError: stats.averageError,
+        maxError: stats.maxError,
+      }
+    }
+
+    return {
+      vertexCount,
+      triangleCount,
+      averageError: 0,
+      maxError: 0,
+    }
+  }
+
+  _updateDatasetWithPhysics(item) {
+    if (!item.record) return
+    const element = item.element
+    const physics = item.record.physics ?? {}
+
+    if (physics.density !== undefined) {
+      element.dataset.clothDensity = String(physics.density)
+    }
+    if (physics.damping !== undefined) {
+      element.dataset.clothDamping = String(physics.damping)
+    }
+    if (physics.constraintIterations !== undefined) {
+      element.dataset.clothIterations = String(physics.constraintIterations)
+    }
+    if (physics.substeps !== undefined) {
+      element.dataset.clothSubsteps = String(physics.substeps)
+    }
+    if (physics.turbulence !== undefined) {
+      element.dataset.clothTurbulence = String(physics.turbulence)
+    }
+    if (physics.releaseDelayMs !== undefined) {
+      element.dataset.clothRelease = String(physics.releaseDelayMs)
+    }
+    if (physics.pinMode) {
+      element.dataset.clothPin = physics.pinMode
+    }
   }
 }
