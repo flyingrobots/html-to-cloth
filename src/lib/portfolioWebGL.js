@@ -13,7 +13,7 @@ const DEFAULT_POINTER_RADIUS = 0.0012
 const MIN_POINTER_RADIUS = 0.0006
 const POINTER_RADIUS_DIVISOR = 12
 const DEFAULT_TURBULENCE = 0.06
-const DEFAULT_PIN_RELEASE_MS = null
+const DEFAULT_PIN_RELEASE_MS = 900
 const DEFAULT_LABEL = 'Cloth Element'
 
 /**
@@ -82,7 +82,10 @@ class ClothBodyAdapter {
       this.pointer.needsImpulse = false
     }
 
+    const checkSleep = typeof cloth.isSleeping === 'function'
+    const sleepingBefore = checkSleep ? cloth.isSleeping() : false
     cloth.update(dt)
+    const sleepingAfter = checkSleep ? cloth.isSleeping() : false
     this.collisionSystem.apply(cloth)
 
     if (cloth.isOffscreen(-CANONICAL_HEIGHT_METERS)) {
@@ -150,6 +153,14 @@ export class PortfolioWebGL {
     this.pointerHelperAttached = false
     this.pointerColliderVisible = false
     this.pointerInteractionEnabled = true
+    this.autoRelease = true
+    this.showAabbs = false
+    this.pendingStaticRefresh = null
+    this.showSleepState = false
+    this.aabbHelpers = new Map()
+    this.debugGroup = new THREE.Group()
+    this.debugGroup.renderOrder = 10
+    this.debugGroup.visible = false
     this.debug = {
       realTime: true,
       wireframe: false,
@@ -176,6 +187,8 @@ export class PortfolioWebGL {
 
     this.domToWebGL = new DOMToWebGL(document.body)
     this.pool = new ElementPool(this.domToWebGL)
+    this.domToWebGL.scene.add(this.debugGroup)
+    this.debugGroup.visible = this.showAabbs
     const viewport = this.domToWebGL.getViewportPixels()
     this.collisionSystem.setViewportDimensions(viewport.width, viewport.height)
 
@@ -219,6 +232,11 @@ export class PortfolioWebGL {
       }
       this.pointerHelper = null
       this.pointerHelperAttached = false
+    }
+
+    this._clearAabbHelpers()
+    if (this.domToWebGL) {
+      this.domToWebGL.scene.remove(this.debugGroup)
     }
 
     window.removeEventListener('resize', this.onResize)
@@ -323,7 +341,10 @@ export class PortfolioWebGL {
     const substeps = physics.substeps ?? this.debug.substeps
     const density = physics.density ?? 1
     const turbulence = physics.turbulence ?? DEFAULT_TURBULENCE
-    const releaseDelayMs = physics.releaseDelayMs ?? DEFAULT_PIN_RELEASE_MS
+    let releaseDelayMs = physics.releaseDelayMs ?? DEFAULT_PIN_RELEASE_MS
+    if (!this.autoRelease) {
+      releaseDelayMs = null
+    }
     const pinOverride = physics.pinMode
 
     const cloth = new ClothPhysics(record.mesh, {
@@ -381,8 +402,55 @@ export class PortfolioWebGL {
 
     this._decayPointerImpulse()
     this._updatePointerHelper()
+    this._updateDebugOverlays()
     this.domToWebGL.render()
   }
+
+  _scheduleStaticRefresh() {
+    if (this.pendingStaticRefresh) return
+    this.pendingStaticRefresh = this._refreshStaticRecords().finally(() => {
+      this.pendingStaticRefresh = null
+    })
+  }
+
+  async _refreshStaticRecords() {
+    const pool = this.pool
+    if (!pool) return
+    const tasks = []
+
+    for (const item of this.items.values()) {
+      if (item.isActive) continue
+      const element = item.element
+      tasks.push((async () => {
+        const prevOpacity = element.style.opacity
+        const prevPointer = element.style.pointerEvents
+        const shouldUnhide = prevOpacity === '0'
+        if (shouldUnhide) {
+          element.style.opacity = item.originalOpacity ?? ''
+          element.style.pointerEvents = 'none'
+        }
+        try {
+          await pool.prepare(element, this.debug.tessellationSegments, { force: true })
+        } finally {
+          if (shouldUnhide) {
+            element.style.opacity = prevOpacity
+            element.style.pointerEvents = prevPointer
+          }
+        }
+        pool.mount(element)
+        item.record = pool.getRecord(element)
+        const material = item.record?.mesh.material
+        if (material && 'wireframe' in material) {
+          material.wireframe = this.debug.wireframe
+        }
+      })())
+    }
+
+    await Promise.all(tasks)
+    this.collisionSystem.refresh()
+    this._updateDebugOverlays()
+  }
+
 
   _handleResize() {
     if (!this.domToWebGL) return
@@ -391,6 +459,7 @@ export class PortfolioWebGL {
     this.collisionSystem.setViewportDimensions(viewport.width, viewport.height)
     this.collisionSystem.refresh()
     this._syncStaticMeshes()
+    this._scheduleStaticRefresh()
   }
 
   _syncStaticMeshes() {
@@ -425,7 +494,7 @@ export class PortfolioWebGL {
     this.pointer.velocity.copy(this.pointer.position).sub(this.pointer.previous)
     const speedSq = this.pointer.velocity.lengthSq()
 
-    if (speedSq > 0.0001) {
+    if (speedSq > 1e-8) {
       this.pointer.needsImpulse = true
     }
 
@@ -468,6 +537,7 @@ export class PortfolioWebGL {
     item.isActive = false
     item.cloth = undefined
     item.adapter = undefined
+    this._removeAabbHelper(item)
   }
 
   setWireframe(enabled) {
@@ -578,6 +648,9 @@ export class PortfolioWebGL {
     const helper = this._ensurePointerHelper()
 
     if (enabled) {
+      if (!this.pointerInteractionEnabled) {
+        this.setPointerInteractionEnabled(true)
+      }
       if (!this.pointerHelperAttached) {
         this.domToWebGL.scene.add(helper)
         this.pointerHelperAttached = true
@@ -678,6 +751,114 @@ export class PortfolioWebGL {
     if (!enabled) {
       this._resetPointer()
     }
+  }
+
+  setShowAabbs(enabled) {
+    this.showAabbs = enabled
+    if (this.debugGroup) {
+      this.debugGroup.visible = enabled
+    }
+    if (!enabled) {
+      this._clearAabbHelpers()
+    } else {
+      this._updateDebugOverlays()
+    }
+  }
+
+  setShowSleepState(enabled) {
+    this.showSleepState = enabled
+    if (this.showAabbs) {
+      this._updateDebugOverlays()
+    }
+  }
+
+  _updateDebugOverlays() {
+    if (!this.showAabbs || !this.domToWebGL) return
+
+    const activeItems = new Set()
+
+    for (const item of this.items.values()) {
+      const record = item.record ?? this.pool?.getRecord(item.element)
+      if (!record && !item.cloth) {
+        this._removeAabbHelper(item)
+        continue
+      }
+
+      const helper = this._ensureAabbHelper(item)
+      if (!helper) continue
+
+      const targetBox = helper.userData.box || (helper.userData.box = new THREE.Box3())
+
+      if (item.cloth) {
+        const mesh = record?.mesh
+        targetBox.copy(item.cloth.getAABB())
+        if (mesh) {
+          mesh.updateMatrixWorld(true)
+          targetBox.min.add(mesh.position)
+          targetBox.max.add(mesh.position)
+        }
+      } else if (record?.mesh) {
+        record.mesh.updateMatrixWorld(true)
+        targetBox.setFromObject(record.mesh)
+      }
+
+      helper.box.copy(targetBox)
+      helper.material.color.setHex(this._getAabbColor(item))
+      helper.visible = true
+      helper.updateMatrixWorld(true)
+      activeItems.add(item)
+    }
+
+    for (const [item, helper] of this.aabbHelpers.entries()) {
+      if (!activeItems.has(item)) {
+        this._removeAabbHelper(item)
+      }
+    }
+  }
+
+  _ensureAabbHelper(item) {
+    let helper = this.aabbHelpers.get(item)
+    if (!helper) {
+      helper = new THREE.Box3Helper(new THREE.Box3(), new THREE.Color(this._getAabbColor(item)))
+      helper.visible = this.showAabbs
+      helper.userData.box = new THREE.Box3()
+      this.debugGroup.add(helper)
+      this.aabbHelpers.set(item, helper)
+    }
+    return helper
+  }
+
+  _removeAabbHelper(item) {
+    const helper = this.aabbHelpers.get(item)
+    if (!helper) return
+    this.debugGroup.remove(helper)
+    helper.geometry?.dispose?.()
+    helper.material?.dispose?.()
+    this.aabbHelpers.delete(item)
+  }
+
+  _clearAabbHelpers() {
+    for (const [item] of this.aabbHelpers) {
+      this._removeAabbHelper(item)
+    }
+  }
+
+  _getAabbColor(item) {
+    if (this.showSleepState && item.cloth) {
+      return item.cloth.isSleeping() ? 0xff3366 : 0x33cc66
+    }
+    return item.cloth ? 0x2299ff : 0x999999
+  }
+
+  _resetActiveCloths() {
+    for (const item of this.items.values()) {
+      if (!item.isActive) continue
+      this._handleClothOffscreen(item)
+    }
+  }
+
+  setAutoRelease(enabled) {
+    this.autoRelease = enabled
   }
 
   getEntities() {
@@ -876,9 +1057,17 @@ export class PortfolioWebGL {
     if (physics.turbulence !== undefined) {
       element.dataset.clothTurbulence = String(physics.turbulence)
     }
-    if (physics.releaseDelayMs !== undefined) {
-      element.dataset.clothRelease = String(physics.releaseDelayMs)
+
+    let releaseDelayMs = physics.releaseDelayMs ?? DEFAULT_PIN_RELEASE_MS
+    if (!this.autoRelease) {
+      releaseDelayMs = null
     }
+    if (releaseDelayMs !== null && releaseDelayMs !== undefined && releaseDelayMs > 0) {
+      element.dataset.clothRelease = String(physics.releaseDelayMs)
+    } else {
+      delete element.dataset.clothRelease
+    }
+
     if (physics.pinMode) {
       element.dataset.clothPin = physics.pinMode
     }

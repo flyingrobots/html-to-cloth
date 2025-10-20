@@ -24,10 +24,11 @@ export class ElementPool {
    * @param {HTMLElement} element
    * @param {number} [segments]
    */
-  async prepare(element, segments = 24) {
+  async prepare(element, segments = 24, options = {}) {
     const resolvedSegments = this._resolveSegments(element, segments)
     const existing = this.elements.get(element)
-    if (existing && existing.segments === resolvedSegments) return
+    const force = options.force === true
+    if (!force && existing && existing.segments === resolvedSegments) return
 
     if (existing) {
       this.destroy(element)

@@ -266,7 +266,7 @@ export class DOMToWebGL {
       constraintIterations: this._parseInteger(dataset.clothIterations, 1),
       substeps: this._parseInteger(dataset.clothSubsteps, 1),
       turbulence: this._parseNumber(dataset.clothTurbulence, 0, 5, undefined),
-      releaseDelayMs: this._parseNumber(dataset.clothRelease, 0, Number.MAX_SAFE_INTEGER, undefined),
+      releaseDelayMs: this._parseReleaseDelay(dataset.clothRelease),
       pinMode: this._parsePinMode(dataset.clothPin),
     }
   }
@@ -370,6 +370,13 @@ export class DOMToWebGL {
       default:
         return undefined
     }
+  }
+
+  _parseReleaseDelay(value) {
+    if (value === undefined || value === null || String(value).trim() === '') return undefined
+    const parsed = Number.parseFloat(String(value))
+    if (!Number.isFinite(parsed) || parsed <= 0) return undefined
+    return parsed
   }
 
   _inferAnchor(rect, viewportWidth, viewportHeight) {

@@ -5,7 +5,7 @@ import {
   Group,
   Kbd,
   MantineProvider,
-  Modal,
+  Drawer,
   Paper,
   Select,
   Slider,
@@ -89,11 +89,16 @@ function AppInner() {
   const [substeps, setSubsteps] = useState(1)
   const [pointerColliderVisible, setPointerColliderVisible] = useState(false)
   const [pinMode, setPinMode] = useState('top')
+  const [autoRelease, setAutoRelease] = useState(true)
+  const [showAabbs, setShowAabbs] = useState(false)
+  const [showSleepState, setShowSleepState] = useState(false)
   const [entities, setEntities] = useState([])
   const [selectedEntityId, setSelectedEntityId] = useState(null)
   const [selectedEntityDetails, setSelectedEntityDetails] = useState(null)
+  const [debugPaused, setDebugPaused] = useState(false)
   const modalContentRef = useRef(null)
   const pinModeInitializedRef = useRef(false)
+  const pauseForcedRef = useRef(false)
 
   const updateEntities = useCallback(() => {
     const controller = controllerRef.current
@@ -117,6 +122,9 @@ function AppInner() {
     controllerRef.current = controller
     void controller.init().then(() => {
       updateEntities()
+      controller.setAutoRelease(autoRelease)
+      controller.setShowAabbs(showAabbs)
+      controller.setShowSleepState(showSleepState)
     })
 
     const handler = (event) => {
@@ -179,6 +187,10 @@ function AppInner() {
   }, [pointerColliderVisible, debugOpen])
 
   useEffect(() => {
+    controllerRef.current?.setAutoRelease(autoRelease)
+  }, [autoRelease])
+
+  useEffect(() => {
     const controller = controllerRef.current
     if (!controller) return
 
@@ -187,7 +199,11 @@ function AppInner() {
       if (realTimeRef.current) {
         controller.setRealTime(false)
         realTimeRef.current = false
-        setRealTime(false)
+        pauseForcedRef.current = true
+        setDebugPaused(true)
+      } else {
+        pauseForcedRef.current = false
+        setDebugPaused(false)
       }
       controller.setPointerInteractionEnabled(false)
       controller.setPointerColliderVisible(false)
@@ -195,8 +211,14 @@ function AppInner() {
     } else {
       controller.setPointerInteractionEnabled(true)
       controller.setPointerColliderVisible(pointerColliderVisible)
-      if (realTimeBeforeDebugRef.current !== realTimeRef.current) {
-        controller.setRealTime(realTimeRef.current)
+      if (pauseForcedRef.current) {
+        controller.setRealTime(true)
+        realTimeRef.current = true
+        pauseForcedRef.current = false
+        setDebugPaused(false)
+        setRealTime(true)
+      } else {
+        setDebugPaused(false)
       }
     }
   }, [debugOpen, pointerColliderVisible, updateEntities])
@@ -210,6 +232,14 @@ function AppInner() {
     }
     controller.setPinMode(pinMode)
   }, [pinMode])
+
+  useEffect(() => {
+    controllerRef.current?.setShowAabbs(showAabbs)
+  }, [showAabbs])
+
+  useEffect(() => {
+    controllerRef.current?.setShowSleepState(showSleepState)
+  }, [showSleepState])
 
   useEffect(() => {
     const controller = controllerRef.current
@@ -353,13 +383,15 @@ function AppInner() {
         </Group>
       </Paper>
 
-      <Modal
+      <Drawer
         opened={debugOpen}
         onClose={() => setDebugOpen(false)}
         title="Debug Settings"
-        centered
-        size="lg"
-        overlayProps={{ opacity: 0.4, blur: 4 }}
+        position="right"
+        size="md"
+        padding="lg"
+        overlayProps={{ opacity: 0.35, blur: 6 }}
+        withinPortal
       >
         <Stack ref={modalContentRef} gap="md">
           <Group justify="space-between" align="center">
@@ -385,6 +417,33 @@ function AppInner() {
             <Switch
               checked={pointerColliderVisible}
               onChange={(event) => setPointerColliderVisible(event.currentTarget.checked)}
+              size="md"
+            />
+          </Group>
+
+          <Group justify="space-between" align="center">
+            <Text fw={500}>Auto Release</Text>
+            <Switch
+              checked={autoRelease}
+              onChange={(event) => setAutoRelease(event.currentTarget.checked)}
+              size="md"
+            />
+          </Group>
+
+          <Group justify="space-between" align="center">
+            <Text fw={500}>Show AABBs</Text>
+            <Switch
+              checked={showAabbs}
+              onChange={(event) => setShowAabbs(event.currentTarget.checked)}
+              size="md"
+            />
+          </Group>
+
+          <Group justify="space-between" align="center">
+            <Text fw={500}>Highlight Sleep State</Text>
+            <Switch
+              checked={showSleepState}
+              onChange={(event) => setShowSleepState(event.currentTarget.checked)}
               size="md"
             />
           </Group>
@@ -538,7 +597,7 @@ function AppInner() {
             </Group>
           </Stack>
 
-          {!realTime ? (
+          {!realTime || debugPaused ? (
             <Button variant="light" onClick={() => controllerRef.current?.stepOnce()}>
               Step (Space)
             </Button>
@@ -560,7 +619,7 @@ function AppInner() {
             </Button>
           </Group>
         </Stack>
-      </Modal>
+      </Drawer>
     </>
   )
 }

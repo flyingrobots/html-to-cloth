@@ -222,32 +222,43 @@ export class ClothPhysics {
   }
 
   pinTopEdge() {
-    for (let x = 0; x < this.widthSegments; x++) {
-      const index = (this.heightSegments - 1) * this.widthSegments + x
-      this.particles[index].pinned = true
+    const { maxY } = this._computeExtents()
+    const epsilon = 1e-4
+    for (const particle of this.particles) {
+      if (particle.position.y >= maxY - epsilon) {
+        particle.pinned = true
+      }
     }
   }
 
   pinBottomEdge() {
-    for (let x = 0; x < this.widthSegments; x++) {
-      const index = this._index(x, 0)
-      this.particles[index].pinned = true
+    const { minY } = this._computeExtents()
+    const epsilon = 1e-4
+    for (const particle of this.particles) {
+      if (particle.position.y <= minY + epsilon) {
+        particle.pinned = true
+      }
     }
   }
 
   pinCorners() {
-    const topRow = this.heightSegments - 1
-    const rightCol = this.widthSegments - 1
+    const { maxY, minY, maxX, minX } = this._computeExtents()
+    const epsilon = 1e-4
+    for (const particle of this.particles) {
+      const nearTop = Math.abs(particle.position.y - maxY) <= epsilon
+      const nearBottom = Math.abs(particle.position.y - minY) <= epsilon
+      const nearLeft = Math.abs(particle.position.x - minX) <= epsilon
+      const nearRight = Math.abs(particle.position.x - maxX) <= epsilon
 
-    const topLeft = this._index(0, topRow)
-    const topRight = this._index(rightCol, topRow)
-    const bottomLeft = this._index(0, 0)
-    const bottomRight = this._index(rightCol, 0)
-
-    this.particles[topLeft].pinned = true
-    this.particles[topRight].pinned = true
-    this.particles[bottomLeft].pinned = true
-    this.particles[bottomRight].pinned = true
+      if (
+        (nearTop && nearLeft) ||
+        (nearTop && nearRight) ||
+        (nearBottom && nearLeft) ||
+        (nearBottom && nearRight)
+      ) {
+        particle.pinned = true
+      }
+    }
   }
 
   addTurbulence(amount = 0.05) {
@@ -452,5 +463,33 @@ export class ClothPhysics {
 
   _index(x, y) {
     return y * this.widthSegments + x
+  }
+
+  getAABB() {
+    const { minX, maxX, minY, maxY, minZ, maxZ } = this._computeExtents()
+    return new THREE.Box3(
+      new THREE.Vector3(minX, minY, minZ),
+      new THREE.Vector3(maxX, maxY, maxZ)
+    )
+  }
+
+  _computeExtents() {
+    let maxY = Number.NEGATIVE_INFINITY
+    let minY = Number.POSITIVE_INFINITY
+    let maxX = Number.NEGATIVE_INFINITY
+    let minX = Number.POSITIVE_INFINITY
+    let maxZ = Number.NEGATIVE_INFINITY
+    let minZ = Number.POSITIVE_INFINITY
+
+    for (const particle of this.particles) {
+      if (particle.position.y > maxY) maxY = particle.position.y
+      if (particle.position.y < minY) minY = particle.position.y
+      if (particle.position.x > maxX) maxX = particle.position.x
+      if (particle.position.x < minX) minX = particle.position.x
+      if (particle.position.z > maxZ) maxZ = particle.position.z
+      if (particle.position.z < minZ) minZ = particle.position.z
+    }
+
+    return { maxY, minY, maxX, minX, maxZ, minZ }
   }
 }
