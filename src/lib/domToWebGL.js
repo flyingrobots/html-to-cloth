@@ -9,6 +9,202 @@ import {
   toCanonicalY,
 } from './units'
 
+const HTML2CANVAS_IFRAME_CLASS = 'html2canvas-container'
+const patchedDocuments = new WeakMap()
+const activePatchedDocuments = new Set()
+let html2canvasInterceptorDepth = 0
+/** @type {typeof Document.prototype.open | null} */
+let originalDocumentOpen = null
+
+const scheduleMicrotask = (callback) => {
+  if (typeof queueMicrotask === 'function') {
+    queueMicrotask(callback)
+    return
+  }
+  Promise.resolve().then(callback).catch(() => {
+    // Swallow unhandled rejections from the fallback microtask scheduler.
+  })
+}
+
+const shouldInterceptDocumentWrite = (target) => {
+  if (!target || typeof target !== 'object') return false
+  const defaultView = /** @type {Window | null | undefined} */ (target.defaultView)
+  if (!defaultView) return false
+  const frameElement = /** @type {Element | null | undefined} */ (defaultView.frameElement)
+  if (!frameElement || frameElement.tagName !== 'IFRAME') return false
+  return frameElement.classList?.contains(HTML2CANVAS_IFRAME_CLASS) ?? false
+}
+
+const replaceDocumentContents = (targetDocument, htmlText, record) => {
+  if (typeof DOMParser === 'undefined') return false
+
+  const markup = htmlText && htmlText.length > 0 ? htmlText : '<html></html>'
+  const parser = new DOMParser()
+  const parsed = parser.parseFromString(markup, 'text/html')
+  if (!parsed) return false
+
+  try {
+    while (targetDocument.firstChild) {
+      targetDocument.removeChild(targetDocument.firstChild)
+    }
+
+    if (parsed.doctype && targetDocument.implementation?.createDocumentType) {
+      const docType = targetDocument.implementation.createDocumentType(
+        parsed.doctype.name,
+        parsed.doctype.publicId,
+        parsed.doctype.systemId,
+      )
+      targetDocument.appendChild(docType)
+    }
+
+    const importedElement = targetDocument.importNode
+      ? targetDocument.importNode(parsed.documentElement, true)
+      : parsed.documentElement.cloneNode(true)
+    targetDocument.appendChild(importedElement)
+
+    if (record && !record.loadDispatched) {
+      record.loadDispatched = true
+      scheduleMicrotask(() => {
+        const loadEvent = new Event('load')
+        const view = targetDocument.defaultView
+        view?.dispatchEvent(loadEvent)
+        const frameElement = view?.frameElement
+        if (frameElement) {
+          frameElement.dispatchEvent(new Event('load'))
+        }
+      })
+    }
+  } catch (error) {
+    if (record?.originalWrite) {
+      return false
+    }
+    throw error
+  }
+
+  return true
+}
+
+const patchDocumentInstance = (doc) => {
+  if (patchedDocuments.has(doc)) {
+    return patchedDocuments.get(doc)
+  }
+
+  const record = {
+    originalWrite: doc.write,
+    originalWriteln: doc.writeln,
+    loadDispatched: false,
+  }
+
+  const customWrite = (...args) => {
+    const htmlText = args.map((value) => (value == null ? '' : String(value))).join('')
+    if (!replaceDocumentContents(doc, htmlText, record)) {
+      return record.originalWrite?.apply(doc, args)
+    }
+    return undefined
+  }
+
+  const customWriteln = (...args) => {
+    const htmlText = `${args.map((value) => (value == null ? '' : String(value))).join('')}\n`
+    if (!replaceDocumentContents(doc, htmlText, record)) {
+      return record.originalWriteln?.apply(doc, args)
+    }
+    return undefined
+  }
+
+  try {
+    Object.defineProperty(doc, 'write', {
+      value: customWrite,
+      configurable: true,
+      writable: true,
+    })
+    Object.defineProperty(doc, 'writeln', {
+      value: customWriteln,
+      configurable: true,
+      writable: true,
+    })
+  } catch (error) {
+    return record
+  }
+
+  patchedDocuments.set(doc, record)
+  activePatchedDocuments.add(doc)
+  return record
+}
+
+const restoreDocumentInstance = (doc) => {
+  const record = patchedDocuments.get(doc)
+  if (!record) return
+  try {
+    if (record.originalWrite) {
+      Object.defineProperty(doc, 'write', {
+        value: record.originalWrite,
+        configurable: true,
+        writable: true,
+      })
+    } else {
+      delete doc.write
+    }
+
+    if (record.originalWriteln) {
+      Object.defineProperty(doc, 'writeln', {
+        value: record.originalWriteln,
+        configurable: true,
+        writable: true,
+      })
+    } else {
+      delete doc.writeln
+    }
+  } catch (error) {
+    // Swallow restoration errors; the iframe is likely gone.
+  }
+  patchedDocuments.delete(doc)
+  activePatchedDocuments.delete(doc)
+}
+
+const interceptHtml2CanvasDocumentWrite = () => {
+  if (typeof Document === 'undefined') {
+    return () => {}
+  }
+
+  if (html2canvasInterceptorDepth === 0) {
+    originalDocumentOpen = Document.prototype.open
+
+    Document.prototype.open = function (...args) {
+      const result = typeof originalDocumentOpen === 'function'
+        ? originalDocumentOpen.apply(this, args)
+        : undefined
+
+      if (shouldInterceptDocumentWrite(this)) {
+        patchDocumentInstance(this)
+      }
+
+      return result
+    }
+  }
+
+  html2canvasInterceptorDepth += 1
+
+  let restored = false
+  return () => {
+    if (restored) return
+    restored = true
+    html2canvasInterceptorDepth -= 1
+    if (html2canvasInterceptorDepth === 0) {
+      if (originalDocumentOpen) {
+        Document.prototype.open = originalDocumentOpen
+      } else {
+        delete Document.prototype.open
+      }
+      originalDocumentOpen = null
+
+      for (const doc of activePatchedDocuments) {
+        restoreDocumentInstance(doc)
+      }
+      activePatchedDocuments.clear()
+    }
+  }
+}
+
 /**
  * @typedef {Object} DOMMeshRecord
  * @property {import('three').Mesh} mesh
@@ -105,13 +301,19 @@ export class DOMToWebGL {
   async captureElement(element) {
     const html2canvas = await this.ensureHtml2Canvas()
 
-    const canvas = await html2canvas(element, {
-      backgroundColor: null,
-      scale: window.devicePixelRatio,
-      logging: false,
-      useCORS: true,
-      skipClone: true,
-    })
+    const restoreDocumentWrite = interceptHtml2CanvasDocumentWrite()
+    let canvas
+    try {
+      canvas = await html2canvas(element, {
+        backgroundColor: null,
+        scale: window.devicePixelRatio,
+        logging: false,
+        useCORS: true,
+        skipClone: true,
+      })
+    } finally {
+      restoreDocumentWrite()
+    }
 
     const texture = new THREE.CanvasTexture(canvas)
     texture.needsUpdate = true

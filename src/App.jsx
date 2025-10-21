@@ -184,6 +184,11 @@ function AppInner() {
 
   useEffect(() => {
     controllerRef.current?.setPointerColliderVisible(debugOpen ? false : pointerColliderVisible)
+    console.log('[App]', 'effect:setPointerColliderVisible', {
+      debugOpen,
+      pointerColliderVisible,
+      controllerReady: !!controllerRef.current,
+    })
   }, [pointerColliderVisible, debugOpen])
 
   useEffect(() => {
@@ -195,16 +200,17 @@ function AppInner() {
     if (!controller) return
 
     if (debugOpen) {
-      realTimeBeforeDebugRef.current = realTimeRef.current
+      if (!pauseForcedRef.current) {
+        realTimeBeforeDebugRef.current = realTimeRef.current
+      }
+
       if (realTimeRef.current) {
         controller.setRealTime(false)
         realTimeRef.current = false
         pauseForcedRef.current = true
-        setDebugPaused(true)
-      } else {
-        pauseForcedRef.current = false
-        setDebugPaused(false)
       }
+
+      setDebugPaused(true)
       controller.setPointerInteractionEnabled(false)
       controller.setPointerColliderVisible(false)
       updateEntities()
@@ -243,7 +249,7 @@ function AppInner() {
 
   useEffect(() => {
     const controller = controllerRef.current
-    if (!controller || !debugOpen) return
+    if (!controller || !debugOpen || pointerColliderVisible) return
 
     const handlePointerDown = (event) => {
       if (event.defaultPrevented || event.button !== 0) return
@@ -263,7 +269,7 @@ function AppInner() {
     return () => {
       document.removeEventListener('pointerdown', handlePointerDown, true)
     }
-  }, [debugOpen])
+  }, [debugOpen, pointerColliderVisible])
 
   useEffect(() => {
     const controller = controllerRef.current
@@ -416,7 +422,12 @@ function AppInner() {
             <Text fw={500}>Pointer Collider</Text>
             <Switch
               checked={pointerColliderVisible}
-              onChange={(event) => setPointerColliderVisible(event.currentTarget.checked)}
+              onChange={(event) => {
+                console.log('[App]', 'pointer collider switch onChange', {
+                  checked: event.currentTarget.checked,
+                })
+                setPointerColliderVisible(event.currentTarget.checked)
+              }}
               size="md"
             />
           </Group>
@@ -541,7 +552,7 @@ function AppInner() {
                 }
               }}
               searchable={entityOptions.length > 6}
-              nothingFound="No entities"
+              nothingFoundMessage="No entities"
               disabled={!entityOptions.length}
             />
             {selectedEntityDetails ? (

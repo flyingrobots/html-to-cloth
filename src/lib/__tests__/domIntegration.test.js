@@ -599,4 +599,71 @@ describe('PortfolioWebGL DOM integration', () => {
 
     webgl.dispose()
   })
+
+  it('keeps cloth trigger clickable after enabling the pointer collider', async () => {
+    const webgl = new PortfolioWebGL()
+    await webgl.init()
+
+    // Simulate the debug drawer disabling pointer interaction while open.
+    webgl.setPointerInteractionEnabled(false)
+    webgl.setPointerColliderVisible(false)
+
+    // Resume simulation after closing the drawer with the collider switch enabled.
+    webgl.setPointerInteractionEnabled(true)
+    webgl.setPointerColliderVisible(true)
+
+    schedulerMocks.addBody.mockClear()
+    const button = getCtaButton()
+    button.dispatchEvent(new MouseEvent('click'))
+
+    expect(schedulerMocks.addBody).toHaveBeenCalledTimes(1)
+
+    webgl.dispose()
+  })
+
+  it('keeps cloth trigger clickable after toggling the pointer collider back off', async () => {
+    const webgl = new PortfolioWebGL()
+    await webgl.init()
+
+    webgl.setPointerInteractionEnabled(false)
+    webgl.setPointerColliderVisible(false)
+
+    // User enables the collider, closes the drawer, then disables it again.
+    webgl.setPointerInteractionEnabled(true)
+    webgl.setPointerColliderVisible(true)
+    webgl.setPointerColliderVisible(false)
+
+    schedulerMocks.addBody.mockClear()
+    const button = getCtaButton()
+    button.dispatchEvent(new MouseEvent('click'))
+
+    expect(schedulerMocks.addBody).toHaveBeenCalledTimes(1)
+
+    webgl.dispose()
+  })
+
+  it('activates cloth via pointer collider pointerdown fallback', async () => {
+    const originalElementFromPoint = document.elementFromPoint?.bind(document)
+    const button = getCtaButton()
+    document.elementFromPoint = () => button
+
+    const webgl = new PortfolioWebGL()
+    await webgl.init()
+
+    try {
+      webgl.setPointerInteractionEnabled(false)
+      webgl.setPointerColliderVisible(false)
+
+      webgl.setPointerInteractionEnabled(true)
+      webgl.setPointerColliderVisible(true)
+
+      schedulerMocks.addBody.mockClear()
+      window.dispatchEvent(new MouseEvent('pointerdown', { clientX: 110, clientY: 220, button: 0 }))
+
+      expect(schedulerMocks.addBody).toHaveBeenCalledTimes(1)
+    } finally {
+      webgl.dispose()
+      document.elementFromPoint = originalElementFromPoint ?? (() => null)
+    }
+  })
 })

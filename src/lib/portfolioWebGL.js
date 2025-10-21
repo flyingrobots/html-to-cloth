@@ -88,7 +88,11 @@ class ClothBodyAdapter {
     const sleepingAfter = checkSleep ? cloth.isSleeping() : false
     this.collisionSystem.apply(cloth)
 
-    if (cloth.isOffscreen(-CANONICAL_HEIGHT_METERS)) {
+    const offscreen = cloth.isOffscreen(-CANONICAL_HEIGHT_METERS)
+    if (offscreen) {
+      console.log('[cloth-status]', 'cloth exited viewport', {
+        id: this.id,
+      })
       this.handleOffscreen()
     }
   }
@@ -161,6 +165,8 @@ export class PortfolioWebGL {
     this.debugGroup = new THREE.Group()
     this.debugGroup.renderOrder = 10
     this.debugGroup.visible = false
+    this.onPointerDown = (event) => this._handlePointerDownActivation(event)
+    this.pointerColliderPointerDownAttached = false
     this.debug = {
       realTime: true,
       wireframe: false,
@@ -245,6 +251,10 @@ export class PortfolioWebGL {
     window.removeEventListener('pointerup', this.onPointerLeave)
     window.removeEventListener('pointerleave', this.onPointerLeave)
     window.removeEventListener('pointercancel', this.onPointerLeave)
+    if (this.pointerColliderPointerDownAttached) {
+      window.removeEventListener('pointerdown', this.onPointerDown, true)
+      this.pointerColliderPointerDownAttached = false
+    }
 
     for (const item of this.items.values()) {
       item.element.style.opacity = item.originalOpacity
@@ -316,9 +326,18 @@ export class PortfolioWebGL {
 
   _activate(element) {
     if (!this.domToWebGL || !this.pool) return
+    if (!this.debug.realTime) {
+      return
+    }
 
     const item = this.items.get(element)
     if (!item || item.isActive) return
+
+    console.log('[cloth-activate]', 'starting activation', {
+      id: item.id ?? this._getBodyId(element),
+      pointerColliderVisible: this.pointerColliderVisible,
+      pointerInteractionEnabled: this.pointerInteractionEnabled,
+    })
 
     item.isActive = true
     if (!item.id) {
@@ -331,9 +350,16 @@ export class PortfolioWebGL {
     this._resetPointer()
 
     const record = this.pool.getRecord(element)
-    if (!record) return
+    if (!record) {
+      console.log('[cloth-activate]', 'missing record for element, aborting activation')
+      return
+    }
 
     this.pool.resetGeometry(element)
+    console.log('[cloth-activate]', 'reset geometry', {
+      widthMeters: record.widthMeters,
+      heightMeters: record.heightMeters,
+    })
 
     const physics = record.physics ?? {}
     const damping = physics.damping ?? 0.97
@@ -384,6 +410,11 @@ export class PortfolioWebGL {
     this.scheduler.addBody(adapter)
     item.adapter = adapter
     element.removeEventListener('click', item.clickHandler)
+    console.log('[cloth-activate]', 'mounted cloth adapter and removed DOM click handler', {
+      id: item.id,
+      releaseDelayMs,
+      wireframe: this.debug.wireframe,
+    })
   }
 
   _animate() {
@@ -531,6 +562,10 @@ export class PortfolioWebGL {
     this.pool.recycle(element)
     this.pool.resetGeometry(element)
     this.pool.mount(element)
+    console.log('[cloth-offscreen]', 'recycled cloth and remounting DOM element', {
+      id: item.id,
+      pointerColliderVisible: this.pointerColliderVisible,
+    })
     element.style.opacity = '0'
     element.addEventListener('click', item.clickHandler)
     this.collisionSystem.addStaticBody(element)
@@ -568,6 +603,7 @@ export class PortfolioWebGL {
       this.accumulator = 0
       this.clock.getDelta()
     }
+    console.log('[sim-real-time]', 'setRealTime', { enabled })
   }
 
   setSubsteps(substeps) {
@@ -641,6 +677,12 @@ export class PortfolioWebGL {
   }
 
   setPointerColliderVisible(enabled) {
+    console.log('[pointer-collider]', 'setPointerColliderVisible', {
+      enabled,
+      pointerHelperAttached: this.pointerHelperAttached,
+      pointerColliderPointerDownAttached: this.pointerColliderPointerDownAttached,
+      hasDomBridge: !!this.domToWebGL,
+    })
     this.debug.pointerCollider = enabled
     this.pointerColliderVisible = enabled
     if (!this.domToWebGL) return
@@ -657,11 +699,21 @@ export class PortfolioWebGL {
       }
       helper.visible = true
       this._updatePointerHelper()
+      if (!this.pointerColliderPointerDownAttached) {
+        window.addEventListener('pointerdown', this.onPointerDown, true)
+        this.pointerColliderPointerDownAttached = true
+        console.log('[pointer-collider]', 'attached capture pointerdown listener')
+      }
     } else {
       helper.visible = false
       if (this.pointerHelperAttached) {
         this.domToWebGL.scene.remove(helper)
         this.pointerHelperAttached = false
+      }
+      if (this.pointerColliderPointerDownAttached) {
+        window.removeEventListener('pointerdown', this.onPointerDown, true)
+        this.pointerColliderPointerDownAttached = false
+        console.log('[pointer-collider]', 'detached capture pointerdown listener')
       }
     }
   }
@@ -697,20 +749,71 @@ export class PortfolioWebGL {
     this.pointerHelper.position.set(this.pointer.position.x, this.pointer.position.y, 0.2)
     const radius = Math.max(MIN_POINTER_RADIUS, this.pointer.radius || DEFAULT_POINTER_RADIUS)
     const correction = this._getPointerAspectCorrection()
-    this.pointerHelper.scale.set(radius * correction, radius, radius)
+    this.pointerHelper.scale.set(radius * correction, radius, 1)
   }
 
   _ensurePointerHelper() {
     if (!this.pointerHelper) {
-      const geometry = new THREE.SphereGeometry(1, 16, 16)
-      const material = new THREE.MeshBasicMaterial({ color: 0xff6699, wireframe: true })
-      this.pointerHelper = new THREE.Mesh(geometry, material)
+      const segments = 48
+      const points = []
+      for (let i = 0; i <= segments; i++) {
+        const angle = (i / segments) * Math.PI * 2
+        points.push(new THREE.Vector3(Math.cos(angle), Math.sin(angle), 0))
+      }
+      const geometry = new THREE.BufferGeometry().setFromPoints(points)
+      const material = new THREE.LineBasicMaterial({ color: 0xff6699 })
+      this.pointerHelper = new THREE.LineLoop(geometry, material)
       this.pointerHelper.visible = false
+      this.pointerHelper.frustumCulled = false
+      this.pointerHelper.renderOrder = 50
       const radius = Math.max(MIN_POINTER_RADIUS, this.pointer.radius || DEFAULT_POINTER_RADIUS)
       const correction = this._getPointerAspectCorrection()
-      this.pointerHelper.scale.set(radius * correction, radius, radius)
+      this.pointerHelper.scale.set(radius * correction, radius, 1)
     }
     return this.pointerHelper
+  }
+
+  _handlePointerDownActivation(event) {
+    if (!this.pointerColliderVisible || !this.pointerInteractionEnabled) return
+    if (!this.debug.realTime) return
+
+    const isPointerEvent = typeof PointerEvent !== 'undefined' && event instanceof PointerEvent
+    const isMouseEvent = event instanceof MouseEvent
+    if (!isPointerEvent && !isMouseEvent) return
+
+    const button = event.button ?? 0
+    if (button !== 0) return
+
+    let element = null
+    if (event.target instanceof HTMLElement) {
+      element = event.target.closest('.cloth-enabled')
+    }
+    if (!element && typeof document.elementFromPoint === 'function') {
+      const probe = document.elementFromPoint(event.clientX, event.clientY)
+      if (probe instanceof HTMLElement) {
+        element = probe.closest('.cloth-enabled')
+      }
+    }
+    console.log('[pointer-collider]', 'pointerdown', {
+      targetTag: event.target instanceof HTMLElement ? event.target.tagName : null,
+      hitElement: element ? element.tagName : null,
+      clientX: event.clientX,
+      clientY: event.clientY,
+      pointerInteractionEnabled: this.pointerInteractionEnabled,
+    })
+    if (!element) return
+
+    const item = this.items.get(element)
+    if (!item) {
+      console.log('[pointer-collider]', 'pointerdown target not managed by element pool')
+      return
+    }
+    if (!item || item.isActive) return
+    console.log('[pointer-collider]', 'activating cloth from pointerdown fallback', {
+      id: item.id,
+      isActive: item.isActive,
+    })
+    this._activate(element)
   }
 
   _applyPinMode(cloth, pinMode = this.debug.pinMode) {
@@ -751,6 +854,9 @@ export class PortfolioWebGL {
     if (!enabled) {
       this._resetPointer()
     }
+    console.log('[pointer-interaction]', 'setPointerInteractionEnabled', {
+      enabled,
+    })
   }
 
   setShowAabbs(enabled) {
