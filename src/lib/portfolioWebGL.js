@@ -376,6 +376,8 @@ export class PortfolioWebGL {
     const cloth = new ClothPhysics(record.mesh, {
       damping,
       constraintIterations: iterations,
+      debugLabel: item.id ?? this._getBodyId(element),
+      debugLogging: true,
     })
 
     cloth.setConstraintIterations(iterations)

@@ -1,5 +1,7 @@
 import * as THREE from 'three'
 
+const getTimestamp = () => (typeof performance !== 'undefined' ? performance.now() : Date.now())
+
 /**
  * @typedef {Object} ClothOptions
  * @property {number} [damping]
@@ -41,6 +43,8 @@ export class ClothPhysics {
     this.sleepFrameCounter = 0
     this.sleepVelocityThresholdSq = 1e-6
     this.sleepFrameThreshold = 60
+    this.debugLabel = options.debugLabel ?? null
+    this.debugLogging = options.debugLogging ?? false
 
     const geom = mesh.geometry
     this.widthSegments = (geom.parameters.widthSegments ?? 1) + 1
@@ -49,6 +53,8 @@ export class ClothPhysics {
     if (options.gravity) this.gravity.copy(options.gravity)
     if (options.damping) this.damping = options.damping
     if (options.constraintIterations) this.constraintIterations = options.constraintIterations
+    if (options.sleepVelocityThresholdSq) this.sleepVelocityThresholdSq = options.sleepVelocityThresholdSq
+    if (options.sleepFrameThreshold) this.sleepFrameThreshold = options.sleepFrameThreshold
 
     this._initializeParticles()
     this._initializeConstraints()
@@ -321,11 +327,39 @@ export class ClothPhysics {
 
     if (maxDeltaSq < this.sleepVelocityThresholdSq) {
       this.sleepFrameCounter++
+      if (this.debugLogging) {
+        console.log('[cloth-sleep]', 'below-threshold', {
+          label: this.debugLabel,
+          time: getTimestamp(),
+          maxDelta: Math.sqrt(maxDeltaSq),
+          threshold: Math.sqrt(this.sleepVelocityThresholdSq),
+          frameCounter: this.sleepFrameCounter,
+        })
+      }
       if (this.sleepFrameCounter >= this.sleepFrameThreshold) {
+        if (this.debugLogging) {
+          console.log('[cloth-sleep]', 'sleep', {
+            label: this.debugLabel,
+            time: getTimestamp(),
+            gravity: this.gravity.clone(),
+            damping: this.damping,
+            maxDelta: Math.sqrt(maxDeltaSq),
+            threshold: Math.sqrt(this.sleepVelocityThresholdSq),
+            frameCounter: this.sleepFrameCounter,
+          })
+        }
         this.sleeping = true
       }
     } else {
+      if (this.sleepFrameCounter > 0 && this.debugLogging) {
+        console.log('[cloth-sleep]', 'reset', {
+          label: this.debugLabel,
+          time: getTimestamp(),
+          maxDelta: Math.sqrt(maxDeltaSq),
+        })
+      }
       this.sleepFrameCounter = 0
+      this.sleeping = false
     }
   }
 
