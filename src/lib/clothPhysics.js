@@ -7,6 +7,7 @@ const getTimestamp = () => (typeof performance !== 'undefined' ? performance.now
  * @property {number} [damping]
  * @property {number} [constraintIterations]
  * @property {THREE.Vector3} [gravity]
+ * @property {import('./worldBody.js').WorldBody} [worldBody]
  */
 
 /**
@@ -55,6 +56,8 @@ export class ClothPhysics {
     if (options.constraintIterations) this.constraintIterations = options.constraintIterations
     if (options.sleepVelocityThresholdSq) this.sleepVelocityThresholdSq = options.sleepVelocityThresholdSq
     if (options.sleepFrameThreshold) this.sleepFrameThreshold = options.sleepFrameThreshold
+
+    this.worldBody = options.worldBody ?? null
 
     this._initializeParticles()
     this._initializeConstraints()

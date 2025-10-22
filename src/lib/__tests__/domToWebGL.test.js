@@ -7,6 +7,12 @@ vi.mock('three', () => {
       this.y = y
       this.z = z
     }
+    copy(vector) {
+      this.x = vector.x
+      this.y = vector.y
+      this.z = vector.z
+      return this
+    }
     set(x, y, z) {
       this.x = x
       this.y = y
@@ -62,6 +68,8 @@ vi.mock('three', () => {
       this.scale = new Vector3(1, 1, 1)
       this.frustumCulled = true
     }
+    updateMatrix() {}
+    updateMatrixWorld() {}
   }
 
   class OrthographicCamera {
@@ -101,6 +109,57 @@ vi.mock('three', () => {
     dispose() {}
   }
 
+  class Quaternion {
+    constructor(x = 0, y = 0, z = 0, w = 1) {
+      this.x = x
+      this.y = y
+      this.z = z
+      this.w = w
+    }
+    clone() {
+      return new Quaternion(this.x, this.y, this.z, this.w)
+    }
+    copy(q) {
+      this.x = q.x
+      this.y = q.y
+      this.z = q.z
+      this.w = q.w
+      return this
+    }
+  }
+
+  class Matrix3 {
+    constructor() {
+      this.elements = Array(9).fill(0)
+    }
+    identity() {
+      this.elements = [1, 0, 0, 0, 1, 0, 0, 0, 1]
+      return this
+    }
+    clone() {
+      const matrix = new Matrix3()
+      matrix.elements = this.elements.slice()
+      return matrix
+    }
+  }
+
+  class Matrix4 {
+    constructor() {
+      this.elements = Array(16).fill(0)
+    }
+    compose(position, quaternion, scale) {
+      // minimal compose imitation to avoid NaNs in tests
+      this.elements[12] = position.x
+      this.elements[13] = position.y
+      this.elements[14] = position.z
+      this.elements[0] = scale.x
+      this.elements[5] = scale.y
+      this.elements[10] = scale.z
+      this.elements[15] = 1
+      return this
+    }
+  }
+
   return {
     Scene,
     OrthographicCamera,
@@ -111,6 +170,9 @@ vi.mock('three', () => {
     CanvasTexture,
     Group,
     Vector3,
+    Quaternion,
+    Matrix3,
+    Matrix4,
     LinearFilter: 0,
     DoubleSide: 2,
   }
@@ -187,6 +249,42 @@ describe('DOMToWebGL canonical mapping', () => {
     const expectedScaleY = toCanonicalHeightMeters(rect.height, window.innerHeight) / record.baseHeightMeters
     expect(record.mesh.scale.x).toBeCloseTo(expectedScaleX)
     expect(record.mesh.scale.y).toBeCloseTo(expectedScaleY)
+
+    dom.detach()
+  })
+
+  it('tracks transforms through WorldBody instances', () => {
+    const dom = new DOMToWebGL(document.body)
+    const element = document.createElement('div')
+    let rect = defaultRect(40, 60, 120, 48)
+    element.getBoundingClientRect = () => rect
+    const record = dom.createMesh(element, { dispose() {} }, 1)
+
+    expect(record.worldBody).toBeDefined()
+    const expectedInitialX = toCanonicalX(rect.left + rect.width / 2, window.innerWidth)
+    const expectedInitialY = toCanonicalY(rect.top + rect.height / 2, window.innerHeight)
+    expect(record.worldBody.position.x).toBeCloseTo(expectedInitialX)
+    expect(record.worldBody.position.y).toBeCloseTo(expectedInitialY)
+    expect(record.mesh.position.x).toBeCloseTo(expectedInitialX)
+    expect(record.mesh.position.y).toBeCloseTo(expectedInitialY)
+
+    delete record.layout
+    rect = defaultRect(80, 90, 200, 120)
+    dom.updateMeshTransform(element, record)
+    const expectedUpdatedX = toCanonicalX(rect.left + rect.width / 2, window.innerWidth)
+    const expectedUpdatedY = toCanonicalY(rect.top + rect.height / 2, window.innerHeight)
+    expect(record.worldBody.position.x).toBeCloseTo(expectedUpdatedX)
+    expect(record.worldBody.position.y).toBeCloseTo(expectedUpdatedY)
+    expect(record.mesh.position.x).toBeCloseTo(expectedUpdatedX)
+    expect(record.mesh.position.y).toBeCloseTo(expectedUpdatedY)
+    expect(record.mesh.scale.x).toBeGreaterThan(1)
+    expect(record.mesh.scale.y).toBeGreaterThan(1)
+
+    record.worldBody.resetTransform({ includePosition: false })
+    expect(record.mesh.scale.x).toBeCloseTo(1)
+    expect(record.mesh.scale.y).toBeCloseTo(1)
+    expect(record.mesh.position.x).toBeCloseTo(expectedUpdatedX)
+    expect(record.mesh.position.y).toBeCloseTo(expectedUpdatedY)
 
     dom.detach()
   })

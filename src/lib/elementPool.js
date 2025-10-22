@@ -96,7 +96,11 @@ export class ElementPool {
 
     record.widthMeters = record.baseWidthMeters
     record.heightMeters = record.baseHeightMeters
-    record.mesh.scale.set(1, 1, 1)
+    if (record.worldBody) {
+      record.worldBody.resetTransform({ includePosition: false })
+    } else if (record.mesh?.scale) {
+      record.mesh.scale.set(1, 1, 1)
+    }
   }
 
   _resolveSegments(element, maxSegments) {

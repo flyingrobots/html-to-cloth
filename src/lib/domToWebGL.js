@@ -8,6 +8,7 @@ import {
   toCanonicalX,
   toCanonicalY,
 } from './units'
+import { WorldBody } from './worldBody'
 
 const HTML2CANVAS_IFRAME_CLASS = 'html2canvas-container'
 const patchedDocuments = new WeakMap()
@@ -174,6 +175,7 @@ const ensureHtml2CanvasInterception = () => {
  * @property {number} segments
  * @property {CanonicalLayout} layout
  * @property {ClothPhysicsMetadata} physics
+ * @property {WorldBody} worldBody
  */
 
 /**
@@ -289,7 +291,17 @@ export class DOMToWebGL {
 
     const mesh = new THREE.Mesh(geometry, material)
     mesh.frustumCulled = false
-    mesh.position.set(...this._domPositionToWorld(rect))
+
+    const [positionX, positionY, positionZ = 0] = this._domPositionToWorld(rect)
+    const worldBody = new WorldBody({
+      id: element.id || null,
+      mesh,
+      position: new THREE.Vector3(positionX, positionY, positionZ),
+      rotation: new THREE.Quaternion(),
+      scale: new THREE.Vector3(1, 1, 1),
+    })
+    worldBody.commitRestState()
+    worldBody.applyToMesh()
 
     const positions = mesh.geometry.attributes.position
     const initialPositions = new Float32Array(positions.array)
@@ -307,6 +319,7 @@ export class DOMToWebGL {
       segments,
       layout,
       physics,
+      worldBody,
     }
   }
 
@@ -325,14 +338,22 @@ export class DOMToWebGL {
     }
 
     const rect = element.getBoundingClientRect()
-    record.mesh.position.set(...this._domPositionToWorld(rect))
+    const [positionX, positionY, positionZ = 0] = this._domPositionToWorld(rect)
 
     const widthMeters = toCanonicalWidthMeters(rect.width, this.viewportWidth)
     const heightMeters = toCanonicalHeightMeters(rect.height, this.viewportHeight)
 
     const scaleX = widthMeters / (record.baseWidthMeters || 1)
     const scaleY = heightMeters / (record.baseHeightMeters || 1)
-    record.mesh.scale.set(scaleX, scaleY, 1)
+    if (record.worldBody) {
+      record.worldBody.setPositionComponents(positionX, positionY, positionZ)
+      record.worldBody.setScaleComponents(scaleX, scaleY, 1)
+      record.worldBody.applyToMesh()
+      record.worldBody.commitRestState({ position: true, rotation: false, scale: false })
+    } else {
+      record.mesh.position.set(positionX, positionY, positionZ)
+      record.mesh.scale.set(scaleX, scaleY, 1)
+    }
     record.widthMeters = widthMeters
     record.heightMeters = heightMeters
   }
@@ -341,6 +362,7 @@ export class DOMToWebGL {
     record.mesh.geometry.dispose()
     record.mesh.material.dispose()
     record.texture.dispose()
+    record.worldBody?.dispose()
   }
 
   getViewportPixels() {
@@ -656,12 +678,18 @@ export class DOMToWebGL {
         break
     }
 
-    record.mesh.position.set(positionX, positionY, 0)
-    record.mesh.scale.set(
-      targetWidthMeters / record.baseWidthMeters,
-      targetHeightMeters / record.baseHeightMeters,
-      1
-    )
+    const scaleX = targetWidthMeters / record.baseWidthMeters
+    const scaleY = targetHeightMeters / record.baseHeightMeters
+
+    if (record.worldBody) {
+      record.worldBody.setPositionComponents(positionX, positionY, 0)
+      record.worldBody.setScaleComponents(scaleX, scaleY, 1)
+      record.worldBody.applyToMesh()
+      record.worldBody.commitRestState({ position: true, rotation: false, scale: false })
+    } else {
+      record.mesh.position.set(positionX, positionY, 0)
+      record.mesh.scale.set(scaleX, scaleY, 1)
+    }
 
     record.widthMeters = targetWidthMeters
     record.heightMeters = targetHeightMeters

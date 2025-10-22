@@ -378,6 +378,7 @@ export class PortfolioWebGL {
       constraintIterations: iterations,
       debugLabel: item.id ?? this._getBodyId(element),
       debugLogging: true,
+      worldBody: record.worldBody ?? null,
     })
 
     cloth.setConstraintIterations(iterations)

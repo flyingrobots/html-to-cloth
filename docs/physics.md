@@ -1,9 +1,9 @@
 # Physics Refactor Checklist
 
 ## World-Space Transform Layer
-- [ ] Introduce `WorldBody` abstraction with local mesh, world transform (4×4), mass/inertia, velocity/acceleration.
-- [ ] Update cloth activation path to instantiate `WorldBody` and pass it into `ClothPhysics`.
-- [ ] Sync `DOMToWebGL` rendering with each body's world transform.
+- [x] Introduce `WorldBody` abstraction with local mesh, world transform (4×4), mass/inertia, velocity/acceleration.
+- [x] Update cloth activation path to instantiate `WorldBody` and pass it into `ClothPhysics`.
+- [x] Sync `DOMToWebGL` rendering with each body's world transform.
 
 ## Sleep Heuristic Rewrite
 - [ ] Track world-space linear/angular velocity per body.
