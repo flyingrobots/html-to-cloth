@@ -12,6 +12,9 @@ import {
 const HTML2CANVAS_IFRAME_CLASS = 'html2canvas-container'
 const patchedDocuments = new WeakMap()
 let documentWritePatched = false
+let iframeContentWindowPatched = false
+/** @type {PropertyDescriptor | null} */
+let originalIframeContentWindowDescriptor = null
 /** @type {typeof Document.prototype.write | null} */
 let originalDocumentWrite = null
 /** @type {typeof Document.prototype.writeln | null} */
@@ -104,21 +107,59 @@ const handleDocumentWrite = (targetDocument, originalFn, args, appendNewline) =>
   return undefined
 }
 
+const patchDocumentInstance = (doc) => {
+  if (!doc || doc.__html2canvasPatched) return
+  const record = getInterceptRecord(doc)
+  const originalWrite = typeof doc.write === 'function' ? doc.write.bind(doc) : null
+  const originalWriteln = typeof doc.writeln === 'function' ? doc.writeln.bind(doc) : null
+
+  doc.write = (...args) => handleDocumentWrite(doc, originalWrite, args, false)
+  doc.writeln = (...args) => handleDocumentWrite(doc, originalWriteln, args, true)
+  doc.__html2canvasPatched = true
+  record.originalWrite = originalWrite
+  record.originalWriteln = originalWriteln
+}
+
 const ensureHtml2CanvasInterception = () => {
-  if (documentWritePatched || typeof Document === 'undefined') return
+  if (!documentWritePatched && typeof Document !== 'undefined') {
+    originalDocumentWrite = Document.prototype.write
+    originalDocumentWriteln = Document.prototype.writeln
 
-  originalDocumentWrite = Document.prototype.write
-  originalDocumentWriteln = Document.prototype.writeln
+    Document.prototype.write = function (...args) {
+      return handleDocumentWrite(this, originalDocumentWrite, args, false)
+    }
 
-  Document.prototype.write = function (...args) {
-    return handleDocumentWrite(this, originalDocumentWrite, args, false)
+    Document.prototype.writeln = function (...args) {
+      return handleDocumentWrite(this, originalDocumentWriteln, args, true)
+    }
+
+    documentWritePatched = true
   }
 
-  Document.prototype.writeln = function (...args) {
-    return handleDocumentWrite(this, originalDocumentWriteln, args, true)
-  }
+  patchDocumentInstance(document)
 
-  documentWritePatched = true
+  if (!iframeContentWindowPatched && typeof HTMLIFrameElement !== 'undefined') {
+    const descriptor = Object.getOwnPropertyDescriptor(HTMLIFrameElement.prototype, 'contentWindow')
+    if (descriptor && descriptor.get) {
+      originalIframeContentWindowDescriptor = descriptor
+      Object.defineProperty(HTMLIFrameElement.prototype, 'contentWindow', {
+        configurable: true,
+        enumerable: descriptor.enumerable,
+        get() {
+          const win = descriptor.get.call(this)
+          try {
+            if (win?.document) {
+              patchDocumentInstance(win.document)
+            }
+          } catch (error) {
+            // ignore access errors from detached frames
+          }
+          return win
+        },
+      })
+      iframeContentWindowPatched = true
+    }
+  }
 }
 
 /**
