@@ -66,19 +66,28 @@ class ClothBodyAdapter {
     this.handleOffscreen = handleOffscreen
     this.record = record
     this.debug = debug
+    this._tmpWorldVec3 = new THREE.Vector3()
+    this._tmpWorldVec3B = new THREE.Vector3()
+    this._tmpLocalVec3 = new THREE.Vector3()
+    this._tmpLocalVec3B = new THREE.Vector3()
+    this._tmpLocalVec2 = new THREE.Vector2()
+    this._tmpLocalVec2B = new THREE.Vector2()
+    this._tmpLocalVec2C = new THREE.Vector2()
   }
 
   update(dt) {
     const cloth = this.item.cloth
     if (!cloth) return
 
-    const radius = this._getImpulseRadius()
-    this.pointer.radius = radius
+    const worldRadius = this._getImpulseRadius()
+    this.pointer.radius = worldRadius
+    const localRadius = this._getLocalImpulseRadius(worldRadius)
 
     if (this.pointer.needsImpulse) {
       const strength = this._getImpulseStrength()
-      const scaledForce = this.pointer.velocity.clone().multiplyScalar(strength)
-      cloth.applyImpulse(this.pointer.position, scaledForce, radius)
+      const localForce = this._getLocalPointerVelocity().multiplyScalar(strength)
+      const localPoint = this._getLocalPointerPosition()
+      cloth.applyImpulse(localPoint, localForce, localRadius)
       this.pointer.needsImpulse = false
     }
 
@@ -88,7 +97,14 @@ class ClothBodyAdapter {
     const sleepingAfter = checkSleep ? cloth.isSleeping() : false
     this.collisionSystem.apply(cloth)
 
-    const offscreen = cloth.isOffscreen(-CANONICAL_HEIGHT_METERS)
+    let boundary = -CANONICAL_HEIGHT_METERS
+    const worldBody = this._getWorldBody()
+    if (worldBody) {
+      this._tmpWorldVec3.set(0, boundary, 0)
+      worldBody.worldToLocalPoint(this._tmpWorldVec3, this._tmpLocalVec3)
+      boundary = this._tmpLocalVec3.y
+    }
+    const offscreen = cloth.isOffscreen(boundary)
     if (offscreen) {
       console.log('[cloth-status]', 'cloth exited viewport', {
         id: this.id,
@@ -108,7 +124,10 @@ class ClothBodyAdapter {
   }
 
   wakeIfPointInside(point) {
-    this.item.cloth?.wakeIfPointInside(point)
+    const cloth = this.item.cloth
+    if (!cloth) return
+    const localPoint = this._convertWorldPointToLocal(point)
+    cloth.wakeIfPointInside(localPoint)
   }
 
   _getImpulseRadius() {
@@ -117,8 +136,10 @@ class ClothBodyAdapter {
     if (!Number.isNaN(parsed) && parsed > 0) {
       return parsed
     }
-    const { widthMeters = 0, heightMeters = 0 } = this.record ?? {}
-    const base = Math.min(widthMeters || 0, heightMeters || 0)
+    const record = this.record ?? {}
+    const baseWidth = record.baseWidthMeters ?? record.widthMeters ?? 0
+    const baseHeight = record.baseHeightMeters ?? record.heightMeters ?? 0
+    const base = Math.min(baseWidth || 0, baseHeight || 0)
     if (base > 0) {
       return Math.max(MIN_POINTER_RADIUS, base / POINTER_RADIUS_DIVISOR)
     }
@@ -130,6 +151,58 @@ class ClothBodyAdapter {
     const parsed = attr ? Number.parseFloat(attr) : NaN
     const elementStrength = !Number.isNaN(parsed) && parsed > 0 ? parsed : 1
     return elementStrength * this.debug.impulseMultiplier
+  }
+
+  _getWorldBody() {
+    return this.record?.worldBody ?? null
+  }
+
+  _getLocalPointerPosition() {
+    const worldBody = this._getWorldBody()
+    if (!worldBody) {
+      return this._tmpLocalVec2B.copy(this.pointer.position)
+    }
+    this._tmpWorldVec3.set(this.pointer.position.x, this.pointer.position.y, 0)
+    worldBody.worldToLocalPoint(this._tmpWorldVec3, this._tmpLocalVec3)
+    return this._tmpLocalVec2B.set(this._tmpLocalVec3.x, this._tmpLocalVec3.y)
+  }
+
+  _getLocalPointerVelocity() {
+    const worldBody = this._getWorldBody()
+    if (!worldBody) {
+      return this._tmpLocalVec2.copy(this.pointer.velocity)
+    }
+    this._tmpWorldVec3.set(this.pointer.velocity.x, this.pointer.velocity.y, 0)
+    worldBody.worldToLocalVector(this._tmpWorldVec3, this._tmpLocalVec3)
+    return this._tmpLocalVec2.set(this._tmpLocalVec3.x, this._tmpLocalVec3.y)
+  }
+
+  _getLocalImpulseRadius(worldRadius) {
+    const worldBody = this._getWorldBody()
+    if (!worldBody) return worldRadius
+    const sampleX = worldBody.worldToLocalVector(
+      this._tmpWorldVec3.set(worldRadius, 0, 0),
+      this._tmpLocalVec3,
+    ).length()
+    const sampleY = worldBody.worldToLocalVector(
+      this._tmpWorldVec3B.set(0, worldRadius, 0),
+      this._tmpLocalVec3B,
+    ).length()
+    const average = (sampleX + sampleY) * 0.5
+    if (!Number.isFinite(average) || average === 0) {
+      return worldRadius
+    }
+    return average
+  }
+
+  _convertWorldPointToLocal(point) {
+    const worldBody = this._getWorldBody()
+    if (!worldBody) {
+      return this._tmpLocalVec2C.copy(point)
+    }
+    this._tmpWorldVec3.set(point.x, point.y, 0)
+    worldBody.worldToLocalPoint(this._tmpWorldVec3, this._tmpLocalVec3)
+    return this._tmpLocalVec2C.set(this._tmpLocalVec3.x, this._tmpLocalVec3.y)
   }
 }
 

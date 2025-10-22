@@ -129,6 +129,10 @@ export class ClothPhysics {
     return (this.mesh.geometry.boundingSphere ?? fallback).clone()
   }
 
+  getWorldBody() {
+    return this.worldBody ?? null
+  }
+
   /**
    * @param {THREE.Vector2} center
    * @param {THREE.Vector2} velocity

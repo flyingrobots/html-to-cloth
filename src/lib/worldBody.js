@@ -42,6 +42,9 @@ export class WorldBody {
     this.linearAcceleration = new THREE.Vector3()
 
     this._matrix = new THREE.Matrix4()
+    this._inverseMatrix = new THREE.Matrix4()
+    this._basisMatrix = new THREE.Matrix3()
+    this._inverseBasisMatrix = new THREE.Matrix3()
     this._dirtyMatrix = true
 
     this._restPosition = this.position.clone()
@@ -56,12 +59,32 @@ export class WorldBody {
   /**
    * @returns {THREE.Matrix4}
    */
+  _updateMatrices() {
+    this._matrix.compose(this.position, this.rotation, this.scale)
+    this._inverseMatrix.copy(this._matrix).invert()
+    this._basisMatrix.setFromMatrix4(this._matrix)
+    const determinant = this._basisMatrix.determinant()
+    if (Math.abs(determinant) > 1e-8) {
+      this._inverseBasisMatrix.copy(this._basisMatrix).invert()
+    } else {
+      // Fallback to identity if the scale matrix is singular.
+      this._inverseBasisMatrix.identity()
+    }
+    this._dirtyMatrix = false
+  }
+
   get matrix() {
     if (this._dirtyMatrix) {
-      this._matrix.compose(this.position, this.rotation, this.scale)
-      this._dirtyMatrix = false
+      this._updateMatrices()
     }
     return this._matrix
+  }
+
+  get inverseMatrix() {
+    if (this._dirtyMatrix) {
+      this._updateMatrices()
+    }
+    return this._inverseMatrix
   }
 
   /**
@@ -164,6 +187,73 @@ export class WorldBody {
     this.linearAcceleration.set(0, 0, 0)
     this._dirtyMatrix = true
     this.applyToMesh()
+  }
+
+  /**
+   * @returns {THREE.Matrix3}
+   */
+  _getBasisMatrix() {
+    if (this._dirtyMatrix) {
+      this._updateMatrices()
+    }
+    return this._basisMatrix
+  }
+
+  /**
+   * @returns {THREE.Matrix3}
+   */
+  _getInverseBasisMatrix() {
+    if (this._dirtyMatrix) {
+      this._updateMatrices()
+    }
+    return this._inverseBasisMatrix
+  }
+
+  /**
+   * Converts a point from local space to world space.
+   * @param {THREE.Vector3} local
+   * @param {THREE.Vector3} [target]
+   */
+  localToWorldPoint(local, target = new THREE.Vector3()) {
+    return target.copy(local).applyMatrix4(this.matrix)
+  }
+
+  /**
+   * Converts a point from world space to local space.
+   * @param {THREE.Vector3} world
+   * @param {THREE.Vector3} [target]
+   */
+  worldToLocalPoint(world, target = new THREE.Vector3()) {
+    return target.copy(world).applyMatrix4(this.inverseMatrix)
+  }
+
+  /**
+   * Converts a direction/vector from local space to world space.
+   * @param {THREE.Vector3} local
+   * @param {THREE.Vector3} [target]
+   */
+  localToWorldVector(local, target = new THREE.Vector3()) {
+    return target
+      .copy(local)
+      .applyMatrix3(this._getBasisMatrix())
+  }
+
+  /**
+   * Converts a direction/vector from world space to local space.
+   * @param {THREE.Vector3} world
+   * @param {THREE.Vector3} [target]
+   */
+  worldToLocalVector(world, target = new THREE.Vector3()) {
+    return target
+      .copy(world)
+      .applyMatrix3(this._getInverseBasisMatrix())
+  }
+
+  /**
+   * @param {THREE.Vector3} [target]
+   */
+  getScaleVector(target = new THREE.Vector3()) {
+    return target.copy(this.scale)
   }
 
   /**
