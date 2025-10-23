@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import * as THREE from 'three'
 import { ClothPhysics } from '../clothPhysics'
+import { WorldBody } from '../worldBody'
 
 const makeCloth = (widthVertices = 3, heightVertices = 3) => {
   const geometry = new THREE.PlaneGeometry(1, 1, widthVertices - 1, heightVertices - 1)
@@ -187,5 +188,31 @@ describe('ClothPhysics', () => {
       expect(pos.y).toBeCloseTo(settled[index].y, 3)
       expect(pos.z).toBeCloseTo(settled[index].z, 3)
     })
+  })
+
+  it('tracks world-space kinematics through WorldBody and sleeps once velocity settles', () => {
+    const geometry = new THREE.PlaneGeometry(1, 1, 2, 2)
+    const material = new THREE.MeshBasicMaterial()
+    const mesh = new THREE.Mesh(geometry, material)
+    const worldBody = new WorldBody()
+    const cloth = new ClothPhysics(mesh, { worldBody })
+    cloth.setGravity(new THREE.Vector3(0, 0, 0))
+    cloth.sleepFrameThreshold = 30
+    cloth.sleepVelocityThresholdSq = 1e-5
+    cloth.sleepWorldVelocityThresholdSq = 1e-5
+
+    cloth.applyImpulse(new THREE.Vector2(0, 0), new THREE.Vector2(0, 0.6), 1)
+
+    cloth.update(0.016)
+    cloth.update(0.016)
+
+    expect(worldBody.linearVelocity.length()).toBeGreaterThan(0)
+
+    for (let i = 0; i < 600 && !cloth.isSleeping(); i++) {
+      cloth.update(0.016)
+    }
+
+    expect(cloth.isSleeping()).toBe(true)
+    expect(worldBody.linearVelocity.length()).toBeLessThan(0.01)
   })
 })

@@ -238,6 +238,8 @@ export class PortfolioWebGL {
     this.debugGroup = new THREE.Group()
     this.debugGroup.renderOrder = 10
     this.debugGroup.visible = false
+    this._aabbLocalCorners = Array.from({ length: 8 }, () => new THREE.Vector3())
+    this._aabbWorldCorners = Array.from({ length: 8 }, () => new THREE.Vector3())
     this.onPointerDown = (event) => this._handlePointerDownActivation(event)
     this.pointerColliderPointerDownAttached = false
     this.debug = {
@@ -972,12 +974,15 @@ export class PortfolioWebGL {
       const targetBox = helper.userData.box || (helper.userData.box = new THREE.Box3())
 
       if (item.cloth) {
-        const mesh = record?.mesh
-        targetBox.copy(item.cloth.getAABB())
-        if (mesh) {
-          mesh.updateMatrixWorld(true)
-          targetBox.min.add(mesh.position)
-          targetBox.max.add(mesh.position)
+        const cloth = item.cloth
+        const worldBody = typeof cloth.getWorldBody === 'function' ? cloth.getWorldBody() : null
+        if (worldBody) {
+          this._populateWorldBoxFromLocal(cloth.getAABB(), worldBody, targetBox)
+        } else if (record?.mesh) {
+          record.mesh.updateMatrixWorld(true)
+          targetBox.setFromObject(record.mesh)
+        } else {
+          targetBox.copy(cloth.getAABB())
         }
       } else if (record?.mesh) {
         record.mesh.updateMatrixWorld(true)
@@ -995,6 +1000,29 @@ export class PortfolioWebGL {
       if (!activeItems.has(item)) {
         this._removeAabbHelper(item)
       }
+    }
+  }
+
+  _populateWorldBoxFromLocal(localBox, worldBody, targetBox) {
+    const localCorners = this._aabbLocalCorners
+    const worldCorners = this._aabbWorldCorners
+
+    const min = localBox.min
+    const max = localBox.max
+
+    localCorners[0].set(min.x, min.y, min.z)
+    localCorners[1].set(max.x, min.y, min.z)
+    localCorners[2].set(min.x, max.y, min.z)
+    localCorners[3].set(max.x, max.y, min.z)
+    localCorners[4].set(min.x, min.y, max.z)
+    localCorners[5].set(max.x, min.y, max.z)
+    localCorners[6].set(min.x, max.y, max.z)
+    localCorners[7].set(max.x, max.y, max.z)
+
+    targetBox.makeEmpty()
+    for (let i = 0; i < localCorners.length; i++) {
+      worldBody.localToWorldPoint(localCorners[i], worldCorners[i])
+      targetBox.expandByPoint(worldCorners[i])
     }
   }
 

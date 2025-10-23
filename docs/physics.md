@@ -6,10 +6,10 @@
 - [x] Sync `DOMToWebGL` rendering with each body's world transform.
 
 ## Sleep Heuristic Rewrite
-- [ ] Track world-space linear/angular velocity per body.
-- [ ] Replace per-particle delta sleep check with world velocity thresholds + deformation fallback.
+- [x] Track world-space linear velocity per body (angular velocity pending rigid body support).
+- [x] Replace per-particle delta sleep check with world velocity thresholds + deformation fallback.
 - [ ] Expose sleep thresholds (velocity, frames) in the debug drawer.
-- [ ] Add unit/integration tests covering free-fall vs. deformation cases.
+- [x] Add unit/integration tests covering free-fall vs. deformation cases.
 
 ## Camera & Viewport Integration
 - [ ] Create `WorldCamera` with position/rotation, orthographic + perspective projections.

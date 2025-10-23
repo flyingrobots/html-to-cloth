@@ -37,6 +37,8 @@ export class ClothPhysics {
     this.tmpVector = new THREE.Vector3()
     this.accelVector = new THREE.Vector3()
     this.tmpVector2 = new THREE.Vector2()
+    this.tmpVector3 = new THREE.Vector3()
+    this.tmpVector3B = new THREE.Vector3()
     this.gravity = new THREE.Vector3(0, -2, 0)
     this.damping = 0.98
     this.constraintIterations = 3
@@ -44,6 +46,7 @@ export class ClothPhysics {
     this.sleepFrameCounter = 0
     this.sleepVelocityThresholdSq = 1e-6
     this.sleepFrameThreshold = 60
+    this.sleepWorldVelocityThresholdSq = options.sleepWorldVelocityThresholdSq ?? 1e-6
     this.debugLabel = options.debugLabel ?? null
     this.debugLogging = options.debugLogging ?? false
 
@@ -58,6 +61,16 @@ export class ClothPhysics {
     if (options.sleepFrameThreshold) this.sleepFrameThreshold = options.sleepFrameThreshold
 
     this.worldBody = options.worldBody ?? null
+    this._localCenter = new THREE.Vector3()
+    this._localCenterPre = new THREE.Vector3()
+    this._worldCenter = new THREE.Vector3()
+    this._worldCenterPre = new THREE.Vector3()
+    this._previousWorldCenter = new THREE.Vector3()
+    this._worldVelocity = new THREE.Vector3()
+    this._previousWorldVelocity = new THREE.Vector3()
+    this._worldAcceleration = new THREE.Vector3()
+    this._lastWorldSpeedSq = 0
+    this._worldCenterInitialized = false
 
     this._initializeParticles()
     this._initializeConstraints()
@@ -288,6 +301,12 @@ export class ClothPhysics {
     if (deltaSeconds <= 0) return
     if (this.sleeping) return
 
+    let preWorldCenter = null
+    if (this.worldBody) {
+      this._computeLocalCenter(this._localCenterPre)
+      preWorldCenter = this.worldBody.localToWorldPoint(this._localCenterPre, this._worldCenterPre)
+    }
+
     const acceleration = this.accelVector
       .copy(this.gravity)
       .multiplyScalar(deltaSeconds * deltaSeconds)
@@ -331,8 +350,12 @@ export class ClothPhysics {
     }
 
     this._syncGeometry()
+    this._updateWorldKinematics(deltaSeconds, preWorldCenter)
 
-    if (maxDeltaSq < this.sleepVelocityThresholdSq) {
+    const worldSpeedSq = this.worldBody ? this._lastWorldSpeedSq : 0
+    const belowWorldThreshold = !this.worldBody || worldSpeedSq < this.sleepWorldVelocityThresholdSq
+
+    if (maxDeltaSq < this.sleepVelocityThresholdSq && belowWorldThreshold) {
       this.sleepFrameCounter++
       if (this.debugLogging) {
         console.log('[cloth-sleep]', 'below-threshold', {
@@ -341,6 +364,8 @@ export class ClothPhysics {
           maxDelta: Math.sqrt(maxDeltaSq),
           threshold: Math.sqrt(this.sleepVelocityThresholdSq),
           frameCounter: this.sleepFrameCounter,
+          worldSpeed: Math.sqrt(worldSpeedSq),
+          worldThreshold: Math.sqrt(this.sleepWorldVelocityThresholdSq),
         })
       }
       if (this.sleepFrameCounter >= this.sleepFrameThreshold) {
@@ -353,6 +378,8 @@ export class ClothPhysics {
             maxDelta: Math.sqrt(maxDeltaSq),
             threshold: Math.sqrt(this.sleepVelocityThresholdSq),
             frameCounter: this.sleepFrameCounter,
+            worldSpeed: Math.sqrt(worldSpeedSq),
+            worldThreshold: Math.sqrt(this.sleepWorldVelocityThresholdSq),
           })
         }
         this.sleeping = true
@@ -363,6 +390,7 @@ export class ClothPhysics {
           label: this.debugLabel,
           time: getTimestamp(),
           maxDelta: Math.sqrt(maxDeltaSq),
+          worldSpeed: Math.sqrt(worldSpeedSq),
         })
       }
       this.sleepFrameCounter = 0
@@ -532,5 +560,60 @@ export class ClothPhysics {
     }
 
     return { maxY, minY, maxX, minX, maxZ, minZ }
+  }
+
+  _computeLocalCenter(target = new THREE.Vector3()) {
+    target.set(0, 0, 0)
+    if (this.particles.length === 0) return target
+    for (const particle of this.particles) {
+      target.add(particle.position)
+    }
+    target.divideScalar(this.particles.length)
+    return target
+  }
+
+  _updateWorldKinematics(deltaSeconds, preWorldCenter = null) {
+    if (!this.worldBody || deltaSeconds <= 0) {
+      this._lastWorldSpeedSq = 0
+      return
+    }
+
+    const localCenter = this._computeLocalCenter(this._localCenter)
+    const worldCenter = this.worldBody.localToWorldPoint(localCenter, this._worldCenter)
+
+    let velocityComputed = false
+
+    if (preWorldCenter) {
+      this._worldVelocity
+        .copy(worldCenter)
+        .sub(preWorldCenter)
+        .divideScalar(deltaSeconds)
+      velocityComputed = true
+    } else if (this._worldCenterInitialized) {
+      this._worldVelocity
+        .copy(worldCenter)
+        .sub(this._previousWorldCenter)
+        .divideScalar(deltaSeconds)
+      velocityComputed = true
+    } else {
+      this._worldVelocity.set(0, 0, 0)
+    }
+
+    this.worldBody.setLinearVelocity(this._worldVelocity)
+
+    if (velocityComputed) {
+      this._worldAcceleration
+        .copy(this._worldVelocity)
+        .sub(this._previousWorldVelocity)
+        .divideScalar(deltaSeconds)
+    } else {
+      this._worldAcceleration.set(0, 0, 0)
+    }
+    this.worldBody.setLinearAcceleration(this._worldAcceleration)
+
+    this._previousWorldVelocity.copy(this._worldVelocity)
+    this._previousWorldCenter.copy(worldCenter)
+    this._lastWorldSpeedSq = this._worldVelocity.lengthSq()
+    this._worldCenterInitialized = true
   }
 }
