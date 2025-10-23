@@ -8,14 +8,14 @@
 ## Sleep Heuristic Rewrite
 - [x] Track world-space linear velocity per body (angular velocity pending rigid body support).
 - [x] Replace per-particle delta sleep check with world velocity thresholds + deformation fallback.
-- [ ] Expose sleep thresholds (velocity, frames) in the debug drawer.
+- [x] Expose sleep thresholds (velocity, frames) in the debug drawer.
 - [x] Add unit/integration tests covering free-fall vs. deformation cases.
 
 ## Camera & Viewport Integration
 - [x] Create `WorldCamera` with position/rotation, orthographic + perspective projections.
-- [ ] Implement critically damped spring for look-at/target blending.
-- [ ] Teach `DOMToWebGL` to consume the camera matrices and render the DOM as a billboarded quad.
-- [ ] Update pointer collider/AABB helpers to operate in world space.
+- [x] Implement critically damped spring for look-at/target blending.
+- [x] Teach `DOMToWebGL` to consume the camera matrices and render the DOM as a billboarded quad.
+- [x] Update pointer collider/AABB helpers to operate in world space.
 
 ## Extended Goals
 - [ ] World scene registry for bodies, gravity, and cameras.
