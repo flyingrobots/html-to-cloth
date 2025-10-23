@@ -31,6 +31,18 @@ const CLOTH_PRESETS = [
       releaseDelayMs: 700,
       pinMode: 'top',
     },
+    sleep: {
+      local: 0.0006,
+      world: 0.0006,
+      frames: 45,
+    },
+    camera: {
+      enabled: true,
+      distance: 460,
+      height: 45,
+      targetHeight: 12,
+      damping: 5.5,
+    },
   },
   {
     value: 'default',
@@ -44,6 +56,18 @@ const CLOTH_PRESETS = [
       releaseDelayMs: 900,
       pinMode: 'top',
     },
+    sleep: {
+      local: 0.001,
+      world: 0.001,
+      frames: 60,
+    },
+    camera: {
+      enabled: false,
+      distance: 500,
+      height: 0,
+      targetHeight: 0,
+      damping: 6,
+    },
   },
   {
     value: 'heavy',
@@ -56,6 +80,18 @@ const CLOTH_PRESETS = [
       turbulence: 0.04,
       releaseDelayMs: 1200,
       pinMode: 'top',
+    },
+    sleep: {
+      local: 0.0008,
+      world: 0.0008,
+      frames: 80,
+    },
+    camera: {
+      enabled: true,
+      distance: 520,
+      height: 60,
+      targetHeight: 20,
+      damping: 7.5,
     },
   },
 ]
@@ -133,6 +169,18 @@ function AppInner() {
       controller.setAutoRelease(autoRelease)
       controller.setShowAabbs(showAabbs)
       controller.setShowSleepState(showSleepState)
+      controller.setSleepThresholds({
+        local: sleepVelocityThreshold,
+        world: sleepWorldVelocityThreshold,
+        frames: sleepFrameThreshold,
+      })
+      controller.setCameraSpringConfig({
+        enabled: cameraSpringEnabled,
+        distance: cameraDistance,
+        height: cameraHeight,
+        targetHeight: cameraTargetHeight,
+        damping: cameraDamping,
+      })
     })
 
     const handler = (event) => {
@@ -311,14 +359,42 @@ function AppInner() {
   }, [selectedEntityId, entities, debugOpen])
 
   const handleApplyPreset = useCallback(
-    (overrides) => {
+    (preset) => {
       const controller = controllerRef.current
       if (!controller || !selectedEntityId) return
-      controller.applyPhysicsPreset(selectedEntityId, overrides)
+      if (preset?.overrides) {
+        controller.applyPhysicsPreset(selectedEntityId, preset.overrides)
+      }
+      if (preset?.sleep) {
+        const nextSleep = {
+          local: preset.sleep.local ?? sleepVelocityThreshold,
+          world: preset.sleep.world ?? sleepWorldVelocityThreshold,
+          frames: preset.sleep.frames ?? sleepFrameThreshold,
+        }
+        controller.setSleepThresholds(nextSleep)
+        setSleepVelocityThreshold(nextSleep.local)
+        setSleepWorldVelocityThreshold(nextSleep.world)
+        setSleepFrameThreshold(nextSleep.frames)
+      }
+      if (preset?.camera) {
+        const nextCamera = {
+          enabled: preset.camera.enabled ?? cameraSpringEnabled,
+          distance: preset.camera.distance ?? cameraDistance,
+          height: preset.camera.height ?? cameraHeight,
+          targetHeight: preset.camera.targetHeight ?? cameraTargetHeight,
+          damping: preset.camera.damping ?? cameraDamping,
+        }
+        controller.setCameraSpringConfig(nextCamera)
+        setCameraSpringEnabled(nextCamera.enabled)
+        setCameraDistance(nextCamera.distance)
+        setCameraHeight(nextCamera.height)
+        setCameraTargetHeight(nextCamera.targetHeight)
+        setCameraDamping(nextCamera.damping)
+      }
       updateEntities()
       setSelectedEntityDetails(controller.getEntityDetails(selectedEntityId))
     },
-    [selectedEntityId, updateEntities]
+    [selectedEntityId, updateEntities, sleepVelocityThreshold, sleepWorldVelocityThreshold, sleepFrameThreshold, cameraSpringEnabled, cameraDistance, cameraHeight, cameraTargetHeight, cameraDamping]
   )
 
   const modifierKey =
@@ -342,6 +418,18 @@ function AppInner() {
     setCameraHeight(0)
     setCameraTargetHeight(0)
     setCameraDamping(6)
+    controllerRef.current?.setSleepThresholds({
+      local: 0.001,
+      world: 0.001,
+      frames: 60,
+    })
+    controllerRef.current?.setCameraSpringConfig({
+      enabled: false,
+      distance: 500,
+      height: 0,
+      targetHeight: 0,
+      damping: 6,
+    })
   }
 
   const pinModeOptions = [
@@ -752,6 +840,16 @@ function AppInner() {
                       World speed: {(selectedMetrics.worldSpeed ?? 0).toFixed(3)} m/s | accel: {(selectedMetrics.worldAcceleration ?? 0).toFixed(3)} m/s²
                     </Text>
                   ) : null}
+                  {selectedEntityDetails.system ? (
+                    <Text size="sm" c="dimmed">
+                      Sleep: {(selectedEntityDetails.system.sleepVelocityThreshold ?? sleepVelocityThreshold).toFixed(4)} / {(selectedEntityDetails.system.sleepWorldVelocityThreshold ?? sleepWorldVelocityThreshold).toFixed(4)} m, frames: {selectedEntityDetails.system.sleepFrames ?? sleepFrameThreshold}
+                    </Text>
+                  ) : null}
+                  {selectedEntityDetails.system ? (
+                    <Text size="sm" c="dimmed">
+                      Camera spring: {selectedEntityDetails.system.cameraSpring?.enabled ? 'Enabled' : 'Disabled'} · dist {selectedEntityDetails.system.cameraSpring?.distance?.toFixed(0) ?? cameraDistance} · height {selectedEntityDetails.system.cameraSpring?.height?.toFixed(1) ?? cameraHeight}
+                    </Text>
+                  ) : null}
                 </Stack>
               </Paper>
             ) : (
@@ -766,7 +864,7 @@ function AppInner() {
                   size="xs"
                   variant="outline"
                   disabled={!selectedEntityId}
-                  onClick={() => handleApplyPreset(preset.overrides)}
+                  onClick={() => handleApplyPreset(preset)}
                 >
                   {preset.label}
                 </Button>

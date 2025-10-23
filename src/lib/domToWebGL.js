@@ -241,6 +241,7 @@ export class DOMToWebGL {
 
     this.rootGroup = new THREE.Group()
     this.scene.add(this.rootGroup)
+    this.billboardChildren = new Set()
 
     this.updateCamera()
     this.attach()
@@ -271,6 +272,9 @@ export class DOMToWebGL {
   render() {
     this._syncThreeCamera()
     this.rootGroup.quaternion.copy(this.camera.quaternion)
+    for (const mesh of this.billboardChildren) {
+      mesh.quaternion.copy(this.camera.quaternion)
+    }
     this.renderer.render(this.scene, this.camera)
   }
 
@@ -308,6 +312,8 @@ export class DOMToWebGL {
 
     const mesh = new THREE.Mesh(geometry, material)
     mesh.frustumCulled = false
+    mesh.userData = mesh.userData || {}
+    mesh.userData.billboard = true
 
     const [positionX, positionY, positionZ = 0] = this._domPositionToWorld(rect)
     const worldBody = new WorldBody({
@@ -324,6 +330,8 @@ export class DOMToWebGL {
     const initialPositions = new Float32Array(positions.array)
     const layout = this._computeLayout(element, rect)
     const physics = this._computePhysics(element)
+
+    this.billboardChildren.add(mesh)
 
     return {
       mesh,
@@ -346,6 +354,7 @@ export class DOMToWebGL {
 
   removeMesh(mesh) {
     this.rootGroup.remove(mesh)
+    this.billboardChildren.delete(mesh)
   }
 
   updateMeshTransform(element, record) {
@@ -380,6 +389,7 @@ export class DOMToWebGL {
     record.mesh.material.dispose()
     record.texture.dispose()
     record.worldBody?.dispose()
+    this.billboardChildren.delete(record.mesh)
   }
 
   getViewportPixels() {

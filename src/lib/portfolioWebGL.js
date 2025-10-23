@@ -1211,6 +1211,7 @@ export class PortfolioWebGL {
         physics: record?.physics ?? {},
         layout: record?.layout ?? null,
         metrics,
+        system: this._getSystemConfig(),
       })
     }
     return entities
@@ -1232,6 +1233,7 @@ export class PortfolioWebGL {
       layout: record?.layout ?? null,
       metrics,
       dataset,
+      system: this._getSystemConfig(),
     }
   }
 
@@ -1377,6 +1379,15 @@ export class PortfolioWebGL {
       maxError: 0,
       worldSpeed: 0,
       worldAcceleration: 0,
+    }
+  }
+
+  _getSystemConfig() {
+    return {
+      sleepVelocityThreshold: this.debug.sleepVelocityThreshold,
+      sleepWorldVelocityThreshold: this.debug.sleepWorldVelocityThreshold,
+      sleepFrames: this.debug.sleepFrames,
+      cameraSpring: { ...this.debug.cameraSpring },
     }
   }
 
