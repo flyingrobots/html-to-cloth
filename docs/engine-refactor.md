@@ -3,9 +3,9 @@
 Adopt the architecture patterns from `/Users/james/git/caverns` so simulation and rendering are cleanly separated and driven by a reusable engine core.
 
 ## 1. Extract Caverns Engine Primitives
-- [ ] Audit caverns for the minimal set of engine modules we need (`GameLoop`, `World`, system registration, time-stepped updates).
-- [ ] Copy those modules into a new `src/engine/` namespace, modernizing to ES modules and TypeScript-friendly JSDoc.
-- [ ] Add unit tests for the ported engine core (fixed-step accumulator, system ordering, lifecycle hooks).
+- [x] Audit caverns for the minimal set of engine modules we need (`GameLoop`, `World`, system registration, time-stepped updates).
+- [x] Copy those modules into a new `src/engine/` namespace, modernizing to ES modules and TypeScript-friendly JSDoc.
+- [x] Add unit tests for the ported engine core (fixed-step accumulator, system ordering, lifecycle hooks).
 
 ## 2. Register Simulation Systems
 - [ ] Wrap the existing scheduler/physics update logic in a `SimulationSystem` that plugs into the engine world.
