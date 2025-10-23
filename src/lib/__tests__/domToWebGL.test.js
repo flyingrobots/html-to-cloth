@@ -81,6 +81,7 @@ vi.mock('three', () => {
       this.near = 0
       this.far = 0
       this.position = new Vector3()
+      this.up = new Vector3(0, 1, 0)
     }
     updateProjectionMatrix() {}
     lookAt() {}
@@ -310,6 +311,20 @@ describe('DOMToWebGL canonical mapping', () => {
     const canonical = dom.pointerToCanonical(600, 450)
     expect(canonical.x).toBeCloseTo(0)
     expect(canonical.y).toBeCloseTo(0)
+    dom.detach()
+  })
+
+  it('exposes a world camera aligned with canonical space', () => {
+    const dom = new DOMToWebGL(document.body)
+    const worldCamera = dom.getWorldCamera()
+    expect(worldCamera).toBeDefined()
+    expect(worldCamera.orthoWidth).toBeCloseTo(CANONICAL_WIDTH_METERS)
+    expect(worldCamera.orthoHeight).toBeCloseTo(CANONICAL_HEIGHT_METERS)
+
+    Object.defineProperty(window, 'innerWidth', { configurable: true, value: 1600 })
+    dom.resize()
+    expect(worldCamera.aspect).toBeCloseTo(1600 / window.innerHeight)
+
     dom.detach()
   })
 

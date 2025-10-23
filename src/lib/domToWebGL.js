@@ -9,6 +9,7 @@ import {
   toCanonicalY,
 } from './units'
 import { WorldBody } from './worldBody'
+import { WorldCamera } from './worldCamera'
 
 const HTML2CANVAS_IFRAME_CLASS = 'html2canvas-container'
 const patchedDocuments = new WeakMap()
@@ -211,6 +212,13 @@ export class DOMToWebGL {
   constructor(container) {
     this.container = container
     this.scene = new THREE.Scene()
+    this.worldCamera = new WorldCamera({
+      orthoWidth: CANONICAL_WIDTH_METERS,
+      orthoHeight: CANONICAL_HEIGHT_METERS,
+      near: -1000,
+      far: 1000,
+      aspect: CANONICAL_WIDTH_METERS / CANONICAL_HEIGHT_METERS,
+    })
     this.camera = new THREE.OrthographicCamera()
     this.renderer = new THREE.WebGLRenderer({ alpha: true, antialias: true })
     this.html2canvasRef = null
@@ -251,6 +259,10 @@ export class DOMToWebGL {
     this.viewportWidth = window.innerWidth
     this.viewportHeight = window.innerHeight
     this.renderer.setSize(this.viewportWidth, this.viewportHeight)
+    if (this.viewportHeight !== 0) {
+      this.worldCamera.setAspect(this.viewportWidth / this.viewportHeight)
+    }
+    this.updateCamera()
   }
 
   render() {
@@ -377,15 +389,30 @@ export class DOMToWebGL {
   }
 
   updateCamera() {
-    this.camera.left = -CANONICAL_WIDTH_METERS / 2
-    this.camera.right = CANONICAL_WIDTH_METERS / 2
-    this.camera.top = CANONICAL_HEIGHT_METERS / 2
-    this.camera.bottom = -CANONICAL_HEIGHT_METERS / 2
+    this.worldCamera.setOrthoSize(CANONICAL_WIDTH_METERS, CANONICAL_HEIGHT_METERS)
+    this.worldCamera.setClippingPlanes(-1000, 1000)
+    this.worldCamera.setPosition(0, 0, 500)
+    this.worldCamera.setTarget(0, 0, 0)
+
+    const left = -CANONICAL_WIDTH_METERS / 2
+    const right = CANONICAL_WIDTH_METERS / 2
+    const top = CANONICAL_HEIGHT_METERS / 2
+    const bottom = -CANONICAL_HEIGHT_METERS / 2
+
+    this.camera.left = left
+    this.camera.right = right
+    this.camera.top = top
+    this.camera.bottom = bottom
     this.camera.near = -1000
     this.camera.far = 1000
-    this.camera.position.set(0, 0, 500)
-    this.camera.lookAt(new THREE.Vector3(0, 0, 0))
+    this.camera.position.copy(this.worldCamera.position)
+    this.camera.lookAt(this.worldCamera.target)
+    this.camera.up.copy(this.worldCamera.up)
     this.camera.updateProjectionMatrix()
+  }
+
+  getWorldCamera() {
+    return this.worldCamera
   }
 
   _domPositionToWorld(rect) {

@@ -12,7 +12,7 @@
 - [x] Add unit/integration tests covering free-fall vs. deformation cases.
 
 ## Camera & Viewport Integration
-- [ ] Create `WorldCamera` with position/rotation, orthographic + perspective projections.
+- [x] Create `WorldCamera` with position/rotation, orthographic + perspective projections.
 - [ ] Implement critically damped spring for look-at/target blending.
 - [ ] Teach `DOMToWebGL` to consume the camera matrices and render the DOM as a billboarded quad.
 - [ ] Update pointer collider/AABB helpers to operate in world space.

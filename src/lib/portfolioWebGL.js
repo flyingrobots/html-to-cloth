@@ -209,6 +209,7 @@ class ClothBodyAdapter {
 export class PortfolioWebGL {
   constructor() {
     this.domToWebGL = null
+    this.worldCamera = null
     this.collisionSystem = new CollisionSystem()
     this.items = new Map()
     this.rafId = null
@@ -267,6 +268,7 @@ export class PortfolioWebGL {
     if (this.domToWebGL) return
 
     this.domToWebGL = new DOMToWebGL(document.body)
+    this.worldCamera = this.domToWebGL.getWorldCamera()
     this.pool = new ElementPool(this.domToWebGL)
     this.domToWebGL.scene.add(this.debugGroup)
     this.debugGroup.visible = this.showAabbs

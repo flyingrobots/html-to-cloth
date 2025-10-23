@@ -1,5 +1,6 @@
 import { beforeAll, beforeEach, afterEach, describe, expect, it, vi } from 'vitest'
 import * as THREE from 'three'
+import { CANONICAL_WIDTH_METERS, CANONICAL_HEIGHT_METERS } from '../units'
 
 const domMocks = {
   capture: vi.fn(),
@@ -71,13 +72,21 @@ vi.mock('../domToWebGL', () => {
         add: (object) => domMocks.sceneAdd(object),
         remove: (object) => domMocks.sceneRemove(object),
       }
+      this._worldCamera = {
+        orthoWidth: CANONICAL_WIDTH_METERS,
+        orthoHeight: CANONICAL_HEIGHT_METERS,
+        aspect: CANONICAL_WIDTH_METERS / CANONICAL_HEIGHT_METERS,
+      }
       this.captureElement = domMocks.capture
       this.createMesh = domMocks.createMesh
       this.addMesh = domMocks.addMesh
       this.removeMesh = domMocks.removeMesh
       this.disposeMesh = domMocks.disposeMesh
       this.updateMeshTransform = domMocks.updateMeshTransform
-      this.resize = domMocks.resize
+      this.resize = (...args) => {
+        this._worldCamera.aspect = CANONICAL_WIDTH_METERS / CANONICAL_HEIGHT_METERS
+        domMocks.resize(...args)
+      }
       this.render = domMocks.render
       domMocks.instances.push(this)
     }
@@ -92,6 +101,10 @@ vi.mock('../domToWebGL', () => {
 
     getViewportMeters() {
       return { width: 1, height: 1 }
+    }
+
+    getWorldCamera() {
+      return this._worldCamera
     }
   }
 
