@@ -82,9 +82,11 @@ vi.mock('three', () => {
       this.far = 0
       this.position = new Vector3()
       this.up = new Vector3(0, 1, 0)
+      this.quaternion = new Quaternion()
     }
     updateProjectionMatrix() {}
     lookAt() {}
+    updateMatrixWorld() {}
   }
 
   class CanvasTexture {

@@ -223,6 +223,9 @@ export class DOMToWebGL {
     this.renderer = new THREE.WebGLRenderer({ alpha: true, antialias: true })
     this.html2canvasRef = null
 
+    this.cameraPosition = new THREE.Vector3(0, 0, 500)
+    this.cameraTarget = new THREE.Vector3(0, 0, 0)
+
     this.viewportWidth = window.innerWidth
     this.viewportHeight = window.innerHeight
 
@@ -266,6 +269,8 @@ export class DOMToWebGL {
   }
 
   render() {
+    this._syncThreeCamera()
+    this.rootGroup.quaternion.copy(this.camera.quaternion)
     this.renderer.render(this.scene, this.camera)
   }
 
@@ -391,9 +396,24 @@ export class DOMToWebGL {
   updateCamera() {
     this.worldCamera.setOrthoSize(CANONICAL_WIDTH_METERS, CANONICAL_HEIGHT_METERS)
     this.worldCamera.setClippingPlanes(-1000, 1000)
-    this.worldCamera.setPosition(0, 0, 500)
-    this.worldCamera.setTarget(0, 0, 0)
+    this.worldCamera.setPosition(this.cameraPosition.x, this.cameraPosition.y, this.cameraPosition.z)
+    this.worldCamera.setTarget(this.cameraTarget.x, this.cameraTarget.y, this.cameraTarget.z)
+    this._syncThreeCamera()
+  }
 
+  getWorldCamera() {
+    return this.worldCamera
+  }
+
+  setCameraPose(position, target) {
+    this.cameraPosition.copy(position)
+    this.cameraTarget.copy(target)
+    this.worldCamera.setPosition(position.x, position.y, position.z)
+    this.worldCamera.setTarget(target.x, target.y, target.z)
+    this._syncThreeCamera()
+  }
+
+  _syncThreeCamera() {
     const left = -CANONICAL_WIDTH_METERS / 2
     const right = CANONICAL_WIDTH_METERS / 2
     const top = CANONICAL_HEIGHT_METERS / 2
@@ -409,10 +429,7 @@ export class DOMToWebGL {
     this.camera.lookAt(this.worldCamera.target)
     this.camera.up.copy(this.worldCamera.up)
     this.camera.updateProjectionMatrix()
-  }
-
-  getWorldCamera() {
-    return this.worldCamera
+    this.camera.updateMatrixWorld(true)
   }
 
   _domPositionToWorld(rect) {

@@ -72,10 +72,19 @@ vi.mock('../domToWebGL', () => {
         add: (object) => domMocks.sceneAdd(object),
         remove: (object) => domMocks.sceneRemove(object),
       }
+      this.camera = { quaternion: new THREE.Quaternion() }
       this._worldCamera = {
         orthoWidth: CANONICAL_WIDTH_METERS,
         orthoHeight: CANONICAL_HEIGHT_METERS,
         aspect: CANONICAL_WIDTH_METERS / CANONICAL_HEIGHT_METERS,
+        position: new THREE.Vector3(0, 0, 500),
+        target: new THREE.Vector3(0, 0, 0),
+        setPosition: (x, y, z) => {
+          this._worldCamera.position.set(x, y, z)
+        },
+        setTarget: (x, y, z) => {
+          this._worldCamera.target.set(x, y, z)
+        },
       }
       this.captureElement = domMocks.capture
       this.createMesh = domMocks.createMesh
@@ -88,6 +97,14 @@ vi.mock('../domToWebGL', () => {
         domMocks.resize(...args)
       }
       this.render = domMocks.render
+      this.setCameraPose = (position, target) => {
+        if (position) {
+          this._worldCamera.position.copy(position)
+        }
+        if (target) {
+          this._worldCamera.target.copy(target)
+        }
+      }
       domMocks.instances.push(this)
     }
 

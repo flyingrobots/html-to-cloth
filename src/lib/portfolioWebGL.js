@@ -253,6 +253,23 @@ export class PortfolioWebGL {
       tessellationSegments: 24,
       pointerCollider: false,
       pinMode: 'top',
+      sleepVelocityThreshold: 0.001,
+      sleepWorldVelocityThreshold: 0.001,
+      sleepFrames: 60,
+      cameraSpring: {
+        enabled: false,
+        distance: 500,
+        height: 0,
+        targetHeight: 0,
+        damping: 6,
+      },
+    }
+
+    this.cameraSpringState = {
+      position: new THREE.Vector3(0, 0, 500),
+      target: new THREE.Vector3(0, 0, 0),
+      desiredPosition: new THREE.Vector3(0, 0, 500),
+      desiredTarget: new THREE.Vector3(0, 0, 0),
     }
 
     this.onResize = () => this._handleResize()
@@ -269,6 +286,13 @@ export class PortfolioWebGL {
 
     this.domToWebGL = new DOMToWebGL(document.body)
     this.worldCamera = this.domToWebGL.getWorldCamera()
+    if (this.worldCamera) {
+      this.cameraSpringState.position.copy(this.worldCamera.position)
+      this.cameraSpringState.target.copy(this.worldCamera.target)
+      this.cameraSpringState.desiredPosition.copy(this.cameraSpringState.position)
+      this.cameraSpringState.desiredTarget.copy(this.cameraSpringState.target)
+      this._applyCameraSpringImmediate()
+    }
     this.pool = new ElementPool(this.domToWebGL)
     this.domToWebGL.scene.add(this.debugGroup)
     this.debugGroup.visible = this.showAabbs
@@ -348,6 +372,7 @@ export class PortfolioWebGL {
 
     this.items.clear()
     this.domToWebGL = null
+    this.worldCamera = null
     this.pool = null
     this.scheduler.clear()
     this.elementIds.clear()
@@ -455,6 +480,9 @@ export class PortfolioWebGL {
       constraintIterations: iterations,
       debugLabel: item.id ?? this._getBodyId(element),
       debugLogging: true,
+      sleepVelocityThresholdSq: this.debug.sleepVelocityThreshold ** 2,
+      sleepWorldVelocityThresholdSq: this.debug.sleepWorldVelocityThreshold ** 2,
+      sleepFrameThreshold: Math.max(1, Math.round(this.debug.sleepFrames)),
       worldBody: record.worldBody ?? null,
     })
 
@@ -487,6 +515,7 @@ export class PortfolioWebGL {
       record,
       this.debug
     )
+    this._applySleepThresholdsToCloth(cloth)
     this.scheduler.addBody(adapter)
     item.adapter = adapter
     element.removeEventListener('click', item.clickHandler)
@@ -511,6 +540,7 @@ export class PortfolioWebGL {
       }
     }
 
+    this._updateCameraSpring(delta)
     this._decayPointerImpulse()
     this._updatePointerHelper()
     this._updateDebugOverlays()
@@ -830,6 +860,9 @@ export class PortfolioWebGL {
     const radius = Math.max(MIN_POINTER_RADIUS, this.pointer.radius || DEFAULT_POINTER_RADIUS)
     const correction = this._getPointerAspectCorrection()
     this.pointerHelper.scale.set(radius * correction, radius, 1)
+    if (this.domToWebGL?.camera && this.pointerHelper.quaternion) {
+      this.pointerHelper.quaternion.copy(this.domToWebGL.camera.quaternion)
+    }
   }
 
   _ensurePointerHelper() {
@@ -846,6 +879,9 @@ export class PortfolioWebGL {
       this.pointerHelper.visible = false
       this.pointerHelper.frustumCulled = false
       this.pointerHelper.renderOrder = 50
+      if (this.domToWebGL?.camera && this.pointerHelper.quaternion) {
+        this.pointerHelper.quaternion.copy(this.domToWebGL.camera.quaternion)
+      }
       const radius = Math.max(MIN_POINTER_RADIUS, this.pointer.radius || DEFAULT_POINTER_RADIUS)
       const correction = this._getPointerAspectCorrection()
       this.pointerHelper.scale.set(radius * correction, radius, 1)
@@ -922,8 +958,12 @@ export class PortfolioWebGL {
 
   _getPointerAspectCorrection() {
     if (!this.domToWebGL) return 1
-    const viewport = this.domToWebGL.getViewportPixels()
     const canonicalAspect = CANONICAL_WIDTH_METERS / CANONICAL_HEIGHT_METERS
+    const worldAspect = this.worldCamera?.aspect
+    if (worldAspect && worldAspect !== 0) {
+      return canonicalAspect / worldAspect
+    }
+    const viewport = this.domToWebGL.getViewportPixels()
     const viewportAspect = viewport.height === 0 ? canonicalAspect : viewport.width / viewport.height
     if (viewportAspect === 0) return 1
     return canonicalAspect / viewportAspect
@@ -956,6 +996,29 @@ export class PortfolioWebGL {
     if (this.showAabbs) {
       this._updateDebugOverlays()
     }
+  }
+
+  setSleepThresholds({ local, world, frames }) {
+    if (local !== undefined) {
+      this.debug.sleepVelocityThreshold = Math.max(0, local)
+    }
+    if (world !== undefined) {
+      this.debug.sleepWorldVelocityThreshold = Math.max(0, world)
+    }
+    if (frames !== undefined) {
+      this.debug.sleepFrames = Math.max(1, Math.round(frames))
+    }
+    this._applySleepThresholds()
+  }
+
+  setCameraSpringConfig(config = {}) {
+    const spring = this.debug.cameraSpring
+    if (config.enabled !== undefined) spring.enabled = !!config.enabled
+    if (config.distance !== undefined) spring.distance = Number(config.distance) || 0
+    if (config.height !== undefined) spring.height = Number(config.height) || 0
+    if (config.targetHeight !== undefined) spring.targetHeight = Number(config.targetHeight) || 0
+    if (config.damping !== undefined) spring.damping = Math.max(0.01, Number(config.damping) || 0.01)
+    this._applyCameraSpringImmediate()
   }
 
   _updateDebugOverlays() {
@@ -1003,6 +1066,10 @@ export class PortfolioWebGL {
         this._removeAabbHelper(item)
       }
     }
+
+    if (this.domToWebGL?.camera && this.debugGroup?.quaternion) {
+      this.debugGroup.quaternion.copy(this.domToWebGL.camera.quaternion)
+    }
   }
 
   _populateWorldBoxFromLocal(localBox, worldBody, targetBox) {
@@ -1026,6 +1093,63 @@ export class PortfolioWebGL {
       worldBody.localToWorldPoint(localCorners[i], worldCorners[i])
       targetBox.expandByPoint(worldCorners[i])
     }
+  }
+
+  _applySleepThresholds() {
+    for (const item of this.items.values()) {
+      if (item.cloth) {
+        this._applySleepThresholdsToCloth(item.cloth)
+      }
+    }
+  }
+
+  _applySleepThresholdsToCloth(cloth) {
+    if (!cloth) return
+    const local = this.debug.sleepVelocityThreshold
+    const world = this.debug.sleepWorldVelocityThreshold
+    const frames = Math.max(1, Math.round(this.debug.sleepFrames))
+    if (Number.isFinite(local)) {
+      cloth.sleepVelocityThresholdSq = local * local
+    }
+    if (Number.isFinite(world)) {
+      cloth.sleepWorldVelocityThresholdSq = world * world
+    }
+    cloth.sleepFrameThreshold = frames
+  }
+
+  _applyCameraSpringImmediate() {
+    if (!this.worldCamera || !this.domToWebGL) return
+    const spring = this.debug.cameraSpring
+    const state = this.cameraSpringState
+    state.position.set(0, spring.height, spring.distance)
+    state.target.set(0, spring.targetHeight, 0)
+    state.desiredPosition.copy(state.position)
+    state.desiredTarget.copy(state.target)
+    this.worldCamera.setPosition(state.position.x, state.position.y, state.position.z)
+    this.worldCamera.setTarget(state.target.x, state.target.y, state.target.z)
+    this.domToWebGL.setCameraPose(state.position, state.target)
+  }
+
+  _updateCameraSpring(delta) {
+    if (!this.worldCamera || !this.domToWebGL) return
+    const spring = this.debug.cameraSpring
+    const state = this.cameraSpringState
+    state.desiredPosition.set(0, spring.height, spring.distance)
+    state.desiredTarget.set(0, spring.targetHeight, 0)
+
+    if (!spring.enabled || delta <= 0) {
+      state.position.copy(state.desiredPosition)
+      state.target.copy(state.desiredTarget)
+    } else {
+      const damping = Math.max(0.01, spring.damping)
+      const alpha = 1 - Math.exp(-damping * delta)
+      state.position.lerp(state.desiredPosition, alpha)
+      state.target.lerp(state.desiredTarget, alpha)
+    }
+
+    this.worldCamera.setPosition(state.position.x, state.position.y, state.position.z)
+    this.worldCamera.setTarget(state.target.x, state.target.y, state.target.z)
+    this.domToWebGL.setCameraPose(state.position, state.target)
   }
 
   _ensureAabbHelper(item) {
@@ -1233,11 +1357,16 @@ export class PortfolioWebGL {
 
     if (item.cloth) {
       const stats = item.cloth.getConstraintStats()
+      const worldBody = typeof item.cloth.getWorldBody === 'function' ? item.cloth.getWorldBody() : null
+      const worldSpeed = worldBody ? worldBody.linearVelocity.length() : 0
+      const worldAcceleration = worldBody ? worldBody.linearAcceleration.length() : 0
       return {
         vertexCount,
         triangleCount,
         averageError: stats.averageError,
         maxError: stats.maxError,
+        worldSpeed,
+        worldAcceleration,
       }
     }
 
@@ -1246,6 +1375,8 @@ export class PortfolioWebGL {
       triangleCount,
       averageError: 0,
       maxError: 0,
+      worldSpeed: 0,
+      worldAcceleration: 0,
     }
   }
 

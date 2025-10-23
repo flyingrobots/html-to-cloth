@@ -92,6 +92,14 @@ function AppInner() {
   const [autoRelease, setAutoRelease] = useState(true)
   const [showAabbs, setShowAabbs] = useState(false)
   const [showSleepState, setShowSleepState] = useState(false)
+  const [sleepVelocityThreshold, setSleepVelocityThreshold] = useState(0.001)
+  const [sleepWorldVelocityThreshold, setSleepWorldVelocityThreshold] = useState(0.001)
+  const [sleepFrameThreshold, setSleepFrameThreshold] = useState(60)
+  const [cameraSpringEnabled, setCameraSpringEnabled] = useState(false)
+  const [cameraDistance, setCameraDistance] = useState(500)
+  const [cameraHeight, setCameraHeight] = useState(0)
+  const [cameraTargetHeight, setCameraTargetHeight] = useState(0)
+  const [cameraDamping, setCameraDamping] = useState(6)
   const [entities, setEntities] = useState([])
   const [selectedEntityId, setSelectedEntityId] = useState(null)
   const [selectedEntityDetails, setSelectedEntityDetails] = useState(null)
@@ -248,6 +256,24 @@ function AppInner() {
   }, [showSleepState])
 
   useEffect(() => {
+    controllerRef.current?.setSleepThresholds({
+      local: sleepVelocityThreshold,
+      world: sleepWorldVelocityThreshold,
+      frames: sleepFrameThreshold,
+    })
+  }, [sleepVelocityThreshold, sleepWorldVelocityThreshold, sleepFrameThreshold])
+
+  useEffect(() => {
+    controllerRef.current?.setCameraSpringConfig({
+      enabled: cameraSpringEnabled,
+      distance: cameraDistance,
+      height: cameraHeight,
+      targetHeight: cameraTargetHeight,
+      damping: cameraDamping,
+    })
+  }, [cameraSpringEnabled, cameraDistance, cameraHeight, cameraTargetHeight, cameraDamping])
+
+  useEffect(() => {
     const controller = controllerRef.current
     if (!controller || !debugOpen || pointerColliderVisible) return
 
@@ -308,6 +334,14 @@ function AppInner() {
     setSubsteps(1)
     setPointerColliderVisible(false)
     setPinMode('top')
+    setSleepVelocityThreshold(0.001)
+    setSleepWorldVelocityThreshold(0.001)
+    setSleepFrameThreshold(60)
+    setCameraSpringEnabled(false)
+    setCameraDistance(500)
+    setCameraHeight(0)
+    setCameraTargetHeight(0)
+    setCameraDamping(6)
   }
 
   const pinModeOptions = [
@@ -461,6 +495,56 @@ function AppInner() {
 
           <Stack gap="xs">
             <Group justify="space-between">
+              <Text fw={500}>Sleep Threshold (local)</Text>
+              <Text size="sm" c="dimmed">
+                {(sleepVelocityThreshold * 1000).toFixed(2)} mm
+              </Text>
+            </Group>
+            <Slider
+              value={sleepVelocityThreshold * 1000}
+              min={0.1}
+              max={5}
+              step={0.1}
+              onChange={(value) => setSleepVelocityThreshold(value / 1000)}
+              label={(value) => `${value.toFixed(1)} mm`}
+            />
+          </Stack>
+
+          <Stack gap="xs">
+            <Group justify="space-between">
+              <Text fw={500}>Sleep Threshold (world)</Text>
+              <Text size="sm" c="dimmed">
+                {(sleepWorldVelocityThreshold * 1000).toFixed(2)} mm
+              </Text>
+            </Group>
+            <Slider
+              value={sleepWorldVelocityThreshold * 1000}
+              min={0.1}
+              max={5}
+              step={0.1}
+              onChange={(value) => setSleepWorldVelocityThreshold(value / 1000)}
+              label={(value) => `${value.toFixed(1)} mm`}
+            />
+          </Stack>
+
+          <Stack gap="xs">
+            <Group justify="space-between">
+              <Text fw={500}>Sleep Frames</Text>
+              <Text size="sm" c="dimmed">
+                {sleepFrameThreshold} frames
+              </Text>
+            </Group>
+            <Slider
+              value={sleepFrameThreshold}
+              min={10}
+              max={240}
+              step={5}
+              onChange={(value) => setSleepFrameThreshold(Math.round(value))}
+            />
+          </Stack>
+
+          <Stack gap="xs">
+            <Group justify="space-between">
               <Text fw={500}>Gravity</Text>
               <Text size="sm" c="dimmed">
                 {gravity.toFixed(2)} m/s²
@@ -527,6 +611,83 @@ function AppInner() {
             />
           </Stack>
 
+          <Group justify="space-between" align="center">
+            <Text fw={500}>Camera Spring</Text>
+            <Switch
+              checked={cameraSpringEnabled}
+              onChange={(event) => setCameraSpringEnabled(event.currentTarget.checked)}
+              size="md"
+            />
+          </Group>
+
+          {cameraSpringEnabled ? (
+            <Stack gap="xs">
+              <Stack gap="xs">
+                <Group justify="space-between">
+                  <Text fw={500}>Camera Distance</Text>
+                  <Text size="sm" c="dimmed">
+                    {cameraDistance.toFixed(0)}
+                  </Text>
+                </Group>
+                <Slider
+                  value={cameraDistance}
+                  min={200}
+                  max={800}
+                  step={10}
+                  onChange={setCameraDistance}
+                />
+              </Stack>
+
+              <Stack gap="xs">
+                <Group justify="space-between">
+                  <Text fw={500}>Camera Height</Text>
+                  <Text size="sm" c="dimmed">
+                    {cameraHeight.toFixed(1)}
+                  </Text>
+                </Group>
+                <Slider
+                  value={cameraHeight}
+                  min={-150}
+                  max={150}
+                  step={5}
+                  onChange={setCameraHeight}
+                />
+              </Stack>
+
+              <Stack gap="xs">
+                <Group justify="space-between">
+                  <Text fw={500}>Target Height</Text>
+                  <Text size="sm" c="dimmed">
+                    {cameraTargetHeight.toFixed(1)}
+                  </Text>
+                </Group>
+                <Slider
+                  value={cameraTargetHeight}
+                  min={-150}
+                  max={150}
+                  step={5}
+                  onChange={setCameraTargetHeight}
+                />
+              </Stack>
+
+              <Stack gap="xs">
+                <Group justify="space-between">
+                  <Text fw={500}>Spring Damping</Text>
+                  <Text size="sm" c="dimmed">
+                    {cameraDamping.toFixed(2)}
+                  </Text>
+                </Group>
+                <Slider
+                  value={cameraDamping}
+                  min={0.5}
+                  max={12}
+                  step={0.25}
+                  onChange={setCameraDamping}
+                />
+              </Stack>
+            </Stack>
+          ) : null}
+
           <Stack gap="xs">
             <Text fw={500}>Pin Mode</Text>
             <Select
@@ -584,6 +745,11 @@ function AppInner() {
                   {selectedEntityDetails.isActive ? (
                     <Text size="sm" c="dimmed">
                       Constraint error avg: {(selectedMetrics.averageError ?? 0).toFixed(4)} m | max: {(selectedMetrics.maxError ?? 0).toFixed(4)} m
+                    </Text>
+                  ) : null}
+                  {selectedEntityDetails.isActive ? (
+                    <Text size="sm" c="dimmed">
+                      World speed: {(selectedMetrics.worldSpeed ?? 0).toFixed(3)} m/s | accel: {(selectedMetrics.worldAcceleration ?? 0).toFixed(3)} m/s²
                     </Text>
                   ) : null}
                 </Stack>
