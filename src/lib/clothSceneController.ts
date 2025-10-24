@@ -46,6 +46,7 @@ type ClothItem = {
   record?: DOMMeshRecord
   adapter?: ClothBodyAdapter
   entity?: Entity
+  releasePinsTimeout?: number
 }
 
 /**
@@ -320,6 +321,11 @@ export class ClothSceneController {
     window.removeEventListener('pointercancel', this.onPointerLeave)
 
     for (const item of this.items.values()) {
+      if (item.releasePinsTimeout !== undefined) {
+        clearTimeout(item.releasePinsTimeout)
+        delete item.releasePinsTimeout
+      }
+      item.entity?.destroy()
       item.element.style.opacity = item.originalOpacity
       item.element.removeEventListener('click', item.clickHandler)
       this.pool?.destroy(item.element)
@@ -337,6 +343,7 @@ export class ClothSceneController {
     this.pool = null
     this.simulationSystem.clear()
     this.simulationRunner.setRealTime(false)
+    this.entities.clear()
     this.elementIds.clear()
   }
 
@@ -398,7 +405,10 @@ export class ClothSceneController {
     cloth.setGravity(gravityVector)
 
     cloth.addTurbulence(0.06)
-    setTimeout(() => cloth.releaseAllPins(), 900)
+    item.releasePinsTimeout = window.setTimeout(() => {
+      cloth.releaseAllPins()
+      delete item.releasePinsTimeout
+    }, 900)
 
     item.cloth = cloth
     item.record = record
@@ -512,6 +522,10 @@ export class ClothSceneController {
     const adapter = item.adapter
     if (adapter) {
       this.simulationSystem.removeBody(adapter.id)
+    }
+    if (item.releasePinsTimeout !== undefined) {
+      clearTimeout(item.releasePinsTimeout)
+      delete item.releasePinsTimeout
     }
     if (item.entity) {
       item.entity.destroy()

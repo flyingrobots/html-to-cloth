@@ -551,6 +551,26 @@ describe('ClothSceneController DOM integration', () => {
     webgl.dispose()
   })
 
+  it('clears pending release pin timers on dispose', async () => {
+    vi.useFakeTimers()
+
+    const webgl = new ClothSceneController()
+    await webgl.init()
+
+    const button = document.getElementById('cta') as HTMLElement
+    button.dispatchEvent(new MouseEvent('click'))
+
+    const cloth = clothMocks.instances.at(-1) as any
+    expect(cloth.releaseAllPins).not.toHaveBeenCalled()
+
+    webgl.dispose()
+    vi.runAllTimers()
+
+    expect(cloth.releaseAllPins).not.toHaveBeenCalled()
+
+    vi.useRealTimers()
+  })
+
   it('rebuilds meshes when tessellation segments change', async () => {
     const webgl = new ClothSceneController()
     await webgl.init()
