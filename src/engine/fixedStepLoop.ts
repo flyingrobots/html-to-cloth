@@ -18,23 +18,32 @@ export class FixedStepLoop {
   }
 
   update(elapsed: number) {
+    if (elapsed > 0) {
+      this.accumulator += elapsed
+    }
+
     if (this.paused) return
 
-    this.accumulator += elapsed
+    this.consumeAccumulator()
+  }
 
+  setPaused(value: boolean) {
+    this.paused = value
+    if (!value) {
+      this.consumeAccumulator()
+    }
+  }
+
+  reset() {
+    this.accumulator = 0
+  }
+
+  private consumeAccumulator() {
     let steps = 0
     while (this.accumulator >= this.fixedDelta && steps < this.maxSubSteps) {
       this.step(this.fixedDelta)
       this.accumulator -= this.fixedDelta
       steps += 1
     }
-  }
-
-  setPaused(value: boolean) {
-    this.paused = value
-  }
-
-  reset() {
-    this.accumulator = 0
   }
 }
