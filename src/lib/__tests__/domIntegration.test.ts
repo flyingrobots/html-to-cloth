@@ -313,6 +313,7 @@ beforeAll(() => {
 
 beforeEach(() => {
   resetSpies()
+  vi.useFakeTimers()
   rafSpy = vi.spyOn(globalThis, 'requestAnimationFrame').mockReturnValue(1 as any)
   cafSpy = vi.spyOn(globalThis, 'cancelAnimationFrame').mockImplementation(() => {})
   document.body.innerHTML = `
@@ -337,6 +338,8 @@ beforeEach(() => {
 afterEach(() => {
   rafSpy.mockRestore()
   cafSpy.mockRestore()
+  vi.runOnlyPendingTimers()
+  vi.useRealTimers()
   document.body.innerHTML = ''
 })
 
@@ -552,8 +555,6 @@ describe('ClothSceneController DOM integration', () => {
   })
 
   it('clears pending release pin timers on dispose', async () => {
-    vi.useFakeTimers()
-
     const webgl = new ClothSceneController()
     await webgl.init()
 
@@ -567,8 +568,6 @@ describe('ClothSceneController DOM integration', () => {
     vi.runAllTimers()
 
     expect(cloth.releaseAllPins).not.toHaveBeenCalled()
-
-    vi.useRealTimers()
   })
 
   it('rebuilds meshes when tessellation segments change', async () => {
