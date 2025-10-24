@@ -3,6 +3,7 @@
 This document explains how the major subsystems interact after the engine refactor. It complements
 the component and data-flow diagrams with additional rationale and extension tips.
 
+
 ## Layers Overview
 
 1. **UI/DOM Layer** – browser-facing code (`clothSceneController`, React components) that captures
@@ -14,6 +15,7 @@ the component and data-flow diagrams with additional rationale and extension tip
 4. **Entity Layer** – minimal ECS with `EntityManager`, used to track cloth body components today and
    ready for future systems (camera rigs, HUDs, audio emitters, etc.).
 
+
 ## Dependency Injection Strategy
 
 - All core orchestrators accept optional constructor parameters. Tests can inject stubs, and future
@@ -22,6 +24,7 @@ the component and data-flow diagrams with additional rationale and extension tip
   instances. By default the class wires them up, but the entry points remain open.
 - Physics primitives (e.g., `ClothPhysics`) receive a `GravityController` so temporary overrides never
   leak outside the body itself.
+
 
 ## Extending the System
 
@@ -33,10 +36,12 @@ the component and data-flow diagrams with additional rationale and extension tip
 - **Alternative Input Sources**: provide your own pointer adapter and call `simulationSystem.notifyPointer`
   as needed. The controller never assumes events come from DOM events specifically.
 
+
 ## API Documentation
 
 Run `npm run docs:api` to generate Markdown API docs in `docs/api/` using TypeDoc. The configuration lives
 in `typedoc.json` and includes version and git revision metadata for traceability.
+
 
 ## Testing Notes
 
