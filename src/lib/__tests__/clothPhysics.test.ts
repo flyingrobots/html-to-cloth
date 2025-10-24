@@ -199,4 +199,22 @@ describe('ClothPhysics', () => {
     expect('center' in sphere && 'radius' in sphere).toBe(true)
     expect((sphere as any).clone).toBeUndefined()
   })
+
+  it('applies substeps consistently with manual integration', () => {
+    const first = makeCloth(3, 3).cloth
+    const second = makeCloth(3, 3).cloth
+
+    first.setSubsteps(2)
+
+    first.update(0.1)
+
+    second.update(0.05)
+    second.update(0.05)
+
+    const posFirst = first.getVertexPositions()[5]
+    const posSecond = second.getVertexPositions()[5]
+
+    expect(posFirst.x).toBeCloseTo(posSecond.x, 5)
+    expect(posFirst.y).toBeCloseTo(posSecond.y, 5)
+  })
 })
