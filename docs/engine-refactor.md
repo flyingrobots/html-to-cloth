@@ -1,6 +1,6 @@
 # Engine Refactor Plan
 
-Adopt the architecture patterns from `/Users/james/git/caverns` so simulation and rendering are cleanly separated and driven by a reusable engine core.
+Adopt the architecture patterns from the Caverns project so simulation and rendering are cleanly separated and driven by a reusable engine core.
 
 ## 1. Extract Caverns Engine Primitives
 
