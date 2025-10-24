@@ -8,6 +8,9 @@ import { ElementPool } from './elementPool'
 import { EngineWorld } from '../engine/world'
 import { SimulationSystem } from '../engine/systems/simulationSystem'
 import { SimulationRunner } from '../engine/simulationRunner'
+import { EntityManager } from '../engine/entity/entityManager'
+import type { Entity } from '../engine/entity/entity'
+import type { Component } from '../engine/entity/component'
 import { SimWorld, type SimBody, type SimWarmStartConfig, type SimSleepConfig } from './simWorld'
 
 const WARM_START_PASSES = 2
@@ -42,9 +45,10 @@ type ClothItem = {
   isActive: boolean
   record?: DOMMeshRecord
   adapter?: ClothBodyAdapter
+  entity?: Entity
 }
 
-class ClothBodyAdapter implements SimBody {
+class ClothBodyAdapter implements SimBody, Component {
   public readonly id: string
   private item: ClothItem
   private pointer: PointerState
@@ -119,6 +123,10 @@ class ClothBodyAdapter implements SimBody {
     this.offscreenCallback()
   }
 
+  onAttach() {}
+
+  onDetach() {}
+
   getBoundingSphere() {
     const cloth = this.item.cloth
     if (cloth && typeof (cloth as { getBoundingSphere?: () => THREE.Sphere }).getBoundingSphere === 'function') {
@@ -184,6 +192,7 @@ export class ClothSceneController {
   private simulationSystem: SimulationSystem
   private simulationRunner: SimulationRunner
   private simWorld: SimWorld
+  private entities = new EntityManager()
   private elementIds = new Map<HTMLElement, string>()
   private onResize = () => this.handleResize()
   private onScroll = () => {
@@ -390,7 +399,10 @@ export class ClothSceneController {
       warmStart: this.createWarmStartConfig(),
       sleep: this.sleepConfig,
     })
+    const entity = this.entities.createEntity({ id: adapterId, name: element.id })
+    entity.addComponent(adapter)
     item.adapter = adapter
+    item.entity = entity
     element.removeEventListener('click', item.clickHandler)
   }
 
@@ -479,6 +491,10 @@ export class ClothSceneController {
     const adapter = item.adapter
     if (adapter) {
       this.simulationSystem.removeBody(adapter.id)
+    }
+    if (item.entity) {
+      item.entity.destroy()
+      item.entity = undefined
     }
 
     this.pool.recycle(element)

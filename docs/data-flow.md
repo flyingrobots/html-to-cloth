@@ -17,7 +17,7 @@
 1. User clicks a cloth-enabled button; controller:
    - Resets pointer state and removes the element from static collisions.
    - Creates a new `ClothPhysics` instance with options (damping, iterations, gravity).
-   - Wraps it in a `ClothBodyAdapter` and registers with `SimulationSystem.addBody`.
+   - Wraps it in a `ClothBodyAdapter`, registers it with `SimulationSystem.addBody`, and stores it inside an `Entity` managed by `EntityManager` for future component expansion.
 2. `SimulationSystem` queues warm-start & sleep configuration which run on the next fixed update.
 
 ## 3. Fixed-Step Update Loop
@@ -45,7 +45,7 @@
 
 1. `ClothBodyAdapter` detects when its cloth's bounding sphere falls below the canonical boundary.
 2. Adapter invokes the controller callback which:
-   - Removes the body from `SimulationSystem`.
+   - Removes the body from `SimulationSystem` and destroys the corresponding entity to release components.
    - Recycles geometry back into the pool, restores DOM opacity, and re-registers static collision bounds.
 
 ## 7. Snapshot Consumption

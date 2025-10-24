@@ -62,6 +62,7 @@ flowchart LR
 - **ClothSceneController**: Manages DOM capture, element activation, pointer state, and bridges UI interactions into the simulation runner/system.
 - **SimulationRunner**: Owns the fixed-step loop for an `EngineWorld`, handles real-time toggling and substep configuration.
 - **SimulationSystem**: Owns cloth body registration, warm-start/sleep queues, and snapshots from `SimWorld`.
+- **EntityManager / Entities**: Track cloth entities and their components (currently the cloth body adapters), enabling future expansion of game-style components.
 - **FixedStepLoop**: Maintains fixed-timestep accumulation and drives `EngineWorld` updates.
 - **EngineWorld**: Manages system registration/ordering and delegates fixed/frame updates.
 - **SimulationSystem**: Owns cloth body registration, warm-start/sleep queues, and snapshots from `SimWorld`.
