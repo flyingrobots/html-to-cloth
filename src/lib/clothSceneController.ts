@@ -48,6 +48,10 @@ type ClothItem = {
   entity?: Entity
 }
 
+/**
+ * Adapts DOM-backed cloth meshes into the simulation layer while implementing the
+ * Component contract so they can be tracked via {@link EntityManager}.
+ */
 class ClothBodyAdapter implements SimBody, Component {
   public readonly id: string
   private item: ClothItem
@@ -181,6 +185,11 @@ export type ClothSceneControllerOptions = {
   maxSubSteps?: number
 }
 
+/**
+ * Coordinates DOM capture, pointer interaction, and simulation orchestration for the cloth demo.
+ * The controller owns no game-loop logic directly; instead it delegates to the injected
+ * {@link SimulationRunner} and {@link SimulationSystem} instances.
+ */
 export class ClothSceneController {
   private domToWebGL: DOMToWebGL | null = null
   private collisionSystem = new CollisionSystem()
@@ -227,6 +236,10 @@ export class ClothSceneController {
   private onPointerMove = (event: PointerEvent) => this.handlePointerMove(event)
   private onPointerLeave = () => this.resetPointer()
 
+  /**
+   * Creates a new cloth scene controller. All dependencies are optional and may be supplied to
+   * facilitate testing or reuse across projects.
+   */
   constructor(options: ClothSceneControllerOptions = {}) {
     this.simWorld = options.simWorld ?? new SimWorld()
     this.simulationSystem = options.simulationSystem ?? new SimulationSystem({ simWorld: this.simWorld })
@@ -243,6 +256,10 @@ export class ClothSceneController {
       })
   }
 
+  /**
+   * Prepares the controller by capturing cloth-enabled DOM elements, wiring event listeners,
+   * and seeding static collision geometry. Calling this method multiple times is a no-op.
+   */
   async init() {
     if (this.domToWebGL) return
 
@@ -274,6 +291,10 @@ export class ClothSceneController {
     }
   }
 
+  /**
+   * Releases all resources created by {@link init}, including DOM attachments, cloth entities,
+   * and simulation bodies. Safe to call even if initialization was skipped.
+   */
   dispose() {
     this.disposed = true
     if (this.rafId) {
@@ -508,6 +529,7 @@ export class ClothSceneController {
     item.adapter = undefined
   }
 
+  /** Enables or disables wireframe rendering for every captured cloth mesh. */
   setWireframe(enabled: boolean) {
     this.debug.wireframe = enabled
     for (const item of this.items.values()) {
@@ -518,6 +540,7 @@ export class ClothSceneController {
     }
   }
 
+  /** Applies a new gravity scalar to every active cloth body. */
   setGravity(gravity: number) {
     this.debug.gravity = gravity
     for (const item of this.items.values()) {
@@ -525,10 +548,12 @@ export class ClothSceneController {
     }
   }
 
+  /** Adjusts the pointer impulse multiplier used by all cloth adapters. */
   setImpulseMultiplier(multiplier: number) {
     this.debug.impulseMultiplier = multiplier
   }
 
+  /** Toggles real-time simulation updates. The controller still honours manual steps while paused. */
   setRealTime(enabled: boolean) {
     this.debug.realTime = enabled
     this.simulationRunner.setRealTime(enabled)
@@ -537,6 +562,7 @@ export class ClothSceneController {
     }
   }
 
+  /** Sets the desired cloth physics sub-step count and propagates it to the runner and live cloths. */
   setSubsteps(substeps: number) {
     const clamped = Math.max(1, Math.round(substeps))
     this.debug.substeps = clamped
@@ -546,6 +572,7 @@ export class ClothSceneController {
     }
   }
 
+  /** Updates constraint solver iterations for all cloth bodies. */
   setConstraintIterations(iterations: number) {
     const clamped = Math.max(1, Math.round(iterations))
     this.debug.constraintIterations = clamped

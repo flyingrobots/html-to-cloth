@@ -33,6 +33,10 @@ export type SimWorldSnapshot = {
   bodies: SimBodySnapshot[]
 }
 
+/**
+ * Manages simulated bodies participating in the cloth scene. Handles broad-phase wake checks,
+ * pointer notifications, and keeps track of the previous positions required for sweep tests.
+ */
 export class SimWorld {
   private scheduler: SimulationScheduler
   private bodies = new Map<string, SimBody>()
@@ -43,6 +47,7 @@ export class SimWorld {
     this.scheduler = scheduler ?? new SimulationScheduler()
   }
 
+  /** Registers a body with the internal scheduler and snapshot state. */
   addBody(body: SimBody) {
     if (this.bodies.has(body.id)) {
       throw new Error(`Cannot add duplicate body id: ${body.id}`)
@@ -53,6 +58,7 @@ export class SimWorld {
     this.updateSnapshot()
   }
 
+  /** Removes a body and its bookkeeping data. */
   removeBody(id: string) {
     this.bodies.delete(id)
     this.scheduler.removeBody(id)
@@ -60,6 +66,7 @@ export class SimWorld {
     this.updateSnapshot()
   }
 
+  /** Advances all awake bodies and performs sleeping-body sweep tests. */
   step(dt: number) {
     for (const [id, body] of this.bodies.entries()) {
       this.previousCenters.set(id, body.getBoundingSphere().center.clone())
@@ -80,10 +87,12 @@ export class SimWorld {
     this.updateSnapshot()
   }
 
+  /** Forwards pointer interactions to the scheduler so bodies can wake themselves. */
   notifyPointer(point: THREE.Vector2) {
     this.scheduler.notifyPointer(point)
   }
 
+  /** Removes every body and resets the internal snapshot. */
   clear() {
     for (const id of this.bodies.keys()) {
       this.scheduler.removeBody(id)
@@ -93,6 +102,7 @@ export class SimWorld {
     this.snapshot = { bodies: [] }
   }
 
+  /** Returns a deep-cloned snapshot describing the latest body positions and sleeping flags. */
   getSnapshot(): SimWorldSnapshot {
     return {
       bodies: this.snapshot.bodies.map((entry) => ({

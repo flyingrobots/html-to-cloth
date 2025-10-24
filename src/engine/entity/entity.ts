@@ -1,11 +1,16 @@
 import type { Component, ComponentType } from './component'
 import type { EntityManager } from './entityManager'
 
+/** Optional metadata supplied when creating entities. */
 export type EntityOptions = {
   id?: string
   name?: string
 }
 
+/**
+ * Minimal entity implementation supporting component composition. Entities are created and
+ * managed exclusively by {@link EntityManager}.
+ */
 export class Entity {
   private readonly components = new Map<ComponentType<Component>, Component>()
   private destroyed = false
@@ -20,6 +25,7 @@ export class Entity {
     return this.options.name
   }
 
+  /** Adds a component to the entity and triggers its {@link Component.onAttach} hook. */
   addComponent<T extends Component>(component: T, type?: ComponentType<T>): T {
     if (this.destroyed) {
       throw new Error('Cannot add component to destroyed entity')
@@ -33,6 +39,7 @@ export class Entity {
     return component
   }
 
+  /** Retrieves a component previously registered with {@link addComponent}. */
   getComponent<T extends Component>(type: ComponentType<T>): T | undefined {
     return this.components.get(type) as T | undefined
   }
@@ -41,6 +48,7 @@ export class Entity {
     return this.components.has(type)
   }
 
+  /** Removes the component of the requested type if present. */
   removeComponent<T extends Component>(type: ComponentType<T>): T | undefined {
     const component = this.components.get(type) as T | undefined
     if (!component) return undefined
@@ -49,10 +57,12 @@ export class Entity {
     return component
   }
 
+  /** Returns an array of all components attached to this entity. */
   listComponents() {
     return Array.from(this.components.values())
   }
 
+  /** Destroys the entity and detaches all components. */
   destroy() {
     if (this.destroyed) return
     for (const [key, component] of this.components.entries()) {

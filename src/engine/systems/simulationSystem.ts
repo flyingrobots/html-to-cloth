@@ -27,6 +27,11 @@ export type RegisterBodyOptions = {
   sleep?: SimSleepConfig
 }
 
+/**
+ * Engine system responsible for orchestrating cloth simulation bodies. Acts as the bridge
+ * between the fixed-step engine loop and the `SimWorld`, managing warm-start/sleep queues
+ * and exposing immutable snapshots for read-only consumers.
+ */
 export class SimulationSystem implements EngineSystem {
   id = 'simulation'
   allowWhilePaused = false
@@ -59,6 +64,7 @@ export class SimulationSystem implements EngineSystem {
     this.simWorld.notifyPointer(point)
   }
 
+  /** Registers a new simulated body with optional warm-start and sleep configuration. */
   addBody(body: SimBody, options: RegisterBodyOptions = {}) {
     const record: BodyRecord = {
       body,
@@ -83,6 +89,7 @@ export class SimulationSystem implements EngineSystem {
     this.snapshot = { bodies: [] }
   }
 
+  /** Queues a warm-start configuration to be applied on the next fixed update. */
   queueWarmStart(id: string, config?: SimWarmStartConfig) {
     const record = this.bodies.get(id)
     if (!record) return
@@ -94,6 +101,7 @@ export class SimulationSystem implements EngineSystem {
     }
   }
 
+  /** Queues updated sleep thresholds to be applied on the next fixed update. */
   queueSleepConfiguration(id: string, config: SimSleepConfig) {
     const record = this.bodies.get(id)
     if (!record) return
@@ -101,6 +109,7 @@ export class SimulationSystem implements EngineSystem {
     record.pendingSleep = true
   }
 
+  /** Returns the most recent snapshot captured after the last fixed update. */
   getSnapshot() {
     return this.snapshot
   }

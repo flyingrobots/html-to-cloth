@@ -23,6 +23,10 @@ type Constraint = {
   restLength: number
 }
 
+/**
+ * Verlet-based cloth simulation tuned for the DOM capture demo. Handles constraint relaxation,
+ * damping, pinning, impulses, and exposes helpers for warm-starting via {@link GravityController}.
+ */
 export class ClothPhysics {
   public mesh: THREE.Mesh<THREE.PlaneGeometry, THREE.MeshBasicMaterial>
 
@@ -73,6 +77,7 @@ export class ClothPhysics {
     this.storedSubsteps = Math.max(1, Math.round(substeps))
   }
 
+  /** Configures the velocity/frames thresholds used to transition into the sleeping state. */
   setSleepThresholds(velocity: number, frames: number) {
     if (Number.isFinite(velocity) && velocity > 0) {
       this.sleepVelocityThresholdSq = velocity * velocity
