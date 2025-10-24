@@ -65,7 +65,6 @@ flowchart LR
 - **EntityManager / Entities**: Track cloth entities and their components (currently the cloth body adapters), enabling future expansion of game-style components.
 - **FixedStepLoop**: Maintains fixed-timestep accumulation and drives `EngineWorld` updates.
 - **EngineWorld**: Manages system registration/ordering and delegates fixed/frame updates.
-- **SimulationSystem**: Owns cloth body registration, warm-start/sleep queues, and snapshots from `SimWorld`.
 - **SimWorld**: Maintains simulation bodies, routing pointer notifications and broad-phase wake checks through `SimulationScheduler` and `CollisionSystem`.
 - **ClothBodyAdapter**: Adapts DOM cloth elements into `SimBody`s, mediating pointer impulses, warm-starts, and offscreen handling.
 - **ClothPhysics + GravityController**: Execute Verlet integration with dependency-injected gravity and relaxation routines.
