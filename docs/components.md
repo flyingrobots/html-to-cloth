@@ -27,7 +27,7 @@ flowchart LR
 
   subgraph Control[Controller Layer]
     Scene[ClothSceneController]
-    SimController[ClothSimulationController]
+    Runner[SimulationRunner]
   end
 
   User[[User Input]] -->|Pointer events| Scene
@@ -35,13 +35,15 @@ flowchart LR
   Scene -->|Mesh Prep| DOM
   Scene -->|Static geometry| Collision
   Scene -->|Render| DOM
-  Scene -->|Register bodies| SimController
-  Scene -->|Pointer notify| SimController
+  Scene -->|Pointer notify| SimSystem
   Scene -.->|UI metrics| Drawer
+  Scene -->|Tick| Runner
 
-  SimController -->|Add system| World
-  SimController -->|snapshots| Scene
-  SimController --> SimSystem
+  Runner -->|Drive loop| Loop
+  Runner -->|Step world| World
+
+  Scene -->|Register bodies| SimSystem
+  SimSystem -->|Snapshots| Scene
 
   Loop -->|tick(dt)| World
   World -->|fixedUpdate(dt)| SimSystem
@@ -57,8 +59,9 @@ flowchart LR
 
 ## Key Responsibilities
 
-- **ClothSceneController**: Manages DOM capture, element activation, pointer state, and bridges UI interactions into the simulation controller.
-- **ClothSimulationController**: Wraps EngineWorld/FixedStepLoop/SimulationSystem, queuing warm-start & sleep config and exposing per-step snapshots.
+- **ClothSceneController**: Manages DOM capture, element activation, pointer state, and bridges UI interactions into the simulation runner/system.
+- **SimulationRunner**: Owns the fixed-step loop for an `EngineWorld`, handles real-time toggling and substep configuration.
+- **SimulationSystem**: Owns cloth body registration, warm-start/sleep queues, and snapshots from `SimWorld`.
 - **FixedStepLoop**: Maintains fixed-timestep accumulation and drives `EngineWorld` updates.
 - **EngineWorld**: Manages system registration/ordering and delegates fixed/frame updates.
 - **SimulationSystem**: Owns cloth body registration, warm-start/sleep queues, and snapshots from `SimWorld`.

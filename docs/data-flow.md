@@ -5,7 +5,8 @@
 1. **ClothSceneController** instantiates:
    - `DOMToWebGL` to capture cloth-enabled elements.
    - `ElementPool` for geometry recycling.
-   - `ClothSimulationController`, which internally wires `EngineWorld`, `FixedStepLoop`, and `SimulationSystem` (with a shared `SimWorld`).
+   - `SimWorld`, `SimulationSystem`, and registers the system with an `EngineWorld`.
+   - `SimulationRunner`, which owns the fixed-step loop driven by the controller.
 2. Each DOM element with `.cloth-enabled` is prepared:
    - Snapshot captured via html2canvas.
    - Mesh created and mounted in the WebGL scene.
@@ -16,14 +17,14 @@
 1. User clicks a cloth-enabled button; controller:
    - Resets pointer state and removes the element from static collisions.
    - Creates a new `ClothPhysics` instance with options (damping, iterations, gravity).
-   - Wraps it in a `ClothBodyAdapter` and registers with `ClothSimulationController.addBody`.
-2. `ClothSimulationController` queues warm-start & sleep configuration which run on the next fixed update.
+   - Wraps it in a `ClothBodyAdapter` and registers with `SimulationSystem.addBody`.
+2. `SimulationSystem` queues warm-start & sleep configuration which run on the next fixed update.
 
 ## 3. Fixed-Step Update Loop
 
-1. `requestAnimationFrame` drives `ClothSimulationController.update(delta)`; internal `FixedStepLoop` accumulates time.
+1. `requestAnimationFrame` drives `SimulationRunner.update(delta)`; the underlying `FixedStepLoop` accumulates time.
 2. When accumulated time ≥ fixed step:
-   - Loop triggers `ClothSimulationController.stepSimulation(dt)` which forwards to `EngineWorld.step(stepSize)` for each substep.
+   - Runner executes `EngineWorld.step(stepSize)` for each configured substep.
    - `SimulationSystem.fixedUpdate(dt)` flushes pending warm-start/sleep queues and calls `SimWorld.step(dt)`.
    - SimWorld delegates body update to `SimulationScheduler`, performs sweep checks, and refreshes snapshots.
 
@@ -31,23 +32,23 @@
 
 1. Pointer move events convert screen coordinates to canonical space.
 2. Controller updates pointer velocity and flags impulse needs.
-3. `ClothSimulationController.notifyPointer` forwards the canonical position to `SimWorld`, waking any sleeping cloth within bounds.
+3. `SimulationSystem.notifyPointer` forwards the canonical position to `SimWorld`, waking any sleeping cloth within bounds.
 4. On the next `ClothBodyAdapter.update(dt)` call, if an impulse is pending it is applied to `ClothPhysics`.
 
 ## 5. Warm Start / Sleep Dependency Injection
 
 - `ClothPhysics` owns a `GravityController` which exposes a temporary override hook.
 - Warm-start calls execute `relaxConstraints` under a zero-gravity override (per cloth) without mutating global gravity.
-- Sleep thresholds are injected via `ClothSimulationController.queueSleepConfiguration` and persisted inside each cloth.
+- Sleep thresholds are injected via `SimulationSystem.queueSleepConfiguration` and persisted inside each cloth.
 
 ## 6. Offscreen Recycling
 
 1. `ClothBodyAdapter` detects when its cloth's bounding sphere falls below the canonical boundary.
 2. Adapter invokes the controller callback which:
-   - Removes the body from `ClothSimulationController`.
+   - Removes the body from `SimulationSystem`.
    - Recycles geometry back into the pool, restores DOM opacity, and re-registers static collision bounds.
 
 ## 7. Snapshot Consumption
 
-- After each fixed update, `ClothSimulationController.getSnapshot()` returns immutable body data (position, radius, sleep flag).
+- After each fixed update, `SimulationSystem.getSnapshot()` returns immutable body data (position, radius, sleep flag).
 - ClothSceneController can use this snapshot to populate UI metrics or future camera/render systems.

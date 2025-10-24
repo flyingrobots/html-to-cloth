@@ -5,8 +5,10 @@ import { ClothPhysics } from './clothPhysics'
 import { CollisionSystem } from './collisionSystem'
 import { CANONICAL_HEIGHT_METERS } from './units'
 import { ElementPool } from './elementPool'
-import { ClothSimulationController, type ClothSimulationControllerOptions } from './clothSimulationController'
-import { type SimBody, type SimWarmStartConfig, type SimSleepConfig } from './simWorld'
+import { EngineWorld } from '../engine/world'
+import { SimulationSystem } from '../engine/systems/simulationSystem'
+import { SimulationRunner } from '../engine/simulationRunner'
+import { SimWorld, type SimBody, type SimWarmStartConfig, type SimSleepConfig } from './simWorld'
 
 const WARM_START_PASSES = 2
 
@@ -163,8 +165,12 @@ class ClothBodyAdapter implements SimBody {
 }
 
 export type ClothSceneControllerOptions = {
-  simulation?: ClothSimulationController
-  simulationOptions?: ClothSimulationControllerOptions
+  simulationSystem?: SimulationSystem
+  simulationRunner?: SimulationRunner
+  simWorld?: SimWorld
+  engine?: EngineWorld
+  fixedDelta?: number
+  maxSubSteps?: number
 }
 
 export class ClothSceneController {
@@ -175,7 +181,9 @@ export class ClothSceneController {
   private clock = new THREE.Clock()
   private disposed = false
   private pool: ElementPool | null = null
-  private simulation: ClothSimulationController
+  private simulationSystem: SimulationSystem
+  private simulationRunner: SimulationRunner
+  private simWorld: SimWorld
   private elementIds = new Map<HTMLElement, string>()
   private onResize = () => this.handleResize()
   private onScroll = () => {
@@ -211,7 +219,19 @@ export class ClothSceneController {
   private onPointerLeave = () => this.resetPointer()
 
   constructor(options: ClothSceneControllerOptions = {}) {
-    this.simulation = options.simulation ?? new ClothSimulationController(options.simulationOptions)
+    this.simWorld = options.simWorld ?? new SimWorld()
+    this.simulationSystem = options.simulationSystem ?? new SimulationSystem({ simWorld: this.simWorld })
+
+    const engine = options.engine ?? new EngineWorld()
+    engine.addSystem(this.simulationSystem, { id: 'simulation', priority: 100 })
+
+    this.simulationRunner =
+      options.simulationRunner ??
+      new SimulationRunner({
+        engine,
+        fixedDelta: options.fixedDelta,
+        maxSubSteps: options.maxSubSteps,
+      })
   }
 
   async init() {
@@ -285,7 +305,8 @@ export class ClothSceneController {
     this.items.clear()
     this.domToWebGL = null
     this.pool = null
-    this.simulation.clear()
+    this.simulationSystem.clear()
+    this.simulationRunner.setRealTime(false)
     this.elementIds.clear()
   }
 
@@ -365,7 +386,7 @@ export class ClothSceneController {
       record,
       this.debug
     )
-    this.simulation.addBody(adapter, {
+    this.simulationSystem.addBody(adapter, {
       warmStart: this.createWarmStartConfig(),
       sleep: this.sleepConfig,
     })
@@ -379,7 +400,7 @@ export class ClothSceneController {
     this.rafId = requestAnimationFrame(() => this.animate())
     const delta = Math.min(this.clock.getDelta(), 0.05)
 
-    this.simulation.update(delta)
+    this.simulationRunner.update(delta)
 
     this.decayPointerImpulse()
     this.updatePointerHelper()
@@ -419,7 +440,7 @@ export class ClothSceneController {
     if (!this.pointer.active) {
       this.pointer.active = true
       this.pointer.previous.copy(this.pointer.position)
-      this.simulation.notifyPointer(this.pointer.position)
+      this.simulationSystem.notifyPointer(this.pointer.position)
       this.updatePointerHelper()
       return
     }
@@ -431,7 +452,7 @@ export class ClothSceneController {
       this.pointer.needsImpulse = true
     }
 
-    this.simulation.notifyPointer(this.pointer.position)
+    this.simulationSystem.notifyPointer(this.pointer.position)
     this.updatePointerHelper()
   }
 
@@ -457,7 +478,7 @@ export class ClothSceneController {
     const element = item.element
     const adapter = item.adapter
     if (adapter) {
-      this.simulation.removeBody(adapter.id)
+      this.simulationSystem.removeBody(adapter.id)
     }
 
     this.pool.recycle(element)
@@ -494,7 +515,7 @@ export class ClothSceneController {
 
   setRealTime(enabled: boolean) {
     this.debug.realTime = enabled
-    this.simulation.setRealTime(enabled)
+    this.simulationRunner.setRealTime(enabled)
     if (enabled) {
       this.clock.getDelta()
     }
@@ -503,7 +524,7 @@ export class ClothSceneController {
   setSubsteps(substeps: number) {
     const clamped = Math.max(1, Math.round(substeps))
     this.debug.substeps = clamped
-    this.simulation.setSubsteps(clamped)
+    this.simulationRunner.setSubsteps(clamped)
     for (const item of this.items.values()) {
       item.cloth?.setSubsteps(clamped)
     }
@@ -528,7 +549,7 @@ export class ClothSceneController {
       cloth.setGravity(gravityVector)
       const adapter = item.adapter
       if (adapter) {
-        this.simulation.queueWarmStart(adapter.id, this.createWarmStartConfig())
+        this.simulationSystem.queueWarmStart(adapter.id, this.createWarmStartConfig())
       }
     }
   }
@@ -587,7 +608,7 @@ export class ClothSceneController {
   }
 
   stepOnce() {
-    this.simulation.stepOnce()
+    this.simulationRunner.stepOnce()
     this.decayPointerImpulse()
     this.updatePointerHelper()
   }

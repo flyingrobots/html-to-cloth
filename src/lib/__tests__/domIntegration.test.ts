@@ -37,14 +37,18 @@ const collisionMocks = {
   clear: vi.fn(),
 }
 
-const simulationControllerMocks = {
+const simulationRunnerMocks = {
   update: vi.fn(),
   stepOnce: vi.fn(),
   setRealTime: vi.fn(),
   setSubsteps: vi.fn(),
-  notifyPointer: vi.fn(),
+  instances: [] as any[],
+}
+
+const simulationSystemMocks = {
   addBody: vi.fn(),
   removeBody: vi.fn(),
+  notifyPointer: vi.fn(),
   queueWarmStart: vi.fn(),
   queueSleepConfiguration: vi.fn(),
   clear: vi.fn(),
@@ -150,28 +154,39 @@ vi.mock('../collisionSystem', () => {
   return { CollisionSystem: MockCollisionSystem }
 })
 
-vi.mock('../clothSimulationController', () => {
-  class MockClothSimulationController {
+vi.mock('../../engine/simulationRunner', () => {
+  class MockSimulationRunner {
     constructor() {
-      simulationControllerMocks.instances.push(this)
+      simulationRunnerMocks.instances.push(this)
     }
 
-    update = vi.fn((dt: number) => simulationControllerMocks.update(dt))
-    stepOnce = vi.fn(() => simulationControllerMocks.stepOnce())
-    setRealTime = vi.fn((value: boolean) => simulationControllerMocks.setRealTime(value))
-    setSubsteps = vi.fn((value: number) => simulationControllerMocks.setSubsteps(value))
-    notifyPointer = vi.fn((point: THREE.Vector2) => simulationControllerMocks.notifyPointer(point))
-    addBody = vi.fn((body: any, options?: any) => simulationControllerMocks.addBody(body, options))
-    removeBody = vi.fn((id: string) => simulationControllerMocks.removeBody(id))
-    queueWarmStart = vi.fn((id: string, config: any) => simulationControllerMocks.queueWarmStart(id, config))
-    queueSleepConfiguration = vi.fn((id: string, config: any) =>
-      simulationControllerMocks.queueSleepConfiguration(id, config)
-    )
-    clear = vi.fn(() => simulationControllerMocks.clear())
-    getSnapshot = vi.fn(() => simulationControllerMocks.getSnapshot())
+    update = vi.fn((dt: number) => simulationRunnerMocks.update(dt))
+    stepOnce = vi.fn(() => simulationRunnerMocks.stepOnce())
+    setRealTime = vi.fn((value: boolean) => simulationRunnerMocks.setRealTime(value))
+    setSubsteps = vi.fn((value: number) => simulationRunnerMocks.setSubsteps(value))
   }
 
-  return { ClothSimulationController: MockClothSimulationController }
+  return { SimulationRunner: MockSimulationRunner }
+})
+
+vi.mock('../../engine/systems/simulationSystem', () => {
+  class MockSimulationSystem {
+    constructor() {
+      simulationSystemMocks.instances.push(this)
+    }
+
+    addBody = vi.fn((body: any, options?: any) => simulationSystemMocks.addBody(body, options))
+    removeBody = vi.fn((id: string) => simulationSystemMocks.removeBody(id))
+    notifyPointer = vi.fn((point: THREE.Vector2) => simulationSystemMocks.notifyPointer(point))
+    queueWarmStart = vi.fn((id: string, config: any) => simulationSystemMocks.queueWarmStart(id, config))
+    queueSleepConfiguration = vi.fn((id: string, config: any) =>
+      simulationSystemMocks.queueSleepConfiguration(id, config)
+    )
+    clear = vi.fn(() => simulationSystemMocks.clear())
+    getSnapshot = vi.fn(() => simulationSystemMocks.getSnapshot())
+  }
+
+  return { SimulationSystem: MockSimulationSystem }
 })
 
 vi.mock('../clothPhysics', () => {
@@ -207,16 +222,25 @@ vi.mock('../clothPhysics', () => {
 
 import { ClothSceneController } from '../clothSceneController'
 
-const getSimulationController = () => {
-  const instance = simulationControllerMocks.instances.at(-1)
+const getSimulationRunner = () => {
+  const instance = simulationRunnerMocks.instances.at(-1)
   if (!instance) {
-    throw new Error('Simulation controller instance not found')
+    throw new Error('Simulation runner instance not found')
   }
   return instance as {
     update: ReturnType<typeof vi.fn>
     stepOnce: ReturnType<typeof vi.fn>
     setRealTime: ReturnType<typeof vi.fn>
     setSubsteps: ReturnType<typeof vi.fn>
+  }
+}
+
+const getSimulationSystem = () => {
+  const instance = simulationSystemMocks.instances.at(-1)
+  if (!instance) {
+    throw new Error('Simulation system instance not found')
+  }
+  return instance as {
     addBody: ReturnType<typeof vi.fn>
     removeBody: ReturnType<typeof vi.fn>
     notifyPointer: ReturnType<typeof vi.fn>
@@ -258,19 +282,21 @@ const resetSpies = () => {
   collisionMocks.refresh.mockReset()
   collisionMocks.clear.mockReset()
 
-  simulationControllerMocks.update.mockReset()
-  simulationControllerMocks.stepOnce.mockReset()
-  simulationControllerMocks.setRealTime.mockReset()
-  simulationControllerMocks.setSubsteps.mockReset()
-  simulationControllerMocks.addBody.mockReset()
-  simulationControllerMocks.removeBody.mockReset()
-  simulationControllerMocks.notifyPointer.mockReset()
-  simulationControllerMocks.queueWarmStart.mockReset()
-  simulationControllerMocks.queueSleepConfiguration.mockReset()
-  simulationControllerMocks.clear.mockReset()
-  simulationControllerMocks.getSnapshot.mockReset()
-  simulationControllerMocks.getSnapshot.mockImplementation(() => ({ bodies: [] }))
-  simulationControllerMocks.instances.length = 0
+  simulationRunnerMocks.update.mockReset()
+  simulationRunnerMocks.stepOnce.mockReset()
+  simulationRunnerMocks.setRealTime.mockReset()
+  simulationRunnerMocks.setSubsteps.mockReset()
+  simulationRunnerMocks.instances.length = 0
+
+  simulationSystemMocks.addBody.mockReset()
+  simulationSystemMocks.removeBody.mockReset()
+  simulationSystemMocks.notifyPointer.mockReset()
+  simulationSystemMocks.queueWarmStart.mockReset()
+  simulationSystemMocks.queueSleepConfiguration.mockReset()
+  simulationSystemMocks.clear.mockReset()
+  simulationSystemMocks.getSnapshot.mockReset()
+  simulationSystemMocks.getSnapshot.mockImplementation(() => ({ bodies: [] }))
+  simulationSystemMocks.instances.length = 0
 
   clothMocks.instances.length = 0
   clothMocks.applyImpulse.mockReset()
@@ -353,7 +379,7 @@ describe('ClothSceneController DOM integration', () => {
     const webgl = new ClothSceneController()
     await webgl.init()
 
-    const simulation = getSimulationController()
+    const simulation = getSimulationSystem()
 
     const button = document.getElementById('cta') as HTMLElement
     button.dispatchEvent(new MouseEvent('click'))
@@ -374,7 +400,7 @@ describe('ClothSceneController DOM integration', () => {
     const webgl = new ClothSceneController()
     await webgl.init()
 
-    const simulation = getSimulationController()
+    const simulation = getSimulationSystem()
 
     const button = document.getElementById('cta') as HTMLElement
     button.dispatchEvent(new MouseEvent('click'))
@@ -409,7 +435,7 @@ describe('ClothSceneController DOM integration', () => {
     const webgl = new ClothSceneController()
     await webgl.init()
 
-    const simulation = getSimulationController()
+    const simulation = getSimulationSystem()
 
     button.dispatchEvent(new MouseEvent('click'))
     const adapter = simulation.addBody.mock.calls[0][0]
@@ -437,7 +463,7 @@ describe('ClothSceneController DOM integration', () => {
     const webgl = new ClothSceneController()
     await webgl.init()
 
-    const simulation = getSimulationController()
+    const simulation = getSimulationSystem()
 
     const button = document.getElementById('cta') as HTMLElement
     button.dispatchEvent(new MouseEvent('click'))
@@ -467,7 +493,7 @@ describe('ClothSceneController DOM integration', () => {
     const webgl = new ClothSceneController()
     await webgl.init()
 
-    const simulation = getSimulationController()
+    const simulation = getSimulationRunner()
     simulation.stepOnce.mockClear()
 
     ;(webgl as any).setSubsteps(3)
@@ -518,7 +544,7 @@ describe('ClothSceneController DOM integration', () => {
     const gravityArg = cloth.setGravity.mock.calls.at(-1)?.[0] as THREE.Vector3
     expect(gravityArg.y).toBeCloseTo(-14)
 
-    const simulation = getSimulationController()
+    const simulation = getSimulationSystem()
     simulation.queueWarmStart.mockClear()
     ;(webgl as any).setPinMode('bottom')
     expect(simulation.queueWarmStart).toHaveBeenCalled()
