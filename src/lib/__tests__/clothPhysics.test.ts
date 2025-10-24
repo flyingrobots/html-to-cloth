@@ -188,4 +188,15 @@ describe('ClothPhysics', () => {
     controller.setBase(new THREE.Vector3(0, -6, 0))
     expect(cloth.getGravity().y).toBeCloseTo(-6)
   })
+
+  it('returns a 2D bounding sphere compatible with SimWorld', () => {
+    const { cloth } = makeCloth(3, 3)
+
+    const sphere = cloth.getBoundingSphere()
+
+    expect(sphere.radius).toBeGreaterThan(0)
+    expect(sphere.center).toBeInstanceOf(THREE.Vector2)
+    expect('center' in sphere && 'radius' in sphere).toBe(true)
+    expect((sphere as any).clone).toBeUndefined()
+  })
 })
