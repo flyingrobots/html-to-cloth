@@ -2,7 +2,7 @@
 
 ## Automated Tests
 - **DOM Flagging** – Render `App` and assert all key elements have `.cloth-enabled` while remaining visible when the WebGL controller is inactive.
-- **Reduced-Motion Opt-Out** – Mock `prefers-reduced-motion: reduce` to verify `PortfolioWebGL` never initializes and DOM opacity stays at defaults.
+- **Reduced-Motion Opt-Out** – Mock `prefers-reduced-motion: reduce` to verify `ClothSceneController` never initializes and DOM opacity stays at defaults.
 - **Mesh Lifecycle** – Stub DOM capture utilities to confirm `captureElement`, `createMesh`, and `disposeMesh` fire appropriately through activation and offscreen cleanup.
 - **Pointer Impulse Hook** – Spy on `ClothPhysics.applyPointForce`, dispatch synthetic pointer events, and ensure impulse strength decays frame-to-frame.
 

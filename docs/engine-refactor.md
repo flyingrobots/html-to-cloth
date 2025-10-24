@@ -17,7 +17,7 @@ Adopt the architecture patterns from `/Users/james/git/caverns` so simulation an
 - [ ] Expose camera configuration via world actions; keep render-only structures read-only mirrors.
 - [ ] Write tests verifying the spring converges and respects damping.
 
-## 4. Convert `PortfolioWebGL` into a Render System
+## 4. Convert `ClothSceneController` into a Render System
 - [ ] Split render responsibilities into `WorldRenderer` (bridging engine world → DOMToWebGL) and UI adapters.
 - [ ] Ensure DOM capture meshes, pointer helpers, and overlays read the camera snapshot without mutating simulation state.
 - [ ] Update integration tests to assert render-only systems no longer tick simulation when paused.

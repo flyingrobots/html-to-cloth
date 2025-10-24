@@ -27,7 +27,7 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { ChevronDown } from "lucide-react"
 
-import { PortfolioWebGL, type PinMode } from "./lib/portfolioWebGL"
+import { ClothSceneController, type PinMode } from "./lib/clothSceneController"
 
 function Kbd({ children }: { children: React.ReactNode }) {
   return (
@@ -234,7 +234,7 @@ function DebugPalette({
 }
 
 function Demo() {
-  const controllerRef = useRef<PortfolioWebGL | null>(null)
+  const controllerRef = useRef<ClothSceneController | null>(null)
   const realTimeRef = useRef(true)
   const [debugOpen, setDebugOpen] = useState(false)
   const [wireframe, setWireframe] = useState(false)
@@ -252,7 +252,7 @@ function Demo() {
     const prefersReducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)")
     if (prefersReducedMotion.matches) return
 
-    const controller = new PortfolioWebGL()
+    const controller = new ClothSceneController()
     controllerRef.current = controller
     void controller.init()
 

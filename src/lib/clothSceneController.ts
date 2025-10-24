@@ -5,12 +5,9 @@ import { ClothPhysics } from './clothPhysics'
 import { CollisionSystem } from './collisionSystem'
 import { CANONICAL_HEIGHT_METERS } from './units'
 import { ElementPool } from './elementPool'
-import { EngineWorld } from '../engine/world'
-import { FixedStepLoop } from '../engine/fixedStepLoop'
-import { SimulationSystem } from '../engine/systems/simulationSystem'
-import { SimWorld, type SimBody, type SimWarmStartConfig, type SimSleepConfig } from './simWorld'
+import { ClothSimulationController, type ClothSimulationControllerOptions } from './clothSimulationController'
+import { type SimBody, type SimWarmStartConfig, type SimSleepConfig } from './simWorld'
 
-const FIXED_DT = 1 / 60
 const WARM_START_PASSES = 2
 
 export type PinMode = 'top' | 'bottom' | 'corners' | 'none'
@@ -165,7 +162,12 @@ class ClothBodyAdapter implements SimBody {
   }
 }
 
-export class PortfolioWebGL {
+export type ClothSceneControllerOptions = {
+  simulation?: ClothSimulationController
+  simulationOptions?: ClothSimulationControllerOptions
+}
+
+export class ClothSceneController {
   private domToWebGL: DOMToWebGL | null = null
   private collisionSystem = new CollisionSystem()
   private items = new Map<HTMLElement, ClothItem>()
@@ -173,14 +175,7 @@ export class PortfolioWebGL {
   private clock = new THREE.Clock()
   private disposed = false
   private pool: ElementPool | null = null
-  private simWorld = new SimWorld()
-  private engine = new EngineWorld()
-  private simulationSystem = new SimulationSystem({ simWorld: this.simWorld })
-  private loop = new FixedStepLoop({
-    fixedDelta: FIXED_DT,
-    maxSubSteps: 5,
-    step: (dt) => this.stepSimulation(dt),
-  })
+  private simulation: ClothSimulationController
   private elementIds = new Map<HTMLElement, string>()
   private onResize = () => this.handleResize()
   private onScroll = () => {
@@ -215,8 +210,8 @@ export class PortfolioWebGL {
   private onPointerMove = (event: PointerEvent) => this.handlePointerMove(event)
   private onPointerLeave = () => this.resetPointer()
 
-  constructor() {
-    this.engine.addSystem(this.simulationSystem, { id: 'simulation', priority: 100 })
+  constructor(options: ClothSceneControllerOptions = {}) {
+    this.simulation = options.simulation ?? new ClothSimulationController(options.simulationOptions)
   }
 
   async init() {
@@ -290,7 +285,7 @@ export class PortfolioWebGL {
     this.items.clear()
     this.domToWebGL = null
     this.pool = null
-    this.simulationSystem.clear()
+    this.simulation.clear()
     this.elementIds.clear()
   }
 
@@ -370,7 +365,7 @@ export class PortfolioWebGL {
       record,
       this.debug
     )
-    this.simulationSystem.addBody(adapter, {
+    this.simulation.addBody(adapter, {
       warmStart: this.createWarmStartConfig(),
       sleep: this.sleepConfig,
     })
@@ -384,9 +379,7 @@ export class PortfolioWebGL {
     this.rafId = requestAnimationFrame(() => this.animate())
     const delta = Math.min(this.clock.getDelta(), 0.05)
 
-    if (this.debug.realTime) {
-      this.loop.update(delta)
-    }
+    this.simulation.update(delta)
 
     this.decayPointerImpulse()
     this.updatePointerHelper()
@@ -426,7 +419,7 @@ export class PortfolioWebGL {
     if (!this.pointer.active) {
       this.pointer.active = true
       this.pointer.previous.copy(this.pointer.position)
-      this.simulationSystem.notifyPointer(this.pointer.position)
+      this.simulation.notifyPointer(this.pointer.position)
       this.updatePointerHelper()
       return
     }
@@ -438,7 +431,7 @@ export class PortfolioWebGL {
       this.pointer.needsImpulse = true
     }
 
-    this.simulationSystem.notifyPointer(this.pointer.position)
+    this.simulation.notifyPointer(this.pointer.position)
     this.updatePointerHelper()
   }
 
@@ -464,7 +457,7 @@ export class PortfolioWebGL {
     const element = item.element
     const adapter = item.adapter
     if (adapter) {
-      this.simulationSystem.removeBody(adapter.id)
+      this.simulation.removeBody(adapter.id)
     }
 
     this.pool.recycle(element)
@@ -501,18 +494,16 @@ export class PortfolioWebGL {
 
   setRealTime(enabled: boolean) {
     this.debug.realTime = enabled
+    this.simulation.setRealTime(enabled)
     if (enabled) {
-      this.loop.reset()
-      this.loop.setPaused(false)
       this.clock.getDelta()
-    } else {
-      this.loop.setPaused(true)
     }
   }
 
   setSubsteps(substeps: number) {
     const clamped = Math.max(1, Math.round(substeps))
     this.debug.substeps = clamped
+    this.simulation.setSubsteps(clamped)
     for (const item of this.items.values()) {
       item.cloth?.setSubsteps(clamped)
     }
@@ -537,7 +528,7 @@ export class PortfolioWebGL {
       cloth.setGravity(gravityVector)
       const adapter = item.adapter
       if (adapter) {
-        this.simulationSystem.queueWarmStart(adapter.id, this.createWarmStartConfig())
+        this.simulation.queueWarmStart(adapter.id, this.createWarmStartConfig())
       }
     }
   }
@@ -596,17 +587,9 @@ export class PortfolioWebGL {
   }
 
   stepOnce() {
-    this.stepSimulation(FIXED_DT)
+    this.simulation.stepOnce()
     this.decayPointerImpulse()
     this.updatePointerHelper()
-  }
-
-  private stepSimulation(dt: number) {
-    const substeps = Math.max(1, this.debug.substeps)
-    const stepSize = dt / substeps
-    for (let i = 0; i < substeps; i++) {
-      this.engine.step(stepSize)
-    }
   }
 
   private decayPointerImpulse() {
