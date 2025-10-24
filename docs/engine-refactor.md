@@ -9,8 +9,8 @@ Adopt the architecture patterns from `/Users/james/git/caverns` so simulation an
 
 ## 2. Register Simulation Systems
 - [x] Wrap the existing scheduler/physics update logic in a `SimulationSystem` that plugs into the engine world.
-- [ ] Move sleep-threshold configuration and warm-start logic into the simulation system so it runs during ticks, not render.
-- [ ] Ensure `SimWorld` and collision helpers operate on engine snapshots instead of ad-hoc state.
+- [x] Move sleep-threshold configuration and warm-start logic into the simulation system so it runs during ticks, not render.
+- [x] Ensure `SimWorld` and collision helpers operate on engine snapshots instead of ad-hoc state.
 
 ## 3. Introduce Camera System
 - [ ] Port the caverns camera spring, updating math/constants to use canonical metres.

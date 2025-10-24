@@ -67,6 +67,15 @@ export class ClothPhysics {
     this.storedSubsteps = Math.max(1, Math.round(substeps))
   }
 
+  setSleepThresholds(velocity: number, frames: number) {
+    if (Number.isFinite(velocity) && velocity > 0) {
+      this.sleepVelocityThresholdSq = velocity * velocity
+    }
+    if (Number.isFinite(frames) && frames > 0) {
+      this.sleepFrameThreshold = Math.round(frames)
+    }
+  }
+
   releaseAllPins() {
     for (const particle of this.particles) {
       particle.pinned = false

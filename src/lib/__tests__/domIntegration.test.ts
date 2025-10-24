@@ -37,12 +37,27 @@ const collisionMocks = {
   clear: vi.fn(),
 }
 
-const schedulerMocks = {
+const engineMocks = {
+  addSystem: vi.fn(),
+  step: vi.fn(),
+  instances: [] as any[],
+}
+
+const loopMocks = {
+  update: vi.fn(),
+  reset: vi.fn(),
+  setPaused: vi.fn(),
+  instances: [] as any[],
+}
+
+const simulationMocks = {
   addBody: vi.fn(),
   removeBody: vi.fn(),
   notifyPointer: vi.fn(),
-  step: vi.fn(),
+  queueWarmStart: vi.fn(),
   clear: vi.fn(),
+  getSnapshot: vi.fn(() => ({ bodies: [] })),
+  instances: [] as any[],
 }
 
 const clothMocks = {
@@ -143,17 +158,49 @@ vi.mock('../collisionSystem', () => {
   return { CollisionSystem: MockCollisionSystem }
 })
 
-vi.mock('../simulationScheduler', () => {
-  class MockSimulationScheduler {
-    addBody = vi.fn((body: any) => schedulerMocks.addBody(body))
-    removeBody = vi.fn((id: string) => schedulerMocks.removeBody(id))
-    notifyPointer = vi.fn((point: THREE.Vector2) => schedulerMocks.notifyPointer(point))
-    step = vi.fn((dt: number) => schedulerMocks.step(dt))
-    stepCloth = vi.fn((dt: number) => schedulerMocks.step(dt))
-    clear = vi.fn(() => schedulerMocks.clear())
+vi.mock('../../engine/world', () => {
+  class MockEngineWorld {
+    constructor() {
+      engineMocks.instances.push(this)
+    }
+
+    addSystem = vi.fn((system: any, options: any) => engineMocks.addSystem(system, options))
+    step = vi.fn((dt: number) => engineMocks.step(dt))
   }
 
-  return { SimulationScheduler: MockSimulationScheduler }
+  return { EngineWorld: MockEngineWorld }
+})
+
+vi.mock('../../engine/fixedStepLoop', () => {
+  class MockFixedStepLoop {
+    constructor() {
+      loopMocks.instances.push(this)
+    }
+
+    update = vi.fn((dt: number) => loopMocks.update(dt))
+    reset = vi.fn(() => loopMocks.reset())
+    setPaused = vi.fn((value: boolean) => loopMocks.setPaused(value))
+  }
+
+  return { FixedStepLoop: MockFixedStepLoop }
+})
+
+vi.mock('../../engine/systems/simulationSystem', () => {
+  class MockSimulationSystem {
+    constructor() {
+      simulationMocks.instances.push(this)
+    }
+
+    addBody = vi.fn((body: any, options?: any) => simulationMocks.addBody(body, options))
+    removeBody = vi.fn((id: string) => simulationMocks.removeBody(id))
+    notifyPointer = vi.fn((point: THREE.Vector2) => simulationMocks.notifyPointer(point))
+    queueWarmStart = vi.fn((id: string, config: any) => simulationMocks.queueWarmStart(id, config))
+    clear = vi.fn(() => simulationMocks.clear())
+    getSnapshot = vi.fn(() => simulationMocks.getSnapshot())
+    fixedUpdate = vi.fn()
+  }
+
+  return { SimulationSystem: MockSimulationSystem }
 })
 
 vi.mock('../clothPhysics', () => {
@@ -176,6 +223,8 @@ vi.mock('../clothPhysics', () => {
     public setConstraintIterations = vi.fn()
     public setSubsteps = vi.fn()
     public relaxConstraints = vi.fn()
+    public setSleepThresholds = vi.fn()
+    public isSleeping = vi.fn(() => false)
 
     constructor(public mesh: THREE.Mesh) {
       clothMocks.instances.push(this)
@@ -186,6 +235,32 @@ vi.mock('../clothPhysics', () => {
 })
 
 import { PortfolioWebGL } from '../portfolioWebGL'
+
+const getSimulationInstance = () => {
+  const instance = simulationMocks.instances.at(-1)
+  if (!instance) {
+    throw new Error('Simulation system instance not found')
+  }
+  return instance as {
+    addBody: ReturnType<typeof vi.fn>
+    removeBody: ReturnType<typeof vi.fn>
+    notifyPointer: ReturnType<typeof vi.fn>
+    queueWarmStart: ReturnType<typeof vi.fn>
+    clear: ReturnType<typeof vi.fn>
+    getSnapshot: ReturnType<typeof vi.fn>
+  }
+}
+
+const getEngineInstance = () => {
+  const instance = engineMocks.instances.at(-1)
+  if (!instance) {
+    throw new Error('Engine world instance not found')
+  }
+  return instance as {
+    addSystem: ReturnType<typeof vi.fn>
+    step: ReturnType<typeof vi.fn>
+  }
+}
 
 const resetSpies = () => {
   domMocks.capture.mockReset()
@@ -218,11 +293,23 @@ const resetSpies = () => {
   collisionMocks.refresh.mockReset()
   collisionMocks.clear.mockReset()
 
-  schedulerMocks.addBody.mockReset()
-  schedulerMocks.removeBody.mockReset()
-  schedulerMocks.notifyPointer.mockReset()
-  schedulerMocks.step.mockReset()
-  schedulerMocks.clear.mockReset()
+  engineMocks.addSystem.mockReset()
+  engineMocks.step.mockReset()
+  engineMocks.instances.length = 0
+
+  loopMocks.update.mockReset()
+  loopMocks.reset.mockReset()
+  loopMocks.setPaused.mockReset()
+  loopMocks.instances.length = 0
+
+  simulationMocks.addBody.mockReset()
+  simulationMocks.removeBody.mockReset()
+  simulationMocks.notifyPointer.mockReset()
+  simulationMocks.queueWarmStart.mockReset()
+  simulationMocks.clear.mockReset()
+  simulationMocks.getSnapshot.mockReset()
+  simulationMocks.getSnapshot.mockImplementation(() => ({ bodies: [] }))
+  simulationMocks.instances.length = 0
 
   clothMocks.instances.length = 0
   clothMocks.applyImpulse.mockReset()
@@ -301,18 +388,23 @@ describe('PortfolioWebGL DOM integration', () => {
     webgl.dispose()
   })
 
-  it('activates cloth on click and routes pointer events through scheduler', async () => {
+  it('activates cloth on click and routes pointer events through the simulation system', async () => {
     const webgl = new PortfolioWebGL()
     await webgl.init()
+
+    const simInstance = getSimulationInstance()
 
     const button = document.getElementById('cta') as HTMLElement
     button.dispatchEvent(new MouseEvent('click'))
 
     expect(clothMocks.instances).toHaveLength(1)
-    expect(schedulerMocks.addBody).toHaveBeenCalledTimes(1)
+    expect(simInstance.addBody).toHaveBeenCalledTimes(1)
+    const [, options] = simInstance.addBody.mock.calls[0]
+    expect(options?.warmStart).toBeDefined()
+    expect(options?.sleep).toMatchObject({ frameThreshold: expect.any(Number) })
 
     window.dispatchEvent(new PointerEvent('pointermove', { clientX: 500, clientY: 400 }))
-    expect(schedulerMocks.notifyPointer).toHaveBeenCalled()
+    expect(simInstance.notifyPointer).toHaveBeenCalled()
 
     webgl.dispose()
   })
@@ -321,10 +413,12 @@ describe('PortfolioWebGL DOM integration', () => {
     const webgl = new PortfolioWebGL()
     await webgl.init()
 
+    const simInstance = getSimulationInstance()
+
     const button = document.getElementById('cta') as HTMLElement
     button.dispatchEvent(new MouseEvent('click'))
 
-    const adapter = schedulerMocks.addBody.mock.calls[0][0]
+    const adapter = simInstance.addBody.mock.calls[0][0]
     const cloth = clothMocks.instances[0]
     const pointer = (webgl as any).pointer as any
 
@@ -354,8 +448,10 @@ describe('PortfolioWebGL DOM integration', () => {
     const webgl = new PortfolioWebGL()
     await webgl.init()
 
+    const simInstance = getSimulationInstance()
+
     button.dispatchEvent(new MouseEvent('click'))
-    const adapter = schedulerMocks.addBody.mock.calls[0][0]
+    const adapter = simInstance.addBody.mock.calls[0][0]
     const cloth = clothMocks.instances[0]
     const pointer = (webgl as any).pointer as any
 
@@ -380,11 +476,13 @@ describe('PortfolioWebGL DOM integration', () => {
     const webgl = new PortfolioWebGL()
     await webgl.init()
 
+    const simInstance = getSimulationInstance()
+
     const button = document.getElementById('cta') as HTMLElement
     button.dispatchEvent(new MouseEvent('click'))
 
-    expect(schedulerMocks.addBody).toHaveBeenCalledTimes(1)
-    const adapter = schedulerMocks.addBody.mock.calls[0][0]
+    expect(simInstance.addBody).toHaveBeenCalledTimes(1)
+    const adapter = simInstance.addBody.mock.calls[0][0]
     const cloth = clothMocks.instances[0]
 
     cloth.isOffscreen = vi.fn().mockReturnValue(true)
@@ -393,12 +491,12 @@ describe('PortfolioWebGL DOM integration', () => {
     expect(poolMocks.recycle).toHaveBeenCalledWith(button)
     expect(poolMocks.resetGeometry).toHaveBeenCalledWith(button)
     expect(poolMocks.mount).toHaveBeenCalledWith(button)
-    expect(schedulerMocks.removeBody).toHaveBeenCalled()
+    expect(simInstance.removeBody).toHaveBeenCalled()
 
-    schedulerMocks.addBody.mockClear()
+    simInstance.addBody.mockClear()
 
     button.dispatchEvent(new MouseEvent('click'))
-    expect(schedulerMocks.addBody).toHaveBeenCalledTimes(1)
+    expect(simInstance.addBody).toHaveBeenCalledTimes(1)
     expect(clothMocks.instances.length).toBe(2)
 
     webgl.dispose()
@@ -408,13 +506,14 @@ describe('PortfolioWebGL DOM integration', () => {
     const webgl = new PortfolioWebGL()
     await webgl.init()
 
-    schedulerMocks.step.mockClear()
+    const engineInstance = getEngineInstance()
+    engineInstance.step.mockClear()
 
     ;(webgl as any).setSubsteps(3)
     ;(webgl as any).stepOnce()
 
-    expect(schedulerMocks.step).toHaveBeenCalledTimes(3)
-    const calls = schedulerMocks.step.mock.calls.map(([dt]) => dt)
+    expect(engineInstance.step).toHaveBeenCalledTimes(3)
+    const calls = engineInstance.step.mock.calls.map(([dt]: [number]) => dt)
     calls.forEach((dt) => {
       expect(dt).toBeCloseTo(1 / 180, 5)
     })
@@ -449,6 +548,8 @@ describe('PortfolioWebGL DOM integration', () => {
     const webgl = new PortfolioWebGL()
     await webgl.init()
 
+    const simInstance = getSimulationInstance()
+
     ;(webgl as any).setPinMode('corners')
     ;(webgl as any).setGravity(14)
 
@@ -460,6 +561,10 @@ describe('PortfolioWebGL DOM integration', () => {
     expect(cloth.setGravity).toHaveBeenCalled()
     const gravityArg = cloth.setGravity.mock.calls.at(-1)?.[0] as THREE.Vector3
     expect(gravityArg.y).toBeCloseTo(-14)
+
+    simInstance.queueWarmStart.mockClear()
+    ;(webgl as any).setPinMode('bottom')
+    expect(simInstance.queueWarmStart).toHaveBeenCalled()
 
     webgl.dispose()
   })

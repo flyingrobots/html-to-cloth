@@ -8,7 +8,7 @@ import { ElementPool } from './elementPool'
 import { EngineWorld } from '../engine/world'
 import { FixedStepLoop } from '../engine/fixedStepLoop'
 import { SimulationSystem } from '../engine/systems/simulationSystem'
-import { SimWorld, type SimBody } from './simWorld'
+import { SimWorld, type SimBody, type SimWarmStartConfig, type SimSleepConfig } from './simWorld'
 
 const FIXED_DT = 1 / 60
 const WARM_START_PASSES = 2
@@ -50,7 +50,7 @@ class ClothBodyAdapter implements SimBody {
   private item: ClothItem
   private pointer: PointerState
   private collisionSystem: CollisionSystem
-  private handleOffscreen: () => void
+  private offscreenCallback: () => void
   private record: DOMMeshRecord
   private debug: Pick<DebugSettings, 'impulseMultiplier'>
 
@@ -67,7 +67,7 @@ class ClothBodyAdapter implements SimBody {
     this.item = item
     this.pointer = pointer
     this.collisionSystem = collisionSystem
-    this.handleOffscreen = handleOffscreen
+    this.offscreenCallback = handleOffscreen
     this.record = record
     this.debug = debug
   }
@@ -88,7 +88,7 @@ class ClothBodyAdapter implements SimBody {
     this.collisionSystem.apply(cloth)
 
     if (cloth.isOffscreen(-CANONICAL_HEIGHT_METERS)) {
-      this.handleOffscreen()
+      this.offscreenCallback()
     }
   }
 
@@ -104,6 +104,36 @@ class ClothBodyAdapter implements SimBody {
 
   wakeIfPointInside(point: THREE.Vector2) {
     this.item.cloth?.wakeIfPointInside(point)
+  }
+
+  warmStart(config: SimWarmStartConfig) {
+    const cloth = this.item.cloth
+    if (!cloth) return
+
+    const zero = new THREE.Vector3(0, 0, 0)
+    const gravity = config.gravity.clone()
+    const iterations = Math.max(0, Math.round(config.constraintIterations * config.passes))
+
+    cloth.wake()
+    cloth.setGravity(zero)
+    if (iterations > 0) {
+      cloth.relaxConstraints(iterations)
+    }
+    cloth.setGravity(gravity)
+  }
+
+  configureSleep(config: SimSleepConfig) {
+    const cloth = this.item.cloth
+    if (!cloth) return
+    cloth.setSleepThresholds(config.velocityThreshold, config.frameThreshold)
+  }
+
+  getCloth() {
+    return this.item.cloth ?? null
+  }
+
+  handleOffscreen() {
+    this.offscreenCallback()
   }
 
   getBoundingSphere() {
@@ -183,6 +213,10 @@ export class PortfolioWebGL {
   private pointerHelper: THREE.Mesh | null = null
   private pointerHelperAttached = false
   private pointerColliderVisible = false
+  private sleepConfig: SimSleepConfig = {
+    velocityThreshold: 0.001,
+    frameThreshold: 60,
+  }
   private debug: DebugSettings = {
     realTime: true,
     wireframe: false,
@@ -272,7 +306,7 @@ export class PortfolioWebGL {
     this.items.clear()
     this.domToWebGL = null
     this.pool = null
-    this.simWorld.clear()
+    this.simulationSystem.clear()
     this.elementIds.clear()
   }
 
@@ -331,7 +365,6 @@ export class PortfolioWebGL {
     this.applyPinMode(cloth)
 
     const gravityVector = new THREE.Vector3(0, -this.debug.gravity, 0)
-    this.runWarmStart(cloth)
     cloth.setGravity(gravityVector)
 
     cloth.addTurbulence(0.06)
@@ -353,7 +386,10 @@ export class PortfolioWebGL {
       record,
       this.debug
     )
-    this.simWorld.addBody(adapter)
+    this.simulationSystem.addBody(adapter, {
+      warmStart: this.createWarmStartConfig(),
+      sleep: this.sleepConfig,
+    })
     item.adapter = adapter
     element.removeEventListener('click', item.clickHandler)
   }
@@ -444,7 +480,7 @@ export class PortfolioWebGL {
     const element = item.element
     const adapter = item.adapter
     if (adapter) {
-      this.simWorld.removeBody(adapter.id)
+      this.simulationSystem.removeBody(adapter.id)
     }
 
     this.pool.recycle(element)
@@ -514,8 +550,11 @@ export class PortfolioWebGL {
       if (!cloth) continue
       cloth.clearPins()
       this.applyPinMode(cloth)
-      this.runWarmStart(cloth)
       cloth.setGravity(gravityVector)
+      const adapter = item.adapter
+      if (adapter) {
+        this.simulationSystem.queueWarmStart(adapter.id, this.createWarmStartConfig())
+      }
     }
   }
 
@@ -630,10 +669,11 @@ export class PortfolioWebGL {
     }
   }
 
-  private runWarmStart(cloth: ClothPhysics) {
-    if (WARM_START_PASSES <= 0) return
-    cloth.wake()
-    cloth.setGravity(new THREE.Vector3(0, 0, 0))
-    cloth.relaxConstraints(this.debug.constraintIterations * WARM_START_PASSES)
+  private createWarmStartConfig(): SimWarmStartConfig {
+    return {
+      passes: WARM_START_PASSES,
+      constraintIterations: this.debug.constraintIterations,
+      gravity: new THREE.Vector3(0, -this.debug.gravity, 0),
+    }
   }
 }

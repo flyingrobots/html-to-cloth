@@ -8,12 +8,37 @@ export type BoundingSphere = {
 
 export interface SimBody extends SleepableBody {
   getBoundingSphere: () => BoundingSphere
+  warmStart?: (config: SimWarmStartConfig) => void
+  configureSleep?: (config: SimSleepConfig) => void
+}
+
+export type SimWarmStartConfig = {
+  passes: number
+  constraintIterations: number
+  gravity: THREE.Vector3
+}
+
+export type SimSleepConfig = {
+  velocityThreshold: number
+  frameThreshold: number
+}
+
+export type SimBodySnapshot = {
+  id: string
+  center: THREE.Vector2
+  radius: number
+  sleeping: boolean
+}
+
+export type SimWorldSnapshot = {
+  bodies: SimBodySnapshot[]
 }
 
 export class SimWorld {
   private scheduler: SimulationScheduler
   private bodies = new Map<string, SimBody>()
   private previousCenters = new Map<string, THREE.Vector2>()
+  private snapshot: SimWorldSnapshot = { bodies: [] }
 
   constructor(scheduler?: SimulationScheduler) {
     this.scheduler = scheduler ?? new SimulationScheduler()
@@ -26,12 +51,14 @@ export class SimWorld {
     this.bodies.set(body.id, body)
     this.scheduler.addBody(body)
     this.previousCenters.set(body.id, body.getBoundingSphere().center.clone())
+    this.updateSnapshot()
   }
 
   removeBody(id: string) {
     this.bodies.delete(id)
     this.scheduler.removeBody(id)
     this.previousCenters.delete(id)
+    this.updateSnapshot()
   }
 
   step(dt: number) {
@@ -50,6 +77,8 @@ export class SimWorld {
         this.checkSweep(bodyB, bodyA)
       }
     }
+
+    this.updateSnapshot()
   }
 
   notifyPointer(point: THREE.Vector2) {
@@ -62,6 +91,32 @@ export class SimWorld {
     }
     this.bodies.clear()
     this.previousCenters.clear()
+    this.snapshot = { bodies: [] }
+  }
+
+  getSnapshot(): SimWorldSnapshot {
+    return {
+      bodies: this.snapshot.bodies.map((entry) => ({
+        id: entry.id,
+        center: entry.center.clone(),
+        radius: entry.radius,
+        sleeping: entry.sleeping,
+      })),
+    }
+  }
+
+  private updateSnapshot() {
+    const bodies: SimBodySnapshot[] = []
+    for (const body of this.bodies.values()) {
+      const sphere = body.getBoundingSphere()
+      bodies.push({
+        id: body.id,
+        center: sphere.center.clone(),
+        radius: sphere.radius,
+        sleeping: body.isSleeping(),
+      })
+    }
+    this.snapshot = { bodies }
   }
 
   private checkSweep(moving: SimBody, target: SimBody) {
