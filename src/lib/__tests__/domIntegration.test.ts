@@ -194,7 +194,6 @@ vi.mock('../clothPhysics', () => {
     public pinTopEdge = vi.fn()
     public pinBottomEdge = vi.fn()
     public pinCorners = vi.fn()
-    public clearPins = vi.fn()
     public addTurbulence = vi.fn()
     public releaseAllPins = vi.fn()
     public update = vi.fn()

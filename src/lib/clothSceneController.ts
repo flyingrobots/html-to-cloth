@@ -587,7 +587,7 @@ export class ClothSceneController {
     for (const item of this.items.values()) {
       const cloth = item.cloth
       if (!cloth) continue
-      cloth.clearPins()
+      cloth.releaseAllPins()
       this.applyPinMode(cloth)
       cloth.setGravity(gravityVector)
       const adapter = item.adapter

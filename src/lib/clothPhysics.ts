@@ -93,12 +93,6 @@ export class ClothPhysics {
     }
   }
 
-  clearPins() {
-    for (const particle of this.particles) {
-      particle.pinned = false
-    }
-  }
-
   getVertexPositions() {
     return this.particles.map((particle) => particle.position.clone())
   }
