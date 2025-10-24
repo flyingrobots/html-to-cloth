@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import * as THREE from 'three'
 import { ClothPhysics } from '../clothPhysics'
+import { GravityController } from '../gravityController'
 
 const makeCloth = (widthVertices = 3, heightVertices = 3) => {
   const geometry = new THREE.PlaneGeometry(1, 1, widthVertices - 1, heightVertices - 1)
@@ -155,5 +156,36 @@ describe('ClothPhysics', () => {
     cloth.wakeIfPointInside(insidePoint)
 
     expect(cloth.isSleeping()).toBe(false)
+  })
+
+  it('warm start temporarily overrides gravity without mutating the base value', () => {
+    const { cloth } = makeCloth(3, 3)
+    cloth.setGravity(new THREE.Vector3(0, -4, 0))
+
+    const beforeGravity = cloth.getGravity()
+    const initialPositions = cloth.getVertexPositions()
+    const initialAverageY = initialPositions.reduce((sum, v) => sum + v.y, 0) / initialPositions.length
+    cloth.warmStart({ passes: 1, constraintIterations: 4 })
+    const afterGravity = cloth.getGravity()
+
+    expect(afterGravity.y).toBeCloseTo(beforeGravity.y)
+
+    cloth.update(0.05)
+    const positions = cloth.getVertexPositions()
+    const afterAverageY = positions.reduce((sum, v) => sum + v.y, 0) / positions.length
+    expect(afterAverageY).toBeLessThan(initialAverageY)
+  })
+
+  it('respects an injected gravity controller instance', () => {
+    const controller = new GravityController(new THREE.Vector3(0, -2, 0))
+    const geometry = new THREE.PlaneGeometry(1, 1, 1, 1)
+    const material = new THREE.MeshBasicMaterial()
+    const mesh = new THREE.Mesh(geometry, material)
+    const cloth = new ClothPhysics(mesh, { gravityController: controller })
+
+    expect(cloth.getGravity().y).toBeCloseTo(-2)
+
+    controller.setBase(new THREE.Vector3(0, -6, 0))
+    expect(cloth.getGravity().y).toBeCloseTo(-6)
   })
 })

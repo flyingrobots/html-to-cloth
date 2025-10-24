@@ -15,7 +15,6 @@ export interface SimBody extends SleepableBody {
 export type SimWarmStartConfig = {
   passes: number
   constraintIterations: number
-  gravity: THREE.Vector3
 }
 
 export type SimSleepConfig = {

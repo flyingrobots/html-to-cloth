@@ -30,7 +30,6 @@ const createBody = () => {
 const warmConfig = () => ({
   passes: 2,
   constraintIterations: 4,
-  gravity: new THREE.Vector3(0, -9.81, 0),
 })
 
 const sleepConfig = () => ({ velocityThreshold: 0.001, frameThreshold: 45 })
@@ -62,12 +61,28 @@ describe('SimulationSystem', () => {
     system.addBody(body as any, { warmStart: warmConfig() })
     system.fixedUpdate?.(0.016)
 
-    const nextWarm = { passes: 1, constraintIterations: 8, gravity: new THREE.Vector3(0, -5, 0) }
+    const nextWarm = { passes: 1, constraintIterations: 8 }
     system.queueWarmStart(body.id, nextWarm)
     system.fixedUpdate?.(0.016)
 
     expect(body.warmStart).toHaveBeenCalledTimes(2)
     expect(body.warmStart).toHaveBeenNthCalledWith(2, nextWarm)
+  })
+
+  it('applies queued sleep configuration on next tick', () => {
+    const simWorld = createSimWorld()
+    const body = createBody()
+    const system = new SimulationSystem({ simWorld })
+
+    system.addBody(body as any, { sleep: sleepConfig() })
+    system.fixedUpdate?.(0.016)
+
+    const updatedConfig = { velocityThreshold: 0.002, frameThreshold: 90 }
+    system.queueSleepConfiguration(body.id, updatedConfig)
+    system.fixedUpdate?.(0.016)
+
+    expect(body.configureSleep).toHaveBeenCalledTimes(2)
+    expect(body.configureSleep).toHaveBeenNthCalledWith(2, updatedConfig)
   })
 
   it('returns the latest snapshot after stepping', () => {

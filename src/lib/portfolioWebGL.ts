@@ -107,29 +107,13 @@ class ClothBodyAdapter implements SimBody {
   }
 
   warmStart(config: SimWarmStartConfig) {
-    const cloth = this.item.cloth
-    if (!cloth) return
-
-    const zero = new THREE.Vector3(0, 0, 0)
-    const gravity = config.gravity.clone()
-    const iterations = Math.max(0, Math.round(config.constraintIterations * config.passes))
-
-    cloth.wake()
-    cloth.setGravity(zero)
-    if (iterations > 0) {
-      cloth.relaxConstraints(iterations)
-    }
-    cloth.setGravity(gravity)
+    this.item.cloth?.warmStart(config)
   }
 
   configureSleep(config: SimSleepConfig) {
     const cloth = this.item.cloth
     if (!cloth) return
     cloth.setSleepThresholds(config.velocityThreshold, config.frameThreshold)
-  }
-
-  getCloth() {
-    return this.item.cloth ?? null
   }
 
   handleOffscreen() {
@@ -673,7 +657,6 @@ export class PortfolioWebGL {
     return {
       passes: WARM_START_PASSES,
       constraintIterations: this.debug.constraintIterations,
-      gravity: new THREE.Vector3(0, -this.debug.gravity, 0),
     }
   }
 }

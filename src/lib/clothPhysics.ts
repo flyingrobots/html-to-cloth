@@ -1,9 +1,13 @@
 import * as THREE from 'three'
 
+import { GravityController } from './gravityController'
+import type { SimWarmStartConfig } from './simWorld'
+
 export type ClothOptions = {
   damping?: number
   constraintIterations?: number
   gravity?: THREE.Vector3
+  gravityController?: GravityController
 }
 
 type Particle = {
@@ -27,7 +31,6 @@ export class ClothPhysics {
   private tmpVector = new THREE.Vector3()
   private accelVector = new THREE.Vector3()
   private tmpVector2 = new THREE.Vector2()
-  private gravity = new THREE.Vector3(0, -9.81, 0)
   private damping = 0.98
   private constraintIterations = 3
   private widthSegments: number
@@ -37,6 +40,8 @@ export class ClothPhysics {
   private sleepVelocityThresholdSq = 1e-6
   private sleepFrameThreshold = 60
   private storedSubsteps = 1
+  private gravityController: GravityController
+  private gravityBuffer = new THREE.Vector3()
 
   constructor(mesh: THREE.Mesh<THREE.PlaneGeometry, THREE.MeshBasicMaterial>, options?: ClothOptions) {
     this.mesh = mesh
@@ -45,7 +50,8 @@ export class ClothPhysics {
     this.widthSegments = (geom.parameters.widthSegments ?? 1) + 1
     this.heightSegments = (geom.parameters.heightSegments ?? 1) + 1
 
-    if (options?.gravity) this.gravity.copy(options.gravity)
+    this.gravityController = options?.gravityController ?? new GravityController(options?.gravity)
+
     if (options?.damping) this.damping = options.damping
     if (options?.constraintIterations) this.constraintIterations = options.constraintIterations
 
@@ -54,7 +60,7 @@ export class ClothPhysics {
   }
 
   setGravity(value: THREE.Vector3) {
-    this.gravity.copy(value)
+    this.gravityController.setBase(value)
   }
 
   setConstraintIterations(iterations: number) {
@@ -254,8 +260,9 @@ export class ClothPhysics {
     if (deltaSeconds <= 0) return
     if (this.sleeping) return
 
+    const gravity = this.gravityController.getCurrent(this.gravityBuffer)
     const acceleration = this.accelVector
-      .copy(this.gravity)
+      .copy(gravity)
       .multiplyScalar(deltaSeconds * deltaSeconds)
 
     let maxDeltaSq = 0
@@ -319,6 +326,20 @@ export class ClothPhysics {
     }
 
     this.syncGeometry()
+  }
+
+  warmStart(config: SimWarmStartConfig) {
+    const iterations = Math.max(0, Math.round(config.constraintIterations * config.passes))
+    if (iterations === 0) return
+    this.wake()
+    const zeroGravity = new THREE.Vector3(0, 0, 0)
+    this.gravityController.runWithOverride(zeroGravity, () => {
+      this.relaxConstraints(iterations)
+    })
+  }
+
+  getGravity() {
+    return this.gravityController.getBase(new THREE.Vector3())
   }
 
   isOffscreen(boundaryY: number) {
