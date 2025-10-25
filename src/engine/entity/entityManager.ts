@@ -29,6 +29,12 @@ export class EntityManager {
     const entity = typeof entityOrId === 'string' ? this.entities.get(entityOrId) : entityOrId
     if (!entity) return
     if (!this.entities.has(entity.id)) return
+
+    if (typeof entityOrId === 'string') {
+      entity.destroy()
+      return
+    }
+
     entity._markDestroyed()
     this.entities.delete(entity.id)
   }
