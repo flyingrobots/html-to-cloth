@@ -17,6 +17,9 @@ export class CameraSystem implements EngineSystem {
   private readonly snapshot: MutableCameraSnapshot
   private world: EngineWorld | null = null
 
+  /**
+   * @param {CameraSpringOptions} [options]
+   */
   constructor(options: CameraSpringOptions = {}) {
     this.spring = new CameraSpring(options)
     this.snapshot = this.spring.getSnapshot()
@@ -24,6 +27,9 @@ export class CameraSystem implements EngineSystem {
 
   /**
    * Stores the engine world reference on attachment.
+   *
+   * @param {EngineWorld} world
+   * @returns {void}
    */
   onAttach(world: EngineWorld) {
     this.world = world
@@ -31,6 +37,8 @@ export class CameraSystem implements EngineSystem {
 
   /**
    * Clears the world reference once detached.
+   *
+   * @returns {void}
    */
   onDetach() {
     this.world = null
@@ -38,6 +46,9 @@ export class CameraSystem implements EngineSystem {
 
   /**
    * Advances the camera and refreshes its pooled snapshot.
+   *
+   * @param {number} dt
+   * @returns {void}
    */
   fixedUpdate(dt: number) {
     this.spring.update(dt)
@@ -46,6 +57,8 @@ export class CameraSystem implements EngineSystem {
 
   /**
    * Returns the latest pooled snapshot. Treat as read-only.
+   *
+   * @returns {CameraSnapshot}
    */
   getSnapshot() {
     return this.snapshot
@@ -53,6 +66,9 @@ export class CameraSystem implements EngineSystem {
 
   /**
    * Copies the latest snapshot into a caller-managed structure for custom pooling.
+   *
+   * @param {MutableCameraSnapshot} target
+   * @returns {MutableCameraSnapshot}
    */
   copySnapshot(target: MutableCameraSnapshot) {
     target.position.copy(this.snapshot.position)
@@ -66,6 +82,9 @@ export class CameraSystem implements EngineSystem {
 
   /**
    * Adjusts the spring target the camera will move toward.
+   *
+   * @param {THREE.Vector3} position
+   * @returns {void}
    */
   setTarget(position: THREE.Vector3) {
     this.spring.setTarget(position)
@@ -73,6 +92,9 @@ export class CameraSystem implements EngineSystem {
 
   /**
    * Updates the desired zoom level.
+   *
+   * @param {number} zoom
+   * @returns {void}
    */
   setTargetZoom(zoom: number) {
     this.spring.setTargetZoom(zoom)
@@ -80,6 +102,10 @@ export class CameraSystem implements EngineSystem {
 
   /**
    * Instantly teleports the camera to a position/zoom without oscillation.
+   *
+   * @param {THREE.Vector3} position
+   * @param {number} [zoom]
+   * @returns {void}
    */
   jumpTo(position: THREE.Vector3, zoom?: number) {
     this.spring.setTarget(position)
@@ -94,6 +120,9 @@ export class CameraSystem implements EngineSystem {
 
   /**
    * Tweaks spring constants on the fly.
+   *
+   * @param {Partial<Omit<CameraSpringOptions, 'position' | 'target' | 'zoom' | 'targetZoom'>>} options
+   * @returns {void}
    */
   configure(options: Partial<Omit<CameraSpringOptions, 'position' | 'target' | 'zoom' | 'targetZoom'>>) {
     this.spring.configure(options)
@@ -101,6 +130,8 @@ export class CameraSystem implements EngineSystem {
 
   /**
    * Returns the currently attached engine world, if any.
+   *
+   * @returns {EngineWorld | null}
    */
   getWorld() {
     return this.world

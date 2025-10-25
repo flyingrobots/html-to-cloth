@@ -36,6 +36,12 @@ import {
   DEFAULT_CAMERA_ZOOM_DAMPING,
 } from "./lib/portfolioWebGL"
 
+/**
+ * Renders keyboard shortcut glyphs within a bordered capsule.
+ *
+ * @param {{ children: React.ReactNode }} props
+ * @returns {JSX.Element}
+ */
 function Kbd({ children }: { children: React.ReactNode }) {
   return (
     <span className="inline-flex items-center justify-center rounded-md border bg-muted px-2 py-1 font-mono text-xs font-semibold text-muted-foreground">
@@ -44,6 +50,43 @@ function Kbd({ children }: { children: React.ReactNode }) {
   )
 }
 
+/**
+ * Debug palette dialog that exposes simulation and camera tuning controls.
+ *
+ * @param {{
+ *   open: boolean;
+ *   onOpenChange: (open: boolean) => void;
+ *   wireframe: boolean;
+ *   onWireframeChange: (value: boolean) => void;
+ *   realTime: boolean;
+ *   onRealTimeChange: (value: boolean) => void;
+ *   gravity: number;
+ *   onGravityChange: (value: number) => void;
+ *   impulseMultiplier: number;
+ *   onImpulseMultiplierChange: (value: number) => void;
+ *   tessellationSegments: number;
+ *   onTessellationChange: (value: number) => void;
+ *   constraintIterations: number;
+ *   onConstraintIterationsChange: (value: number) => void;
+ *   substeps: number;
+ *   onSubstepsChange: (value: number) => void;
+ *   pointerColliderVisible: boolean;
+ *   onPointerColliderVisibleChange: (value: boolean) => void;
+ *   pinMode: PinMode;
+ *   onPinModeChange: (value: PinMode) => void;
+ *   cameraStiffness: number;
+ *   onCameraStiffnessChange: (value: number) => void;
+ *   cameraDamping: number;
+ *   onCameraDampingChange: (value: number) => void;
+ *   cameraZoomStiffness: number;
+ *   onCameraZoomStiffnessChange: (value: number) => void;
+ *   cameraZoomDamping: number;
+ *   onCameraZoomDampingChange: (value: number) => void;
+ *   onStep: () => void;
+ *   onReset: () => void;
+ * }} props
+ * @returns {JSX.Element}
+ */
 function DebugPalette({
   open,
   onOpenChange,
@@ -310,6 +353,11 @@ function DebugPalette({
   )
 }
 
+/**
+ * Root interactive demo component that coordinates the WebGL controller and debug palette.
+ *
+ * @returns {JSX.Element}
+ */
 function Demo() {
   const controllerRef = useRef<PortfolioWebGL | null>(null)
   const realTimeRef = useRef(true)
@@ -483,6 +531,11 @@ function Demo() {
   )
 }
 
+/**
+ * Application entry that wires the theme provider around the demo.
+ *
+ * @returns {JSX.Element}
+ */
 function App() {
   return (
     <ThemeProvider defaultTheme="dark" storageKey="vite-ui-theme">

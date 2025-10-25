@@ -53,6 +53,9 @@ type ClothItem = {
   adapter?: ClothBodyAdapter
 }
 
+/**
+ * Adapter layer that exposes cloth instances through the scheduler-facing {@link SleepableBody} contract.
+ */
 class ClothBodyAdapter implements SleepableBody {
   public readonly id: string
   private item: ClothItem
@@ -62,6 +65,15 @@ class ClothBodyAdapter implements SleepableBody {
   private record: DOMMeshRecord
   private debug: Pick<DebugSettings, 'impulseMultiplier'>
 
+  /**
+   * @param {string} id
+   * @param {ClothItem} item
+   * @param {PointerState} pointer
+   * @param {CollisionSystem} collisionSystem
+   * @param {() => void} handleOffscreen
+   * @param {DOMMeshRecord} record
+   * @param {Pick<DebugSettings, 'impulseMultiplier'>} debug
+   */
   constructor(
     id: string,
     item: ClothItem,
@@ -80,6 +92,12 @@ class ClothBodyAdapter implements SleepableBody {
     this.debug = debug
   }
 
+  /**
+   * Updates the wrapped cloth simulation and applies pointer forces.
+   *
+   * @param {number} dt
+   * @returns {void}
+   */
   update(dt: number) {
     const cloth = this.item.cloth
     if (!cloth) return
@@ -100,20 +118,41 @@ class ClothBodyAdapter implements SleepableBody {
     }
   }
 
+  /**
+   * Indicates whether the underlying cloth is sleeping.
+   *
+   * @returns {boolean}
+   */
   isSleeping() {
     const cloth = this.item.cloth
     if (!cloth) return true
     return cloth.isSleeping()
   }
 
+  /**
+   * Forces the cloth awake.
+   *
+   * @returns {void}
+   */
   wake() {
     this.item.cloth?.wake()
   }
 
+  /**
+   * Optionally wakes the cloth if the supplied point lies within the mesh footprint.
+   *
+   * @param {THREE.Vector2} point
+   * @returns {void}
+   */
   wakeIfPointInside(point: THREE.Vector2) {
     this.item.cloth?.wakeIfPointInside(point)
   }
 
+  /**
+   * Computes an impulse radius, either from dataset overrides or canonical defaults.
+   *
+   * @returns {number}
+   */
   private getImpulseRadius() {
     const attr = this.item.element.dataset.clothImpulseRadius
     const parsed = attr ? Number.parseFloat(attr) : NaN
@@ -125,6 +164,11 @@ class ClothBodyAdapter implements SleepableBody {
     return base > 0 ? base / 2 : 0.25
   }
 
+  /**
+   * Computes the impulse strength using dataset overrides and debug multipliers.
+   *
+   * @returns {number}
+   */
   private getImpulseStrength() {
     const attr = this.item.element.dataset.clothImpulseStrength
     const parsed = attr ? Number.parseFloat(attr) : NaN
@@ -133,6 +177,9 @@ class ClothBodyAdapter implements SleepableBody {
   }
 }
 
+/**
+ * High-level controller that bridges DOM elements into the WebGL cloth simulation and camera system.
+ */
 export class PortfolioWebGL {
   private domToWebGL: DOMToWebGL | null = null
   private collisionSystem = new CollisionSystem()
@@ -186,6 +233,11 @@ export class PortfolioWebGL {
   private onPointerMove = (event: PointerEvent) => this.handlePointerMove(event)
   private onPointerLeave = () => this.resetPointer()
 
+  /**
+   * Initializes WebGL resources, prepares meshes, and begins the simulation loop.
+   *
+   * @returns {Promise<void>}
+   */
   async init() {
     if (this.domToWebGL) return
 
@@ -218,6 +270,11 @@ export class PortfolioWebGL {
     }
   }
 
+  /**
+   * Tears down all WebGL resources and event listeners.
+   *
+   * @returns {void}
+   */
   dispose() {
     this.disposed = true
     if (this.rafId) {
@@ -262,6 +319,12 @@ export class PortfolioWebGL {
     this.elementIds.clear()
   }
 
+  /**
+   * Prepares incoming DOM elements by capturing meshes and inserting them into the pool.
+   *
+   * @param {HTMLElement[]} elements
+   * @returns {Promise<void>}
+   */
   private async prepareElements(elements: HTMLElement[]) {
     if (!this.domToWebGL || !this.pool) return
 
@@ -292,6 +355,12 @@ export class PortfolioWebGL {
     }
   }
 
+  /**
+   * Activates a DOM element, spawning a simulated cloth body for interaction.
+   *
+   * @param {HTMLElement} element
+   * @returns {void}
+   */
   private activate(element: HTMLElement) {
     if (!this.domToWebGL || !this.pool) return
 
@@ -344,6 +413,11 @@ export class PortfolioWebGL {
     element.removeEventListener('click', item.clickHandler)
   }
 
+  /**
+   * Advances timers, steps simulation components, and renders the scene each frame.
+   *
+   * @returns {void}
+   */
   private animate() {
     if (this.disposed || !this.domToWebGL) return
 
@@ -365,6 +439,11 @@ export class PortfolioWebGL {
     this.domToWebGL.render()
   }
 
+  /**
+   * Responds to viewport resizes by updating render targets and collision data.
+   *
+   * @returns {void}
+   */
   private handleResize() {
     if (!this.domToWebGL) return
     this.domToWebGL.resize()
@@ -374,6 +453,11 @@ export class PortfolioWebGL {
     this.syncStaticMeshes()
   }
 
+  /**
+   * Keeps pooled meshes aligned with their DOM counterparts while dormant.
+   *
+   * @returns {void}
+   */
   private syncStaticMeshes() {
     if (!this.domToWebGL) return
 
@@ -386,6 +470,12 @@ export class PortfolioWebGL {
     }
   }
 
+  /**
+   * Translates browser pointer events into canonical simulation space and records velocity.
+   *
+   * @param {PointerEvent} event
+   * @returns {void}
+   */
   private handlePointerMove(event: PointerEvent) {
     if (!this.domToWebGL) return
     const canonical = this.domToWebGL.pointerToCanonical(event.clientX, event.clientY)
@@ -414,6 +504,11 @@ export class PortfolioWebGL {
     this.updatePointerHelper()
   }
 
+  /**
+   * Clears pointer state when leaving interactive contexts.
+   *
+   * @returns {void}
+   */
   private resetPointer() {
     this.pointer.active = false
     this.pointer.needsImpulse = false
@@ -421,6 +516,12 @@ export class PortfolioWebGL {
     this.updatePointerHelper()
   }
 
+  /**
+   * Fetches or allocates a deterministic adapter identifier for an element.
+   *
+   * @param {HTMLElement} element
+   * @returns {string}
+   */
   private getBodyId(element: HTMLElement) {
     let id = this.elementIds.get(element)
     if (!id) {
@@ -430,6 +531,12 @@ export class PortfolioWebGL {
     return id
   }
 
+  /**
+   * Recycles cloth instances once they fall beyond the viewport.
+   *
+   * @param {ClothItem} item
+   * @returns {void}
+   */
   private handleClothOffscreen(item: ClothItem) {
     if (!this.pool) return
 
@@ -450,6 +557,12 @@ export class PortfolioWebGL {
     item.adapter = undefined
   }
 
+  /**
+   * Toggles wireframe rendering across all cloth meshes.
+   *
+   * @param {boolean} enabled
+   * @returns {void}
+   */
   setWireframe(enabled: boolean) {
     this.debug.wireframe = enabled
     for (const item of this.items.values()) {
@@ -460,6 +573,12 @@ export class PortfolioWebGL {
     }
   }
 
+  /**
+   * Updates gravity applied to active cloth bodies.
+   *
+   * @param {number} gravity
+   * @returns {void}
+   */
   setGravity(gravity: number) {
     this.debug.gravity = gravity
     for (const item of this.items.values()) {
@@ -467,10 +586,22 @@ export class PortfolioWebGL {
     }
   }
 
+  /**
+   * Configures the global pointer impulse multiplier.
+   *
+   * @param {number} multiplier
+   * @returns {void}
+   */
   setImpulseMultiplier(multiplier: number) {
     this.debug.impulseMultiplier = multiplier
   }
 
+  /**
+   * Enables or disables real-time simulation stepping.
+   *
+   * @param {boolean} enabled
+   * @returns {void}
+   */
   setRealTime(enabled: boolean) {
     this.debug.realTime = enabled
     if (enabled) {
@@ -479,6 +610,12 @@ export class PortfolioWebGL {
     }
   }
 
+  /**
+   * Adjusts the number of physics substeps executed per fixed tick.
+   *
+   * @param {number} substeps
+   * @returns {void}
+   */
   setSubsteps(substeps: number) {
     const clamped = Math.max(1, Math.round(substeps))
     this.debug.substeps = clamped
@@ -487,6 +624,12 @@ export class PortfolioWebGL {
     }
   }
 
+  /**
+   * Sets the number of constraint solver iterations for active cloth bodies.
+   *
+   * @param {number} iterations
+   * @returns {void}
+   */
   setConstraintIterations(iterations: number) {
     const clamped = Math.max(1, Math.round(iterations))
     this.debug.constraintIterations = clamped
@@ -495,6 +638,12 @@ export class PortfolioWebGL {
     }
   }
 
+  /**
+   * Chooses which cloth vertices start pinned in the simulation.
+   *
+   * @param {PinMode} mode
+   * @returns {void}
+   */
   setPinMode(mode: PinMode) {
     this.debug.pinMode = mode
     const gravityVector = new THREE.Vector3(0, -this.debug.gravity, 0)
@@ -508,6 +657,12 @@ export class PortfolioWebGL {
     }
   }
 
+  /**
+   * Rebuilds dormant meshes with a new tessellation density.
+   *
+   * @param {number} segments
+   * @returns {Promise<void>}
+   */
   async setTessellationSegments(segments: number) {
     const pool = this.pool
     if (!pool) return
@@ -538,6 +693,12 @@ export class PortfolioWebGL {
     this.collisionSystem.refresh()
   }
 
+  /**
+   * Toggles the pointer collider helper mesh.
+   *
+   * @param {boolean} enabled
+   * @returns {void}
+   */
   setPointerColliderVisible(enabled: boolean) {
     this.debug.pointerCollider = enabled
     this.pointerColliderVisible = enabled
@@ -563,6 +724,9 @@ export class PortfolioWebGL {
 
   /**
    * Updates the positional spring stiffness that drives camera motion.
+   *
+   * @param {number} value
+   * @returns {void}
    */
   setCameraStiffness(value: number) {
     const clamped = Math.max(0, value)
@@ -572,6 +736,9 @@ export class PortfolioWebGL {
 
   /**
    * Updates the positional spring damping coefficient for the camera.
+   *
+   * @param {number} value
+   * @returns {void}
    */
   setCameraDamping(value: number) {
     const clamped = Math.max(0, value)
@@ -581,6 +748,9 @@ export class PortfolioWebGL {
 
   /**
    * Updates the zoom spring stiffness constant.
+   *
+   * @param {number} value
+   * @returns {void}
    */
   setCameraZoomStiffness(value: number) {
     const clamped = Math.max(0, value)
@@ -590,6 +760,9 @@ export class PortfolioWebGL {
 
   /**
    * Updates the zoom spring damping coefficient.
+   *
+   * @param {number} value
+   * @returns {void}
    */
   setCameraZoomDamping(value: number) {
     const clamped = Math.max(0, value)
@@ -597,6 +770,11 @@ export class PortfolioWebGL {
     this.cameraSystem.configure({ zoomDamping: clamped })
   }
 
+  /**
+   * Executes a single fixed simulation step when real-time playback is paused.
+   *
+   * @returns {void}
+   */
   stepOnce() {
     this.stepCamera(FIXED_DT)
     this.stepCloth(FIXED_DT)
@@ -607,6 +785,9 @@ export class PortfolioWebGL {
 
   /**
    * Advances the camera system by one fixed timestep.
+   *
+   * @param {number} dt
+   * @returns {void}
    */
   private stepCamera(dt: number) {
     this.cameraSystem.fixedUpdate(dt)
@@ -614,6 +795,8 @@ export class PortfolioWebGL {
 
   /**
    * Mirrors the current camera snapshot onto the Three.js camera.
+   *
+   * @returns {void}
    */
   private applyCameraSnapshot() {
     if (!this.domToWebGL) return
@@ -625,6 +808,12 @@ export class PortfolioWebGL {
     camera.updateProjectionMatrix()
   }
 
+  /**
+   * Steps the scheduler-driven cloth bodies with optional substepping.
+   *
+   * @param {number} dt
+   * @returns {void}
+   */
   private stepCloth(dt: number) {
     const substeps = Math.max(1, this.debug.substeps)
     const stepSize = dt / substeps
@@ -633,6 +822,11 @@ export class PortfolioWebGL {
     }
   }
 
+  /**
+   * Dampens accumulated pointer impulse velocity between frames.
+   *
+   * @returns {void}
+   */
   private decayPointerImpulse() {
     if (this.pointer.needsImpulse) {
       this.pointer.velocity.multiplyScalar(0.65)
@@ -643,6 +837,11 @@ export class PortfolioWebGL {
     }
   }
 
+  /**
+   * Synchronizes the debug pointer helper with the latest pointer position.
+   *
+   * @returns {void}
+   */
   private updatePointerHelper() {
     if (!this.pointerHelper) return
     this.pointerHelper.visible = this.pointerColliderVisible
@@ -650,6 +849,11 @@ export class PortfolioWebGL {
     this.pointerHelper.position.set(this.pointer.position.x, this.pointer.position.y, 0.2)
   }
 
+  /**
+   * Lazily creates the pointer helper mesh if needed.
+   *
+   * @returns {THREE.Mesh}
+   */
   private ensurePointerHelper() {
     if (!this.pointerHelper) {
       const geometry = new THREE.SphereGeometry(0.12, 16, 16)
@@ -660,6 +864,12 @@ export class PortfolioWebGL {
     return this.pointerHelper
   }
 
+  /**
+   * Applies the currently selected pin mode to a cloth instance.
+   *
+   * @param {ClothPhysics} cloth
+   * @returns {void}
+   */
   private applyPinMode(cloth: ClothPhysics) {
     switch (this.debug.pinMode) {
       case 'top':
@@ -677,6 +887,12 @@ export class PortfolioWebGL {
     }
   }
 
+  /**
+   * Performs warm-start passes to settle constraints before release.
+   *
+   * @param {ClothPhysics} cloth
+   * @returns {void}
+   */
   private runWarmStart(cloth: ClothPhysics) {
     if (WARM_START_PASSES <= 0) return
     cloth.wake()

@@ -2,6 +2,16 @@ import * as THREE from 'three'
 
 /**
  * User-adjustable parameters used to bootstrap and tune the camera spring.
+ *
+ * @typedef {Object} CameraSpringOptions
+ * @property {number} [stiffness]
+ * @property {number} [damping]
+ * @property {number} [zoomStiffness]
+ * @property {number} [zoomDamping]
+ * @property {THREE.Vector3} [position]
+ * @property {THREE.Vector3} [target]
+ * @property {number} [zoom]
+ * @property {number} [targetZoom]
  */
 export type CameraSpringOptions = {
   stiffness?: number
@@ -16,6 +26,14 @@ export type CameraSpringOptions = {
 
 /**
  * Mutable structure reused internally for snapshot pooling.
+ *
+ * @typedef {Object} MutableCameraSnapshot
+ * @property {THREE.Vector3} position
+ * @property {THREE.Vector3} velocity
+ * @property {THREE.Vector3} target
+ * @property {number} zoom
+ * @property {number} zoomVelocity
+ * @property {number} targetZoom
  */
 export type MutableCameraSnapshot = {
   position: THREE.Vector3
@@ -30,6 +48,8 @@ export type CameraSnapshot = Readonly<MutableCameraSnapshot>
 
 /**
  * Maximum delta time (in seconds) integrated per step to avoid overshooting.
+ *
+ * @type {number}
  */
 export const CAMERA_SPRING_MAX_DELTA = 1 / 30
 
@@ -65,6 +85,9 @@ export class CameraSpring {
   private zoomStiffness: number
   private zoomDamping: number
 
+  /**
+   * @param {CameraSpringOptions} [options]
+   */
   constructor(options: CameraSpringOptions = {}) {
     this.stiffness = options.stiffness ?? DEFAULT_STIFFNESS
     this.damping = options.damping ?? DEFAULT_DAMPING
@@ -89,6 +112,9 @@ export class CameraSpring {
 
   /**
    * Advances the spring simulation, subdividing large deltas to maintain stability.
+   *
+   * @param {number} dt
+   * @returns {void}
    */
   update(dt: number) {
     if (!Number.isFinite(dt) || dt <= 0) return
@@ -109,6 +135,9 @@ export class CameraSpring {
 
   /**
    * Binds the spring target to a new world-space position.
+   *
+   * @param {THREE.Vector3} position
+   * @returns {void}
    */
   setTarget(position: THREE.Vector3) {
     this.target.copy(position)
@@ -116,6 +145,9 @@ export class CameraSpring {
 
   /**
    * Immediately sets the spring's current position.
+   *
+   * @param {THREE.Vector3} position
+   * @returns {void}
    */
   setPosition(position: THREE.Vector3) {
     this.position.copy(position)
@@ -123,6 +155,9 @@ export class CameraSpring {
 
   /**
    * Immediately sets the spring's current zoom level.
+   *
+   * @param {number} zoom
+   * @returns {void}
    */
   setZoom(zoom: number) {
     this.zoom = zoom
@@ -130,6 +165,9 @@ export class CameraSpring {
 
   /**
    * Updates the desired zoom level that the spring should approach.
+   *
+   * @param {number} zoom
+   * @returns {void}
    */
   setTargetZoom(zoom: number) {
     this.targetZoom = zoom
@@ -137,6 +175,8 @@ export class CameraSpring {
 
   /**
    * Teleports the spring to its target and clears accumulated velocity.
+   *
+   * @returns {void}
    */
   jumpToTarget() {
     this.position.copy(this.target)
@@ -147,6 +187,9 @@ export class CameraSpring {
 
   /**
    * Adjusts spring constants on the fly. Values are clamped to non-negative ranges.
+   *
+   * @param {Partial<Omit<CameraSpringOptions, 'position' | 'target' | 'zoom' | 'targetZoom'>>} options
+   * @returns {void}
    */
   configure(options: Partial<Omit<CameraSpringOptions, 'position' | 'target' | 'zoom' | 'targetZoom'>>) {
     if (options.stiffness !== undefined) this.stiffness = Math.max(0, options.stiffness)
@@ -159,6 +202,9 @@ export class CameraSpring {
    * Returns a pooled snapshot of the spring state. An optional mutable target can be supplied to avoid allocations.
    *
    * Callers must treat the returned object and nested vectors as read-only views.
+   *
+   * @param {MutableCameraSnapshot} [target]
+   * @returns {MutableCameraSnapshot}
    */
   getSnapshot(target?: MutableCameraSnapshot): MutableCameraSnapshot {
     const snapshot = target ?? createMutableSnapshot()
@@ -171,6 +217,12 @@ export class CameraSpring {
     return snapshot
   }
 
+  /**
+   * Integrates the spring for a single substep.
+   *
+   * @param {number} step
+   * @returns {void}
+   */
   private integrate(step: number) {
     if (step <= 0) return
     this.offset.copy(this.target).sub(this.position).multiplyScalar(this.stiffness)
