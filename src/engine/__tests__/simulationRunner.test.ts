@@ -86,4 +86,21 @@ describe('SimulationRunner', () => {
 
     expect(system.fixedUpdate).toHaveBeenCalled()
   })
+
+  it('clamps substep configuration to valid bounds', () => {
+    const world = new EngineWorld()
+    const system = createSystem()
+    world.addSystem(system, { id: 'test' })
+
+    const runner = new SimulationRunner({ engine: world, fixedDelta: 1 / 60 })
+    runner.setSubsteps(32)
+    runner.stepOnce()
+
+    expect(system.fixedUpdate).toHaveBeenCalledTimes(16)
+
+    system.fixedUpdate.mockClear()
+    runner.setSubsteps(Number.NaN)
+    runner.stepOnce()
+    expect(system.fixedUpdate).toHaveBeenCalledTimes(16)
+  })
 })
