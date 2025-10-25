@@ -97,10 +97,13 @@ describe('SimulationSystem', () => {
 
     const system = new SimulationSystem({ simWorld })
     system.fixedUpdate?.(0.016)
-    expect(system.getSnapshot()).toEqual(snapshotA)
+    const first = system.getSnapshot()
+    expect(first).toEqual(snapshotA)
 
     system.fixedUpdate?.(0.016)
-    expect(system.getSnapshot()).toEqual(snapshotB)
+    const second = system.getSnapshot()
+    expect(second).toEqual(snapshotB)
+    expect(second).not.toBe(first)
   })
 
   it('routes pointer notifications and clears bodies', () => {
