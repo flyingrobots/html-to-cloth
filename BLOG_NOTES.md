@@ -91,3 +91,4 @@ Web design feels clunky not because the medium is doomed, but because we’ve le
 - 2025-10-25: Added camera spring specs for dt spike clamping, zero-stiffness safeguards, and snapshot pooling to anchor the stabilization pass.
 - 2025-10-25: Refactored camera spring/system to keep pooled snapshots and introduced shared engine system/world types so Vitest resolves imports cleanly.
 - 2025-10-25: Clamped camera spring timesteps, surfaced stiffness/damping sliders in the debug palette, and documented the read-only snapshot contract with pooled copies exercised across Vitest.
+- 2025-10-25: Updated README to call out the new camera tuning controls and reinforced comment coverage so the snapshot immutability contract is explicit for integrators.

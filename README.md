@@ -9,6 +9,7 @@ A proof-of-concept portfolio that hides a WebGL cloth simulation beneath an acce
 - Canonical meter-based render space layered over the DOM via Three.js.
 - DOM capture → tessellated mesh pipeline with lazy `html2canvas` snapshots.
 - Custom cloth solver (Verlet integration, constraint satisfaction, sleep/wake).
+- Spring-driven camera system with debug palette controls for stiffness/damping tuning.
 - `Simulation` scheduler + `SimWorld` for active-body ticking and basic broad-phase sweeps.
 - Pointer impulses and collision clamps wired through a unified `applyImpulse` API.
 - Tests-as-specs workflow: Vitest coverage for cloth, impulses, scheduler, SimWorld, DOM integration.
