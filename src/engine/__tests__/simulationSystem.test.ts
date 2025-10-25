@@ -35,6 +35,8 @@ const warmConfig = () => ({
 
 const sleepConfig = () => ({ velocityThreshold: 0.001, frameThreshold: 45 })
 
+const FIXED_DT = 0.016
+
 describe('SimulationSystem', () => {
   it('applies pending warm start and sleep configuration before stepping', () => {
     const simWorld = createSimWorld()
@@ -43,8 +45,8 @@ describe('SimulationSystem', () => {
 
     system.addBody(body as any, { warmStart: warmConfig(), sleep: sleepConfig() })
 
-    system.fixedUpdate?.(0.016)
-    system.fixedUpdate?.(0.016)
+    system.fixedUpdate!(FIXED_DT)
+    system.fixedUpdate!(FIXED_DT)
 
     expect(simWorld.addBody).toHaveBeenCalledWith(body)
     expect(simWorld.step).toHaveBeenCalledTimes(2)
@@ -60,11 +62,11 @@ describe('SimulationSystem', () => {
     const system = new SimulationSystem({ simWorld })
 
     system.addBody(body as any, { warmStart: warmConfig() })
-    system.fixedUpdate?.(0.016)
+    system.fixedUpdate!(FIXED_DT)
 
     const nextWarm = { passes: 1, constraintIterations: 8 }
     system.queueWarmStart(body.id, nextWarm)
-    system.fixedUpdate?.(0.016)
+    system.fixedUpdate!(FIXED_DT)
 
     expect(body.warmStart).toHaveBeenCalledTimes(2)
     expect(body.warmStart).toHaveBeenNthCalledWith(2, nextWarm)
@@ -76,11 +78,11 @@ describe('SimulationSystem', () => {
     const system = new SimulationSystem({ simWorld })
 
     system.addBody(body as any, { sleep: sleepConfig() })
-    system.fixedUpdate?.(0.016)
+    system.fixedUpdate!(FIXED_DT)
 
     const updatedConfig = { velocityThreshold: 0.002, frameThreshold: 90 }
     system.queueSleepConfiguration(body.id, updatedConfig)
-    system.fixedUpdate?.(0.016)
+    system.fixedUpdate!(FIXED_DT)
 
     expect(body.configureSleep).toHaveBeenCalledTimes(2)
     expect(body.configureSleep).toHaveBeenNthCalledWith(2, updatedConfig)
@@ -96,11 +98,11 @@ describe('SimulationSystem', () => {
       .mockReturnValueOnce(snapshotB)
 
     const system = new SimulationSystem({ simWorld })
-    system.fixedUpdate?.(0.016)
+    system.fixedUpdate!(FIXED_DT)
     const first = system.getSnapshot()
     expect(first).toEqual(snapshotA)
 
-    system.fixedUpdate?.(0.016)
+    system.fixedUpdate!(FIXED_DT)
     const second = system.getSnapshot()
     expect(second).toEqual(snapshotB)
     expect(second).not.toBe(first)
