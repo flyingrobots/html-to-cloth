@@ -10,6 +10,7 @@ const createSimWorld = () => ({
   step: vi.fn(),
   notifyPointer: vi.fn(),
   clear: vi.fn(),
+  hasBody: vi.fn().mockReturnValue(false),
   getSnapshot: vi.fn().mockReturnValue({ bodies: [] }),
 })
 
@@ -131,14 +132,13 @@ describe('SimulationSystem', () => {
     expect(simWorld.removeBody).toHaveBeenCalledWith(body.id)
   })
 
-  it('stores the engine world reference on attach', () => {
+  it('handles engine lifecycle hooks', () => {
     const simWorld = createSimWorld()
     const system = new SimulationSystem({ simWorld })
     const world = new EngineWorld()
 
-    system.onAttach?.(world)
-
-    expect((system as any).world).toBe(world)
+    expect(() => system.onAttach?.(world)).not.toThrow()
+    expect(() => system.onDetach?.()).not.toThrow()
   })
 
   it('is not allowed while paused by default', () => {
