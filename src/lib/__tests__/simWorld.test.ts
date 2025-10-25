@@ -134,8 +134,14 @@ describe('SimWorld', () => {
     world.step(0.016)
 
     const updated = world.getSnapshot()
-    expect(updated.bodies[0].center.x).toBeCloseTo(1)
-    expect(updated.bodies[0].center.y).toBeCloseTo(2)
+    const { center } = updated.bodies[0]
+    expect(center.x).toBeCloseTo(1)
+    expect(center.y).toBeCloseTo(2)
+
+    // Mutating the snapshot should not affect internal state.
+    updated.bodies[0].center.x = 42
+    const fresh = world.getSnapshot()
+    expect(fresh.bodies[0].center.x).toBeCloseTo(1)
   })
 
   it('prevents duplicate ids and throws meaningful errors', () => {

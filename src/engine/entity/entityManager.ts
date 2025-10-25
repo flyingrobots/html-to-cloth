@@ -10,6 +10,11 @@ export class EntityManager {
 
   /** Creates a new entity with optional metadata. */
   createEntity(options: EntityOptions = {}) {
+    if (options.id !== undefined) {
+      if (typeof options.id !== 'string' || options.id.trim().length === 0) {
+        throw new Error('Entity id must be a non-empty string')
+      }
+    }
     const id = options.id ?? this.generateId()
     if (this.entities.has(id)) {
       throw new Error(`Entity with id ${id} already exists`)
@@ -53,6 +58,10 @@ export class EntityManager {
   }
 
   private generateId() {
-    return `entity-${this.nextId++}`
+    let candidate: string
+    do {
+      candidate = `entity-${this.nextId++}`
+    } while (this.entities.has(candidate))
+    return candidate
   }
 }

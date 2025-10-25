@@ -67,6 +67,10 @@ export class SimWorld {
     this.updateSnapshot()
   }
 
+  hasBody(id: string) {
+    return this.bodies.has(id)
+  }
+
   /** Advances all awake bodies and performs sleeping-body sweep tests. */
   step(dt: number) {
     for (const [id, body] of this.bodies.entries()) {

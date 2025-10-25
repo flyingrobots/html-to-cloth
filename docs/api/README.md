@@ -42,20 +42,39 @@ layer can import and compose any engine pieces it needs.
 import * as THREE from 'three'
 import { EngineWorld, SimulationRunner } from '@/engine'
 import { SimulationSystem } from '@/engine/systems/simulationSystem'
-import { SimWorld } from '@/lib/simWorld'
+import { SimWorld, type SimBody } from '@/lib/simWorld'
+import { ClothPhysics } from '@/lib/clothPhysics'
 import { ClothSceneController } from '@/lib/clothSceneController'
 
 async function bootstrap() {
-  // 1. Create the engine core pieces that drive the fixed-step loop.
+  // 1. Create the engine primitives.
   const world = new EngineWorld()
   const simWorld = new SimWorld()
   const simulationSystem = new SimulationSystem({ simWorld })
   const runner = new SimulationRunner({ engine: world })
 
-  // Register the simulation system with a higher priority so it runs early.
   world.addSystem(simulationSystem, { priority: 100 })
 
-  // 2. Spin up the DOM/WebGL controller. Elements with `.cloth-enabled` will be captured.
+  // 2. Register a cloth body programmatically (optional).
+  const geometry = new THREE.PlaneGeometry(1, 1, 16, 16)
+  const material = new THREE.MeshBasicMaterial({ color: 0xffffff })
+  const mesh = new THREE.Mesh(geometry, material)
+  const cloth = new ClothPhysics(mesh)
+
+  const clothBody: SimBody = {
+    id: 'demo-cloth',
+    update: (dt) => cloth.update(dt),
+    isSleeping: () => cloth.isSleeping(),
+    wake: () => cloth.wake(),
+    wakeIfPointInside: (point) => cloth.wakeIfPointInside(point),
+    getBoundingSphere: () => cloth.getBoundingSphere(),
+    warmStart: (config) => cloth.warmStart(config),
+    configureSleep: (config) => cloth.setSleepThresholds(config.velocityThreshold, config.frameThreshold),
+  }
+
+  simWorld.addBody(clothBody)
+
+  // 3. Spin up the DOM/WebGL controller. Cloth elements with `.cloth-enabled` will be captured.
   const controller = new ClothSceneController({
     engine: world,
     simWorld,
@@ -65,7 +84,7 @@ async function bootstrap() {
 
   await controller.init()
 
-  // 3. Start the render loop. We store the last frame time so delta seconds stay accurate.
+  // 4. Start the render loop.
   let lastFrame = performance.now()
   function frame(now: number) {
     const deltaSeconds = (now - lastFrame) / 1000
@@ -77,7 +96,7 @@ async function bootstrap() {
 
   requestAnimationFrame(frame)
 
-  // 4. Optional helper for teardown—call this when navigating away.
+  // 5. Return a cleanup hook for route changes or hot reloads.
   return () => {
     controller.dispose()
     simWorld.clear()

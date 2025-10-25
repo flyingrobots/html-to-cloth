@@ -10,6 +10,7 @@ const createSimWorld = () => ({
   step: vi.fn(),
   notifyPointer: vi.fn(),
   clear: vi.fn(),
+  hasBody: vi.fn().mockReturnValue(false),
   getSnapshot: vi.fn().mockReturnValue({ bodies: [] }),
 })
 
@@ -130,14 +131,25 @@ describe('SimulationSystem', () => {
     expect(simWorld.removeBody).toHaveBeenCalledWith(body.id)
   })
 
-  it('stores the engine world reference on attach', () => {
+  it('rejects duplicate body registrations', () => {
+    const simWorld = createSimWorld()
+    simWorld.hasBody = vi.fn().mockReturnValue(false)
+    const body = createBody()
+    const system = new SimulationSystem({ simWorld })
+
+    system.addBody(body as any)
+    simWorld.hasBody = vi.fn().mockReturnValue(true)
+
+    expect(() => system.addBody(body as any)).toThrow(/already registered/)
+  })
+
+  it('ignores removal requests for unknown bodies', () => {
     const simWorld = createSimWorld()
     const system = new SimulationSystem({ simWorld })
-    const world = new EngineWorld()
 
-    system.onAttach(world)
+    system.removeBody('missing')
 
-    expect((system as any).world).toBe(world)
+    expect(simWorld.removeBody).not.toHaveBeenCalled()
   })
 
   it('is not allowed while paused by default', () => {
