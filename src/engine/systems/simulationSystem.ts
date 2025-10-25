@@ -1,4 +1,4 @@
-import * as THREE from 'three'
+import type { Vector2 } from 'three'
 
 import type {
   SimWorld,
@@ -32,12 +32,11 @@ export type RegisterBodyOptions = {
  * between the fixed-step engine loop and the `SimWorld`, managing warm-start/sleep queues
  * and exposing immutable snapshots for read-only consumers.
  */
-export class SimulationSystem implements EngineSystem {
-  id = 'simulation'
+export class SimulationSystem implements EngineSystem<EngineWorld> {
+  id = `simulation-${Math.random().toString(36).slice(2)}`
   allowWhilePaused = false
 
   private readonly simWorld: SimWorld
-  private world: EngineWorld | null = null
   private readonly bodies = new Map<string, BodyRecord>()
   private snapshot: SimWorldSnapshot = { bodies: [] }
 
@@ -45,12 +44,9 @@ export class SimulationSystem implements EngineSystem {
     this.simWorld = options.simWorld
   }
 
-  onAttach(world: EngineWorld) {
-    this.world = world
-  }
+  onAttach(_world: EngineWorld) {}
 
   onDetach() {
-    this.world = null
     this.clear()
   }
 
@@ -60,12 +56,16 @@ export class SimulationSystem implements EngineSystem {
     this.snapshot = this.simWorld.getSnapshot()
   }
 
-  notifyPointer(point: THREE.Vector2) {
+  notifyPointer(point: Vector2) {
     this.simWorld.notifyPointer(point)
   }
 
   /** Registers a new simulated body with optional warm-start and sleep configuration. */
   addBody(body: SimBody, options: RegisterBodyOptions = {}) {
+    if (this.bodies.has(body.id) || this.simWorld.hasBody?.(body.id)) {
+      throw new Error(`Simulation body with id '${body.id}' already registered`)
+    }
+    this.simWorld.addBody(body)
     const record: BodyRecord = {
       body,
       warmStart: options.warmStart,
@@ -75,10 +75,10 @@ export class SimulationSystem implements EngineSystem {
     }
 
     this.bodies.set(body.id, record)
-    this.simWorld.addBody(body)
   }
 
   removeBody(id: string) {
+    if (!this.bodies.has(id)) return
     this.bodies.delete(id)
     this.simWorld.removeBody(id)
   }
@@ -90,15 +90,11 @@ export class SimulationSystem implements EngineSystem {
   }
 
   /** Queues a warm-start configuration to be applied on the next fixed update. */
-  queueWarmStart(id: string, config?: SimWarmStartConfig) {
+  queueWarmStart(id: string, config: SimWarmStartConfig) {
     const record = this.bodies.get(id)
     if (!record) return
-    if (config) {
-      record.warmStart = config
-    }
-    if (record.warmStart) {
-      record.pendingWarmStart = true
-    }
+    record.warmStart = config
+    record.pendingWarmStart = true
   }
 
   /** Queues updated sleep thresholds to be applied on the next fixed update. */
@@ -116,14 +112,22 @@ export class SimulationSystem implements EngineSystem {
 
   private flushPendingConfiguration() {
     for (const record of this.bodies.values()) {
-      if (record.pendingSleep && record.sleep && record.body.configureSleep) {
-        record.body.configureSleep(record.sleep)
-        record.pendingSleep = false
+      if (record.pendingSleep && record.sleep) {
+        try {
+          record.body.configureSleep?.(record.sleep)
+          record.pendingSleep = false
+        } catch (error) {
+          console.error(`Failed to configure sleep for body ${record.body.id}`, error)
+        }
       }
 
-      if (record.pendingWarmStart && record.warmStart && record.body.warmStart) {
-        record.body.warmStart(record.warmStart)
-        record.pendingWarmStart = false
+      if (record.pendingWarmStart && record.warmStart) {
+        try {
+          record.body.warmStart?.(record.warmStart)
+          record.pendingWarmStart = false
+        } catch (error) {
+          console.error(`Failed to warm start body ${record.body.id}`, error)
+        }
       }
     }
   }

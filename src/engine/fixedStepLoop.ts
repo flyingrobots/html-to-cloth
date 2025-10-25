@@ -1,4 +1,4 @@
-type FixedStepLoopOptions = {
+export type FixedStepLoopOptions = {
   fixedDelta: number
   maxSubSteps?: number
   step: (dt: number) => void
@@ -6,7 +6,7 @@ type FixedStepLoopOptions = {
 
 export class FixedStepLoop {
   private readonly fixedDelta: number
-  private readonly maxSubSteps: number
+  private maxSubSteps: number
   private readonly step: (dt: number) => void
   private accumulator = 0
   private paused = false
@@ -19,6 +19,7 @@ export class FixedStepLoop {
 
   update(elapsed: number) {
     if (this.paused) return
+    if (!Number.isFinite(elapsed) || elapsed < 0) return
     if (elapsed > 0) {
       this.accumulator += elapsed
     }
@@ -35,6 +36,11 @@ export class FixedStepLoop {
 
   reset() {
     this.accumulator = 0
+  }
+
+  setMaxSubSteps(value: number) {
+    if (!Number.isFinite(value)) return
+    this.maxSubSteps = Math.max(1, Math.round(value))
   }
 
   private consumeAccumulator() {

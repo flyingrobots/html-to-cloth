@@ -132,9 +132,9 @@ class ClothBodyAdapter implements SimBody, Component {
 
   onDetach() {}
 
-  getBoundingSphere() {
+  getBoundingSphere(): ReturnType<SimBody['getBoundingSphere']> {
     const cloth = this.item.cloth
-    if (cloth && typeof (cloth as { getBoundingSphere?: () => THREE.Sphere }).getBoundingSphere === 'function') {
+    if (cloth) {
       const sphere = cloth.getBoundingSphere()
       return {
         center: new THREE.Vector2(sphere.center.x, sphere.center.y),
@@ -142,19 +142,11 @@ class ClothBodyAdapter implements SimBody, Component {
       }
     }
 
-    const record = this.record
-    if (record) {
-      const center = record.mesh.position
-      const radius = Math.max(record.widthMeters, record.heightMeters) / 2 || 0.25
-      return {
-        center: new THREE.Vector2(center.x, center.y),
-        radius,
-      }
-    }
-
+    const center = this.record.mesh.position
+    const radius = Math.max(this.record.widthMeters ?? 0, this.record.heightMeters ?? 0) / 2 || 0.25
     return {
-      center: new THREE.Vector2(0, 0),
-      radius: 0.25,
+      center: new THREE.Vector2(center.x, center.y),
+      radius,
     }
   }
 
@@ -246,14 +238,14 @@ export class ClothSceneController {
     this.simulationSystem = options.simulationSystem ?? new SimulationSystem({ simWorld: this.simWorld })
 
     const engine = options.engine ?? new EngineWorld()
-    engine.addSystem(this.simulationSystem, { id: 'simulation', priority: 100 })
+    engine.addSystem(this.simulationSystem, { priority: 100 })
 
     this.simulationRunner =
       options.simulationRunner ??
       new SimulationRunner({
         engine,
         fixedDelta: options.fixedDelta,
-        maxSubSteps: options.maxSubSteps,
+        maxSubSteps: options.maxSubSteps ?? this.debug.substeps,
       })
   }
 
@@ -398,7 +390,7 @@ export class ClothSceneController {
     })
 
     cloth.setConstraintIterations(this.debug.constraintIterations)
-    cloth.setSubsteps(this.debug.substeps)
+    cloth.setSubsteps(1)
     this.applyPinMode(cloth)
 
     const gravityVector = new THREE.Vector3(0, -this.debug.gravity, 0)
@@ -444,6 +436,7 @@ export class ClothSceneController {
     const delta = Math.min(this.clock.getDelta(), 0.05)
 
     this.simulationRunner.update(delta)
+    this.simulationRunner.getEngine().frame(delta)
 
     this.decayPointerImpulse()
     this.updatePointerHelper()
@@ -583,7 +576,7 @@ export class ClothSceneController {
     this.debug.substeps = clamped
     this.simulationRunner.setSubsteps(clamped)
     for (const item of this.items.values()) {
-      item.cloth?.setSubsteps(clamped)
+      item.cloth?.setSubsteps(1)
     }
   }
 

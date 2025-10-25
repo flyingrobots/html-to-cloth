@@ -33,11 +33,17 @@ export class SimulationRunner {
   constructor(options: SimulationRunnerOptions = {}) {
     this.fixedDelta = options.fixedDelta ?? DEFAULT_FIXED_DELTA
     this.engine = options.engine ?? new EngineWorld()
+    if (options.maxSubSteps !== undefined) {
+      const initial = Math.round(options.maxSubSteps)
+      if (Number.isFinite(initial) && initial >= 1) {
+        this.substeps = initial
+      }
+    }
     this.loop =
       options.loop ??
       new FixedStepLoop({
         fixedDelta: this.fixedDelta,
-        maxSubSteps: options.maxSubSteps ?? 5,
+        maxSubSteps: this.substeps,
         step: (dt) => this.executeStep(dt),
       })
   }
@@ -72,6 +78,7 @@ export class SimulationRunner {
     const rounded = Math.round(substeps)
     const clamped = Math.max(1, Math.min(MAX_SUBSTEPS, rounded))
     this.substeps = clamped
+    this.loop.setMaxSubSteps(clamped)
   }
 
   /** Returns the underlying engine to allow external system registration. */
