@@ -94,3 +94,4 @@ Web design feels clunky not because the medium is doomed, but because we’ve le
 - 2025-10-25: Updated README to call out the new camera tuning controls and reinforced comment coverage so the snapshot immutability contract is explicit for integrators.
 - 2025-10-25: Layered full JSDoc (TS-friendly) across camera modules, the cloth controller, and the React debug palette to codify contracts and satisfy the “document everything” stabilization brief.
 - 2025-10-25: Renamed `PortfolioWebGL` to `ClothController` for clarity and updated tests/docs so future tasks don’t inherit the vague naming.
+- 2025-10-25: Promoted the orchestration layer to `SimulationRuntime` to reflect that it steers the entire demo (DOM glue + physics + camera), not just cloth visuals.

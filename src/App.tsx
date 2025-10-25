@@ -28,13 +28,13 @@ import {
 import { ChevronDown } from "lucide-react"
 
 import {
-  ClothController,
+  SimulationRuntime,
   type PinMode,
   DEFAULT_CAMERA_STIFFNESS,
   DEFAULT_CAMERA_DAMPING,
   DEFAULT_CAMERA_ZOOM_STIFFNESS,
   DEFAULT_CAMERA_ZOOM_DAMPING,
-} from "./lib/clothController"
+} from "./lib/simulationRuntime"
 
 /**
  * Renders keyboard shortcut glyphs within a bordered capsule.
@@ -359,7 +359,7 @@ function DebugPalette({
  * @returns {JSX.Element}
  */
 function Demo() {
-  const controllerRef = useRef<ClothController | null>(null)
+  const controllerRef = useRef<SimulationRuntime | null>(null)
   const realTimeRef = useRef(true)
   const [debugOpen, setDebugOpen] = useState(false)
   const [wireframe, setWireframe] = useState(false)
@@ -381,7 +381,7 @@ function Demo() {
     const prefersReducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)")
     if (prefersReducedMotion.matches) return
 
-    const controller = new ClothController()
+    const controller = new SimulationRuntime()
     controllerRef.current = controller
     void controller.init()
 

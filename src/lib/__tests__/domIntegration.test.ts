@@ -191,7 +191,7 @@ vi.mock('../clothPhysics', () => {
   return { ClothPhysics: MockClothPhysics }
 })
 
-import { ClothController } from '../clothController'
+import { SimulationRuntime } from '../simulationRuntime'
 
 const resetSpies = () => {
   domMocks.capture.mockReset()
@@ -273,9 +273,9 @@ afterEach(() => {
   document.body.innerHTML = ''
 })
 
-describe('ClothController DOM integration', () => {
+describe('SimulationRuntime DOM integration', () => {
   it('captures cloth-enabled elements, hides DOM, and mounts meshes on init', async () => {
-    const webgl = new ClothController()
+    const webgl = new SimulationRuntime()
     await webgl.init()
 
     const clothElements = Array.from(document.querySelectorAll<HTMLElement>('.cloth-enabled'))
@@ -293,7 +293,7 @@ describe('ClothController DOM integration', () => {
   })
 
   it('refreshes meshes and collision bounds on scroll/resize', async () => {
-    const webgl = new ClothController()
+    const webgl = new SimulationRuntime()
     await webgl.init()
 
     const initialSetCalls = collisionMocks.setViewportDimensions.mock.calls.length
@@ -308,7 +308,7 @@ describe('ClothController DOM integration', () => {
   })
 
   it('activates cloth on click and routes pointer events through scheduler', async () => {
-    const webgl = new ClothController()
+    const webgl = new SimulationRuntime()
     await webgl.init()
 
     const button = document.getElementById('cta') as HTMLElement
@@ -324,7 +324,7 @@ describe('ClothController DOM integration', () => {
   })
 
   it('applies default impulse radius based on mesh width', async () => {
-    const webgl = new ClothController()
+    const webgl = new SimulationRuntime()
     await webgl.init()
 
     const button = document.getElementById('cta') as HTMLElement
@@ -357,7 +357,7 @@ describe('ClothController DOM integration', () => {
     button.dataset.clothImpulseRadius = '0.9'
     button.dataset.clothImpulseStrength = '1.5'
 
-    const webgl = new ClothController()
+    const webgl = new SimulationRuntime()
     await webgl.init()
 
     button.dispatchEvent(new MouseEvent('click'))
@@ -383,7 +383,7 @@ describe('ClothController DOM integration', () => {
   })
 
   it('returns cloth to dormant state after it falls offscreen', async () => {
-    const webgl = new ClothController()
+    const webgl = new SimulationRuntime()
     await webgl.init()
 
     const button = document.getElementById('cta') as HTMLElement
@@ -411,7 +411,7 @@ describe('ClothController DOM integration', () => {
   })
 
   it('steps physics using fixed substeps when stepping manually', async () => {
-    const webgl = new ClothController()
+    const webgl = new SimulationRuntime()
     await webgl.init()
 
     schedulerMocks.step.mockClear()
@@ -429,7 +429,7 @@ describe('ClothController DOM integration', () => {
   })
 
   it('resets pointer state and geometry before activating a cloth body', async () => {
-    const webgl = new ClothController()
+    const webgl = new SimulationRuntime()
     await webgl.init()
 
     window.dispatchEvent(new PointerEvent('pointermove', { clientX: 200, clientY: 200 }))
@@ -452,7 +452,7 @@ describe('ClothController DOM integration', () => {
   })
 
   it('applies configured pin mode and gravity to newly activated cloth', async () => {
-    const webgl = new ClothController()
+    const webgl = new SimulationRuntime()
     await webgl.init()
 
     ;(webgl as any).setPinMode('corners')
@@ -471,7 +471,7 @@ describe('ClothController DOM integration', () => {
   })
 
   it('rebuilds meshes when tessellation segments change', async () => {
-    const webgl = new ClothController()
+    const webgl = new SimulationRuntime()
     await webgl.init()
 
     poolMocks.prepare.mockClear()
@@ -487,7 +487,7 @@ describe('ClothController DOM integration', () => {
   })
 
   it('updates constraint iterations for active cloth bodies', async () => {
-    const webgl = new ClothController()
+    const webgl = new SimulationRuntime()
     await webgl.init()
 
     const button = document.getElementById('cta') as HTMLElement
@@ -504,7 +504,7 @@ describe('ClothController DOM integration', () => {
   })
 
   it('toggles pointer collider visualization in the scene', async () => {
-    const webgl = new ClothController()
+    const webgl = new SimulationRuntime()
     await webgl.init()
 
     domMocks.sceneAdd.mockClear()

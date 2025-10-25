@@ -178,9 +178,9 @@ class ClothBodyAdapter implements SleepableBody {
 }
 
 /**
- * High-level controller that bridges DOM elements into the WebGL cloth simulation and camera system.
+ * High-level runtime that coordinates DOM/WebGL integration, cloth simulation, and camera orchestration.
  */
-export class ClothController {
+export class SimulationRuntime {
   private domToWebGL: DOMToWebGL | null = null
   private collisionSystem = new CollisionSystem()
   private items = new Map<HTMLElement, ClothItem>()
