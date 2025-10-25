@@ -87,9 +87,10 @@ Web design feels clunky not because the medium is doomed, but because we’ve le
 - 2025-10-12: Added keyboard-triggered debug palette with wireframe/real-time/gravity/impulse controls and manual stepping.
 - 2025-10-12: Integrated shadcn/ui (card, dialog, slider, switch) and rebuilt debug palette with real-time controls.
 
-- 2025-10-12: Swapped PortfolioWebGL to fixed-step substepping, added solver/tessellation/pin debug controls with pointer collider viz, and warmed cloth activation via geometry resets.
+- 2025-10-12: Swapped the cloth controller to fixed-step substepping, added solver/tessellation/pin debug controls with pointer collider viz, and warmed cloth activation via geometry resets.
 - 2025-10-25: Added camera spring specs for dt spike clamping, zero-stiffness safeguards, and snapshot pooling to anchor the stabilization pass.
 - 2025-10-25: Refactored camera spring/system to keep pooled snapshots and introduced shared engine system/world types so Vitest resolves imports cleanly.
 - 2025-10-25: Clamped camera spring timesteps, surfaced stiffness/damping sliders in the debug palette, and documented the read-only snapshot contract with pooled copies exercised across Vitest.
 - 2025-10-25: Updated README to call out the new camera tuning controls and reinforced comment coverage so the snapshot immutability contract is explicit for integrators.
-- 2025-10-25: Layered full JSDoc (TS-friendly) across camera modules, PortfolioWebGL, and the React debug palette to codify contracts and satisfy the “document everything” stabilization brief.
+- 2025-10-25: Layered full JSDoc (TS-friendly) across camera modules, the cloth controller, and the React debug palette to codify contracts and satisfy the “document everything” stabilization brief.
+- 2025-10-25: Renamed `PortfolioWebGL` to `ClothController` for clarity and updated tests/docs so future tasks don’t inherit the vague naming.

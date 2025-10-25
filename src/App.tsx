@@ -28,13 +28,13 @@ import {
 import { ChevronDown } from "lucide-react"
 
 import {
-  PortfolioWebGL,
+  ClothController,
   type PinMode,
   DEFAULT_CAMERA_STIFFNESS,
   DEFAULT_CAMERA_DAMPING,
   DEFAULT_CAMERA_ZOOM_STIFFNESS,
   DEFAULT_CAMERA_ZOOM_DAMPING,
-} from "./lib/portfolioWebGL"
+} from "./lib/clothController"
 
 /**
  * Renders keyboard shortcut glyphs within a bordered capsule.
@@ -359,7 +359,7 @@ function DebugPalette({
  * @returns {JSX.Element}
  */
 function Demo() {
-  const controllerRef = useRef<PortfolioWebGL | null>(null)
+  const controllerRef = useRef<ClothController | null>(null)
   const realTimeRef = useRef(true)
   const [debugOpen, setDebugOpen] = useState(false)
   const [wireframe, setWireframe] = useState(false)
@@ -381,7 +381,7 @@ function Demo() {
     const prefersReducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)")
     if (prefersReducedMotion.matches) return
 
-    const controller = new PortfolioWebGL()
+    const controller = new ClothController()
     controllerRef.current = controller
     void controller.init()
 
