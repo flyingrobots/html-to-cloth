@@ -247,45 +247,51 @@ export class ClothPhysics {
     if (deltaSeconds <= 0) return
     if (this.sleeping) return
 
-    const acceleration = this.accelVector
-      .copy(this.gravity)
-      .multiplyScalar(deltaSeconds * deltaSeconds)
+    const steps = Math.max(1, this.storedSubsteps)
+    const stepDelta = deltaSeconds / steps
+    const stepDeltaSq = stepDelta * stepDelta
 
     let maxDeltaSq = 0
 
-    for (const particle of this.particles) {
-      if (particle.pinned) continue
+    for (let step = 0; step < steps; step++) {
+      const acceleration = this.accelVector
+        .copy(this.gravity)
+        .multiplyScalar(stepDeltaSq)
 
-      const current = particle.position
-      const previous = particle.previous
+      for (const particle of this.particles) {
+        if (particle.pinned) continue
 
-      const oldX = current.x
-      const oldY = current.y
-      const oldZ = current.z
+        const current = particle.position
+        const previous = particle.previous
 
-      const velocityX = (current.x - previous.x) * this.damping
-      const velocityY = (current.y - previous.y) * this.damping
-      const velocityZ = (current.z - previous.z) * this.damping
+        const oldX = current.x
+        const oldY = current.y
+        const oldZ = current.z
 
-      const nextX = current.x + velocityX + acceleration.x
-      const nextY = current.y + velocityY + acceleration.y
-      const nextZ = current.z + velocityZ + acceleration.z
+        const velocityX = (current.x - previous.x) * this.damping
+        const velocityY = (current.y - previous.y) * this.damping
+        const velocityZ = (current.z - previous.z) * this.damping
 
-      particle.previous.set(current.x, current.y, current.z)
-      current.set(nextX, nextY, nextZ)
+        const nextX = current.x + velocityX + acceleration.x
+        const nextY = current.y + velocityY + acceleration.y
+        const nextZ = current.z + velocityZ + acceleration.z
 
-      const deltaX = nextX - oldX
-      const deltaY = nextY - oldY
-      const deltaZ = nextZ - oldZ
-      const deltaSq = deltaX * deltaX + deltaY * deltaY + deltaZ * deltaZ
-      if (deltaSq > maxDeltaSq) {
-        maxDeltaSq = deltaSq
+        particle.previous.set(current.x, current.y, current.z)
+        current.set(nextX, nextY, nextZ)
+
+        const deltaX = nextX - oldX
+        const deltaY = nextY - oldY
+        const deltaZ = nextZ - oldZ
+        const deltaSq = deltaX * deltaX + deltaY * deltaY + deltaZ * deltaZ
+        if (deltaSq > maxDeltaSq) {
+          maxDeltaSq = deltaSq
+        }
       }
-    }
 
-    for (let i = 0; i < this.constraintIterations; i++) {
-      for (const constraint of this.constraints) {
-        this.satisfyConstraint(constraint)
+      for (let i = 0; i < this.constraintIterations; i++) {
+        for (const constraint of this.constraints) {
+          this.satisfyConstraint(constraint)
+        }
       }
     }
 
