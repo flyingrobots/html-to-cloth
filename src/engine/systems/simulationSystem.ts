@@ -41,6 +41,9 @@ export class SimulationSystem implements EngineSystem<EngineWorld> {
   private snapshot: SimWorldSnapshot = { bodies: [] }
 
   constructor(options: SimulationSystemOptions) {
+    if (!options?.simWorld) {
+      throw new Error('SimulationSystem requires a valid simWorld instance')
+    }
     this.simWorld = options.simWorld
   }
 
