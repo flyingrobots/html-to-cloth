@@ -57,8 +57,8 @@ export class SimulationRunner {
   }
 
   /**
-   * Enables or disables real-time ticking. When disabled the accumulator is preserved so
-   * that calling {@link setRealTime} with `true` immediately continues from the buffered time.
+   * Enables or disables real-time ticking. Pausing discards accumulated time; resuming relies on
+   * fresh updates rather than draining a buffered backlog.
    */
   setRealTime(enabled: boolean) {
     this.realTime = enabled
