@@ -49,5 +49,41 @@ describe('SimulationRunner', () => {
     runner.update(1 / 30)
 
     expect(system.fixedUpdate).not.toHaveBeenCalled()
+    expect(world.isPaused()).toBe(true)
+  })
+
+  it('does not advance immediately when resuming real-time', () => {
+    const world = new EngineWorld()
+    const system = createSystem()
+    world.addSystem(system, { id: 'test' })
+
+    const runner = new SimulationRunner({ engine: world, fixedDelta: 1 / 60 })
+
+    runner.update(1 / 60)
+    system.fixedUpdate.mockClear()
+
+    runner.setRealTime(false)
+    runner.update(1 / 60)
+    expect(system.fixedUpdate).not.toHaveBeenCalled()
+
+    runner.setRealTime(true)
+    expect(system.fixedUpdate).not.toHaveBeenCalled()
+
+    runner.update(1 / 60)
+    expect(system.fixedUpdate).toHaveBeenCalledTimes(1)
+    expect(world.isPaused()).toBe(false)
+  })
+
+  it('allows manual stepping while paused', () => {
+    const world = new EngineWorld()
+    const system = createSystem()
+    world.addSystem(system, { id: 'test' })
+
+    const runner = new SimulationRunner({ engine: world, fixedDelta: 1 / 60 })
+    runner.setRealTime(false)
+
+    runner.stepOnce()
+
+    expect(system.fixedUpdate).toHaveBeenCalled()
   })
 })

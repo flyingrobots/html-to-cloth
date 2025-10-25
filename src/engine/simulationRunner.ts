@@ -61,11 +61,10 @@ export class SimulationRunner {
    */
   setRealTime(enabled: boolean) {
     this.realTime = enabled
+    this.engine.setPaused(!enabled)
+    this.loop.setPaused(!enabled)
     if (enabled) {
       this.loop.reset()
-      this.loop.setPaused(false)
-    } else {
-      this.loop.setPaused(true)
     }
   }
 
@@ -82,8 +81,15 @@ export class SimulationRunner {
   private executeStep(dt: number) {
     const iterations = Math.max(1, this.substeps)
     const stepSize = dt / iterations
+    const wasPaused = this.engine.isPaused()
+    if (wasPaused) {
+      this.engine.setPaused(false)
+    }
     for (let i = 0; i < iterations; i++) {
       this.engine.step(stepSize)
+    }
+    if (wasPaused) {
+      this.engine.setPaused(true)
     }
   }
 }

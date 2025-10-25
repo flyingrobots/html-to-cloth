@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest'
 import * as THREE from 'three'
 
 import { SimulationSystem } from '../systems/simulationSystem'
+import { EngineWorld } from '../world'
 
 const createSimWorld = () => ({
   addBody: vi.fn(),
@@ -123,5 +124,21 @@ describe('SimulationSystem', () => {
     system.removeBody(body.id)
 
     expect(simWorld.removeBody).toHaveBeenCalledWith(body.id)
+  })
+
+  it('stores the engine world reference on attach', () => {
+    const simWorld = createSimWorld()
+    const system = new SimulationSystem({ simWorld })
+    const world = new EngineWorld()
+
+    system.onAttach?.(world)
+
+    expect((system as any).world).toBe(world)
+  })
+
+  it('is not allowed while paused by default', () => {
+    const system = new SimulationSystem({ simWorld: createSimWorld() })
+
+    expect(system.allowWhilePaused).toBe(false)
   })
 })

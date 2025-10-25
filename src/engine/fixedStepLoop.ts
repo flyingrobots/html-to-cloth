@@ -29,9 +29,6 @@ export class FixedStepLoop {
 
   setPaused(value: boolean) {
     this.paused = value
-    if (!value) {
-      this.consumeAccumulator()
-    }
   }
 
   reset() {

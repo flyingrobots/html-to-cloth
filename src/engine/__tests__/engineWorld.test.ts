@@ -7,20 +7,18 @@ const createSystem = (
   name: string,
   overrides: Partial<EngineSystem & { fixedUpdate: (dt: number) => void }> = {}
 ) => {
-  const { fixedUpdate: overrideFixedUpdate, ...rest } = overrides
-  const calls: Array<{ name: string; dt: number }> = []
-
-  const fixedUpdate = vi.fn((dt: number) => {
-    calls.push({ name, dt })
-    overrideFixedUpdate?.(dt)
-  })
+  const { fixedUpdate, ...rest } = overrides
+  const mock = fixedUpdate
+    ? vi.fn((dt: number) => {
+        fixedUpdate(dt)
+      })
+    : vi.fn()
 
   return {
     id: name,
-    calls,
+    fixedUpdate: mock,
     ...rest,
-    fixedUpdate,
-  } as EngineSystem & { calls: Array<{ name: string; dt: number }> }
+  } as EngineSystem
 }
 
 describe('EngineWorld', () => {

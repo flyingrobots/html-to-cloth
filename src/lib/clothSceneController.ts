@@ -342,7 +342,7 @@ export class ClothSceneController {
     this.domToWebGL = null
     this.pool = null
     this.simulationSystem.clear()
-    this.simulationRunner.setRealTime(false)
+    this.setRealTime(false)
     this.entities.clear()
     this.elementIds.clear()
   }
@@ -570,6 +570,7 @@ export class ClothSceneController {
   /** Toggles real-time simulation updates. The controller still honours manual steps while paused. */
   setRealTime(enabled: boolean) {
     this.debug.realTime = enabled
+    this.simulationRunner.getEngine().setPaused(!enabled)
     this.simulationRunner.setRealTime(enabled)
     if (enabled) {
       this.clock.getDelta()
