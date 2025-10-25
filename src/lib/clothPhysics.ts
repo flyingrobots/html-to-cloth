@@ -102,14 +102,16 @@ export class ClothPhysics {
     }
   }
 
-  getBoundingSphere() {
-    const sphere = this.mesh.geometry.boundingSphere
-    if (sphere) {
-      return sphere.clone()
+  getBoundingSphere(): { center: THREE.Vector2; radius: number } {
+    const geometry = this.mesh.geometry
+    if (!geometry.boundingSphere) {
+      geometry.computeBoundingSphere()
     }
-    const fallback = new THREE.Sphere()
-    this.mesh.geometry.computeBoundingSphere()
-    return (this.mesh.geometry.boundingSphere ?? fallback).clone()
+    const source = geometry.boundingSphere ?? new THREE.Sphere(new THREE.Vector3(), 0)
+    return {
+      center: new THREE.Vector2(source.center.x, source.center.y),
+      radius: source.radius,
+    }
   }
 
   applyPointForce(
