@@ -79,12 +79,11 @@ Web design feels clunky not because the medium is doomed, but because we’ve le
 
 
 - 2025-10-11: Added DOM integration specs covering capture/hide flow, resize refresh, and scheduler wake path.
-- 2025-10-12: README switched to npm commands for install/build/test so instructions match package-lock.
-- 2025-10-12: Added DOMToWebGL canonical mapping specs and cloth lifecycle regression tests.
+- 2025-10-12: README switched to npm commands for install/build/test so instructions match package-lock.- 2025-10-12: Added DOMToWebGL canonical mapping specs and cloth lifecycle regression tests.
 - 2025-10-12: Tuned pointer impulses via dataset overrides and canonical defaults; added specs verifying behaviour.
 - 2025-10-12: Simplified demo layout to h1+button, removed canvas double-scaling, and tuned tests to use minimal DOM.
-- 2025-10-12: Scaled pointer impulses by mesh size and waited for fonts before capture to stabilize reveal.
 - 2025-10-12: Added keyboard-triggered debug palette with wireframe/real-time/gravity/impulse controls and manual stepping.
 - 2025-10-12: Integrated shadcn/ui (card, dialog, slider, switch) and rebuilt debug palette with real-time controls.
 
 - 2025-10-12: Swapped ClothSceneController to fixed-step substepping, added solver/tessellation/pin debug controls with pointer collider viz, and warmed cloth activation via geometry resets.
+- 2025-10-25: Hardened the engine layer—cloth now reports 2D bounding spheres, fixed-step loops ignore paused accumulation, the runner clamps substeps, and new specs guard snapshot immutability and entity edge cases.

@@ -47,4 +47,42 @@ describe('Entity + EntityManager', () => {
     expect(component.detached).toBe(true)
     expect(manager.getEntity('cloth-1')).toBeUndefined()
   })
+
+  it('destroys entities by id through the manager', () => {
+    const manager = new EntityManager()
+    const entity = manager.createEntity({ id: 'cloth-2' })
+    const component = entity.addComponent(new MockComponent())
+
+    manager.destroyEntity('cloth-2')
+
+    expect(component.detached).toBe(true)
+    expect(manager.getEntity('cloth-2')).toBeUndefined()
+  })
+
+  it('throws when adding a component to a destroyed entity', () => {
+    const manager = new EntityManager()
+    const entity = manager.createEntity()
+    entity.addComponent(new MockComponent())
+    entity.destroy()
+
+    expect(() => entity.addComponent(new MockComponent())).toThrow('Cannot add component to destroyed entity')
+  })
+
+  it('prevents duplicate component types', () => {
+    const manager = new EntityManager()
+    const entity = manager.createEntity()
+
+    entity.addComponent(new MockComponent())
+
+    expect(() => entity.addComponent(new MockComponent())).toThrow('Component already attached')
+  })
+
+  it('handles lookups for missing components gracefully', () => {
+    const manager = new EntityManager()
+    const entity = manager.createEntity()
+
+    expect(entity.getComponent(MockComponent)).toBeUndefined()
+    expect(entity.hasComponent(MockComponent)).toBe(false)
+    expect(entity.removeComponent(MockComponent)).toBeUndefined()
+  })
 })

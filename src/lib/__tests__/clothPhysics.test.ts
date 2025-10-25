@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import * as THREE from 'three'
 import { ClothPhysics } from '../clothPhysics'
 import { GravityController } from '../gravityController'
@@ -138,6 +138,37 @@ describe('ClothPhysics', () => {
     cloth.update(0.016)
     const after = cloth.getVertexPositions()[0]
     expect(after.x).not.toBeCloseTo(before.x)
+  })
+
+  it('returns a 2D bounding sphere compatible with SimWorld', () => {
+    const { cloth } = makeCloth(3, 3)
+
+    const sphere = cloth.getBoundingSphere()
+
+    expect(sphere).toEqual(
+      expect.objectContaining({
+        center: expect.any(THREE.Vector2),
+        radius: expect.any(Number),
+      })
+    )
+    expect(sphere.center).toBeInstanceOf(THREE.Vector2)
+    expect(Number.isFinite(sphere.radius)).toBe(true)
+    expect(sphere.radius).toBeGreaterThan(0)
+  })
+
+  it('performs constraint solves for each configured substep', () => {
+    const { cloth } = makeCloth(3, 3)
+    cloth.setSubsteps(3)
+    cloth.setConstraintIterations(1)
+
+    const satisfySpy = vi.spyOn(cloth as any, 'satisfyConstraint')
+
+    cloth.update(0.016)
+
+    const constraintCount = (cloth as any).constraints.length
+    expect(satisfySpy).toHaveBeenCalledTimes(constraintCount * 3)
+
+    satisfySpy.mockRestore()
   })
 
   it('wakes when a point enters its bounding sphere', () => {

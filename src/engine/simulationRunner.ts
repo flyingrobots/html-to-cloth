@@ -2,6 +2,7 @@ import { FixedStepLoop } from './fixedStepLoop'
 import { EngineWorld } from './world'
 
 const DEFAULT_FIXED_DELTA = 1 / 60
+const MAX_SUBSTEPS = 16
 
 /**
  * Configuration options for {@link SimulationRunner}.
@@ -56,7 +57,7 @@ export class SimulationRunner {
   }
 
   /**
-   * Enables or disables real-time ticking. Pausing resets the accumulator; resuming requires a
+   * Enables or disables real-time ticking. Pausing discards accumulated time; resuming requires a
    * subsequent {@link update} call to continue the simulation.
    */
   setRealTime(enabled: boolean) {
@@ -68,7 +69,7 @@ export class SimulationRunner {
   /** Sets the number of sub steps to execute inside each fixed tick. */
   setSubsteps(substeps: number) {
     if (!Number.isFinite(substeps)) return
-    const clamped = Math.max(1, Math.min(16, Math.round(substeps)))
+    const clamped = Math.max(1, Math.min(MAX_SUBSTEPS, Math.round(substeps)))
     this.substeps = clamped
   }
 
