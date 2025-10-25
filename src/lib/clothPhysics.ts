@@ -1,9 +1,13 @@
 import * as THREE from 'three'
 
+import { GravityController } from './gravityController'
+import type { SimWarmStartConfig } from './simWorld'
+
 export type ClothOptions = {
   damping?: number
   constraintIterations?: number
   gravity?: THREE.Vector3
+  gravityController?: GravityController
 }
 
 type Particle = {
@@ -19,6 +23,10 @@ type Constraint = {
   restLength: number
 }
 
+/**
+ * Verlet-based cloth simulation tuned for the DOM capture demo. Handles constraint relaxation,
+ * damping, pinning, impulses, and exposes helpers for warm-starting via {@link GravityController}.
+ */
 export class ClothPhysics {
   public mesh: THREE.Mesh<THREE.PlaneGeometry, THREE.MeshBasicMaterial>
 
@@ -27,7 +35,6 @@ export class ClothPhysics {
   private tmpVector = new THREE.Vector3()
   private accelVector = new THREE.Vector3()
   private tmpVector2 = new THREE.Vector2()
-  private gravity = new THREE.Vector3(0, -9.81, 0)
   private damping = 0.98
   private constraintIterations = 3
   private widthSegments: number
@@ -37,6 +44,8 @@ export class ClothPhysics {
   private sleepVelocityThresholdSq = 1e-6
   private sleepFrameThreshold = 60
   private storedSubsteps = 1
+  private gravityController: GravityController
+  private gravityBuffer = new THREE.Vector3()
 
   constructor(mesh: THREE.Mesh<THREE.PlaneGeometry, THREE.MeshBasicMaterial>, options?: ClothOptions) {
     this.mesh = mesh
@@ -45,7 +54,8 @@ export class ClothPhysics {
     this.widthSegments = (geom.parameters.widthSegments ?? 1) + 1
     this.heightSegments = (geom.parameters.heightSegments ?? 1) + 1
 
-    if (options?.gravity) this.gravity.copy(options.gravity)
+    this.gravityController = options?.gravityController ?? new GravityController(options?.gravity)
+
     if (options?.damping) this.damping = options.damping
     if (options?.constraintIterations) this.constraintIterations = options.constraintIterations
 
@@ -54,7 +64,7 @@ export class ClothPhysics {
   }
 
   setGravity(value: THREE.Vector3) {
-    this.gravity.copy(value)
+    this.gravityController.setBase(value)
   }
 
   setConstraintIterations(iterations: number) {
@@ -67,14 +77,20 @@ export class ClothPhysics {
     this.storedSubsteps = Math.max(1, Math.round(substeps))
   }
 
-  clearPins() {
-    for (const particle of this.particles) {
-      particle.pinned = false
+  /** Configures the velocity/frames thresholds used to transition into the sleeping state. */
+  setSleepThresholds(velocity: number, frames: number) {
+    if (Number.isFinite(velocity) && velocity > 0) {
+      this.sleepVelocityThresholdSq = velocity * velocity
+    }
+    if (Number.isFinite(frames) && frames > 0) {
+      this.sleepFrameThreshold = Math.round(frames)
     }
   }
 
   releaseAllPins() {
-    this.clearPins()
+    for (const particle of this.particles) {
+      particle.pinned = false
+    }
   }
 
   getVertexPositions() {
@@ -100,15 +116,14 @@ export class ClothPhysics {
     }
   }
 
-  getBoundingSphere(): { center: THREE.Vector2; radius: number } {
-    const geometry = this.mesh.geometry
-    if (!geometry.boundingSphere) {
-      geometry.computeBoundingSphere()
+  getBoundingSphere() {
+    if (!this.mesh.geometry.boundingSphere) {
+      this.mesh.geometry.computeBoundingSphere()
     }
-    const source = geometry.boundingSphere ?? new THREE.Sphere(new THREE.Vector3(), 0)
+    const sphere = this.mesh.geometry.boundingSphere!
     return {
-      center: new THREE.Vector2(source.center.x, source.center.y),
-      radius: source.radius,
+      center: new THREE.Vector2(sphere.center.x, sphere.center.y),
+      radius: sphere.radius,
     }
   }
 
@@ -246,15 +261,13 @@ export class ClothPhysics {
     if (this.sleeping) return
 
     const steps = Math.max(1, this.storedSubsteps)
-    const stepDelta = deltaSeconds / steps
-    const stepDeltaSq = stepDelta * stepDelta
+    const stepSize = deltaSeconds / steps
+    const gravity = this.gravityController.getCurrent(this.gravityBuffer)
 
     let maxDeltaSq = 0
 
     for (let step = 0; step < steps; step++) {
-      const acceleration = this.accelVector
-        .copy(this.gravity)
-        .multiplyScalar(stepDeltaSq)
+      const acceleration = this.accelVector.copy(gravity).multiplyScalar(stepSize * stepSize)
 
       for (const particle of this.particles) {
         if (particle.pinned) continue
@@ -316,6 +329,20 @@ export class ClothPhysics {
     }
 
     this.syncGeometry()
+  }
+
+  warmStart(config: SimWarmStartConfig) {
+    const iterations = Math.max(0, Math.round(config.constraintIterations * config.passes))
+    if (iterations === 0) return
+    this.wake()
+    const zeroGravity = new THREE.Vector3(0, 0, 0)
+    this.gravityController.runWithOverride(zeroGravity, () => {
+      this.relaxConstraints(iterations)
+    })
+  }
+
+  getGravity() {
+    return this.gravityController.getBase(new THREE.Vector3())
   }
 
   isOffscreen(boundaryY: number) {

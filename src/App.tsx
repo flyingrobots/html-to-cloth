@@ -27,21 +27,8 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { ChevronDown } from "lucide-react"
 
-import {
-  SimulationRuntime,
-  type PinMode,
-  DEFAULT_CAMERA_STIFFNESS,
-  DEFAULT_CAMERA_DAMPING,
-  DEFAULT_CAMERA_ZOOM_STIFFNESS,
-  DEFAULT_CAMERA_ZOOM_DAMPING,
-} from "./lib/simulationRuntime"
+import { ClothSceneController, type PinMode } from "./lib/clothSceneController"
 
-/**
- * Renders keyboard shortcut glyphs within a bordered capsule.
- *
- * @param {{ children: React.ReactNode }} props
- * @returns {JSX.Element}
- */
 function Kbd({ children }: { children: React.ReactNode }) {
   return (
     <span className="inline-flex items-center justify-center rounded-md border bg-muted px-2 py-1 font-mono text-xs font-semibold text-muted-foreground">
@@ -50,43 +37,6 @@ function Kbd({ children }: { children: React.ReactNode }) {
   )
 }
 
-/**
- * Debug palette dialog that exposes simulation and camera tuning controls.
- *
- * @param {{
- *   open: boolean;
- *   onOpenChange: (open: boolean) => void;
- *   wireframe: boolean;
- *   onWireframeChange: (value: boolean) => void;
- *   realTime: boolean;
- *   onRealTimeChange: (value: boolean) => void;
- *   gravity: number;
- *   onGravityChange: (value: number) => void;
- *   impulseMultiplier: number;
- *   onImpulseMultiplierChange: (value: number) => void;
- *   tessellationSegments: number;
- *   onTessellationChange: (value: number) => void;
- *   constraintIterations: number;
- *   onConstraintIterationsChange: (value: number) => void;
- *   substeps: number;
- *   onSubstepsChange: (value: number) => void;
- *   pointerColliderVisible: boolean;
- *   onPointerColliderVisibleChange: (value: boolean) => void;
- *   pinMode: PinMode;
- *   onPinModeChange: (value: PinMode) => void;
- *   cameraStiffness: number;
- *   onCameraStiffnessChange: (value: number) => void;
- *   cameraDamping: number;
- *   onCameraDampingChange: (value: number) => void;
- *   cameraZoomStiffness: number;
- *   onCameraZoomStiffnessChange: (value: number) => void;
- *   cameraZoomDamping: number;
- *   onCameraZoomDampingChange: (value: number) => void;
- *   onStep: () => void;
- *   onReset: () => void;
- * }} props
- * @returns {JSX.Element}
- */
 function DebugPalette({
   open,
   onOpenChange,
@@ -108,14 +58,6 @@ function DebugPalette({
   onPointerColliderVisibleChange,
   pinMode,
   onPinModeChange,
-  cameraStiffness,
-  onCameraStiffnessChange,
-  cameraDamping,
-  onCameraDampingChange,
-  cameraZoomStiffness,
-  onCameraZoomStiffnessChange,
-  cameraZoomDamping,
-  onCameraZoomDampingChange,
   onStep,
   onReset,
 }: {
@@ -139,14 +81,6 @@ function DebugPalette({
   onPointerColliderVisibleChange: (value: boolean) => void
   pinMode: PinMode
   onPinModeChange: (value: PinMode) => void
-  cameraStiffness: number
-  onCameraStiffnessChange: (value: number) => void
-  cameraDamping: number
-  onCameraDampingChange: (value: number) => void
-  cameraZoomStiffness: number
-  onCameraZoomStiffnessChange: (value: number) => void
-  cameraZoomDamping: number
-  onCameraZoomDampingChange: (value: number) => void
   onStep: () => void
   onReset: () => void
 }) {
@@ -256,60 +190,6 @@ function DebugPalette({
             </div>
             <div className="space-y-2">
               <div className="flex items-center justify-between text-sm font-medium">
-                <span>Camera Stiffness</span>
-                <span className="text-muted-foreground">{cameraStiffness.toFixed(0)}</span>
-              </div>
-              <Slider
-                value={[cameraStiffness]}
-                min={0}
-                max={400}
-                step={5}
-                onValueChange={(value) => onCameraStiffnessChange(Math.round(value[0] ?? cameraStiffness))}
-              />
-            </div>
-            <div className="space-y-2">
-              <div className="flex items-center justify-between text-sm font-medium">
-                <span>Camera Damping</span>
-                <span className="text-muted-foreground">{cameraDamping.toFixed(1)}</span>
-              </div>
-              <Slider
-                value={[cameraDamping]}
-                min={0}
-                max={60}
-                step={0.5}
-                onValueChange={(value) => onCameraDampingChange(value[0] ?? cameraDamping)}
-              />
-            </div>
-            <div className="space-y-2">
-              <div className="flex items-center justify-between text-sm font-medium">
-                <span>Zoom Stiffness</span>
-                <span className="text-muted-foreground">{cameraZoomStiffness.toFixed(0)}</span>
-              </div>
-              <Slider
-                value={[cameraZoomStiffness]}
-                min={0}
-                max={400}
-                step={5}
-                onValueChange={(value) =>
-                  onCameraZoomStiffnessChange(Math.round(value[0] ?? cameraZoomStiffness))
-                }
-              />
-            </div>
-            <div className="space-y-2">
-              <div className="flex items-center justify-between text-sm font-medium">
-                <span>Zoom Damping</span>
-                <span className="text-muted-foreground">{cameraZoomDamping.toFixed(1)}</span>
-              </div>
-              <Slider
-                value={[cameraZoomDamping]}
-                min={0}
-                max={60}
-                step={0.5}
-                onValueChange={(value) => onCameraZoomDampingChange(value[0] ?? cameraZoomDamping)}
-              />
-            </div>
-            <div className="space-y-2">
-              <div className="flex items-center justify-between text-sm font-medium">
                 <span>Pin Mode</span>
                 <span className="text-muted-foreground">{pinModeLabels[pinMode]}</span>
               </div>
@@ -353,13 +233,8 @@ function DebugPalette({
   )
 }
 
-/**
- * Root interactive demo component that coordinates the WebGL controller and debug palette.
- *
- * @returns {JSX.Element}
- */
 function Demo() {
-  const controllerRef = useRef<SimulationRuntime | null>(null)
+  const controllerRef = useRef<ClothSceneController | null>(null)
   const realTimeRef = useRef(true)
   const [debugOpen, setDebugOpen] = useState(false)
   const [wireframe, setWireframe] = useState(false)
@@ -371,17 +246,13 @@ function Demo() {
   const [substeps, setSubsteps] = useState(1)
   const [pointerColliderVisible, setPointerColliderVisible] = useState(false)
   const [pinMode, setPinMode] = useState<PinMode>("top")
-  const [cameraStiffness, setCameraStiffness] = useState(DEFAULT_CAMERA_STIFFNESS)
-  const [cameraDamping, setCameraDamping] = useState(DEFAULT_CAMERA_DAMPING)
-  const [cameraZoomStiffness, setCameraZoomStiffness] = useState(DEFAULT_CAMERA_ZOOM_STIFFNESS)
-  const [cameraZoomDamping, setCameraZoomDamping] = useState(DEFAULT_CAMERA_ZOOM_DAMPING)
 
   useEffect(() => {
     if (typeof window === "undefined") return
     const prefersReducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)")
     if (prefersReducedMotion.matches) return
 
-    const controller = new SimulationRuntime()
+    const controller = new ClothSceneController()
     controllerRef.current = controller
     void controller.init()
 
@@ -444,22 +315,6 @@ function Demo() {
     controllerRef.current?.setPinMode(pinMode)
   }, [pinMode])
 
-  useEffect(() => {
-    controllerRef.current?.setCameraStiffness(cameraStiffness)
-  }, [cameraStiffness])
-
-  useEffect(() => {
-    controllerRef.current?.setCameraDamping(cameraDamping)
-  }, [cameraDamping])
-
-  useEffect(() => {
-    controllerRef.current?.setCameraZoomStiffness(cameraZoomStiffness)
-  }, [cameraZoomStiffness])
-
-  useEffect(() => {
-    controllerRef.current?.setCameraZoomDamping(cameraZoomDamping)
-  }, [cameraZoomDamping])
-
   const modifierKey =
     typeof navigator !== "undefined" && navigator?.platform?.toLowerCase().includes("mac") ? "⌘" : "Ctrl"
 
@@ -502,14 +357,6 @@ function Demo() {
         onPointerColliderVisibleChange={setPointerColliderVisible}
         pinMode={pinMode}
         onPinModeChange={setPinMode}
-        cameraStiffness={cameraStiffness}
-        onCameraStiffnessChange={setCameraStiffness}
-        cameraDamping={cameraDamping}
-        onCameraDampingChange={setCameraDamping}
-        cameraZoomStiffness={cameraZoomStiffness}
-        onCameraZoomStiffnessChange={setCameraZoomStiffness}
-        cameraZoomDamping={cameraZoomDamping}
-        onCameraZoomDampingChange={setCameraZoomDamping}
         onStep={() => controllerRef.current?.stepOnce()}
         onReset={() => {
           setWireframe(false)
@@ -521,21 +368,12 @@ function Demo() {
           setSubsteps(1)
           setPointerColliderVisible(false)
           setPinMode("top")
-          setCameraStiffness(DEFAULT_CAMERA_STIFFNESS)
-          setCameraDamping(DEFAULT_CAMERA_DAMPING)
-          setCameraZoomStiffness(DEFAULT_CAMERA_ZOOM_STIFFNESS)
-          setCameraZoomDamping(DEFAULT_CAMERA_ZOOM_DAMPING)
         }}
       />
     </>
   )
 }
 
-/**
- * Application entry that wires the theme provider around the demo.
- *
- * @returns {JSX.Element}
- */
 function App() {
   return (
     <ThemeProvider defaultTheme="dark" storageKey="vite-ui-theme">

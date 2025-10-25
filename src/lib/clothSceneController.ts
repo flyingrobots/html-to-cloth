@@ -1,23 +1,21 @@
 import * as THREE from 'three'
-import { CameraSystem } from '../engine/camera'
 import { DOMToWebGL } from './domToWebGL'
 import type { DOMMeshRecord } from './domToWebGL'
 import { ClothPhysics } from './clothPhysics'
 import { CollisionSystem } from './collisionSystem'
 import { CANONICAL_HEIGHT_METERS } from './units'
 import { ElementPool } from './elementPool'
-import { SimulationScheduler, type SleepableBody } from './simulationScheduler'
+import { EngineWorld } from '../engine/world'
+import { SimulationSystem } from '../engine/systems/simulationSystem'
+import { SimulationRunner } from '../engine/simulationRunner'
+import { EntityManager } from '../engine/entity/entityManager'
+import type { Entity } from '../engine/entity/entity'
+import type { Component } from '../engine/entity/component'
+import { SimWorld, type SimBody, type SimWarmStartConfig, type SimSleepConfig } from './simWorld'
 
-const FIXED_DT = 1 / 60
-const MAX_ACCUMULATED_TIME = FIXED_DT * 5
 const WARM_START_PASSES = 2
 
 export type PinMode = 'top' | 'bottom' | 'corners' | 'none'
-
-export const DEFAULT_CAMERA_STIFFNESS = 120
-export const DEFAULT_CAMERA_DAMPING = 20
-export const DEFAULT_CAMERA_ZOOM_STIFFNESS = 120
-export const DEFAULT_CAMERA_ZOOM_DAMPING = 20
 
 type DebugSettings = {
   realTime: boolean
@@ -29,10 +27,6 @@ type DebugSettings = {
   tessellationSegments: number
   pointerCollider: boolean
   pinMode: PinMode
-  cameraStiffness: number
-  cameraDamping: number
-  cameraZoomStiffness: number
-  cameraZoomDamping: number
 }
 
 type PointerState = {
@@ -51,29 +45,23 @@ type ClothItem = {
   isActive: boolean
   record?: DOMMeshRecord
   adapter?: ClothBodyAdapter
+  entity?: Entity
+  releasePinsTimeout?: number
 }
 
 /**
- * Adapter layer that exposes cloth instances through the scheduler-facing {@link SleepableBody} contract.
+ * Adapts DOM-backed cloth meshes into the simulation layer while implementing the
+ * Component contract so they can be tracked via {@link EntityManager}.
  */
-class ClothBodyAdapter implements SleepableBody {
+class ClothBodyAdapter implements SimBody, Component {
   public readonly id: string
   private item: ClothItem
   private pointer: PointerState
   private collisionSystem: CollisionSystem
-  private handleOffscreen: () => void
+  private offscreenCallback: () => void
   private record: DOMMeshRecord
   private debug: Pick<DebugSettings, 'impulseMultiplier'>
 
-  /**
-   * @param {string} id
-   * @param {ClothItem} item
-   * @param {PointerState} pointer
-   * @param {CollisionSystem} collisionSystem
-   * @param {() => void} handleOffscreen
-   * @param {DOMMeshRecord} record
-   * @param {Pick<DebugSettings, 'impulseMultiplier'>} debug
-   */
   constructor(
     id: string,
     item: ClothItem,
@@ -87,17 +75,11 @@ class ClothBodyAdapter implements SleepableBody {
     this.item = item
     this.pointer = pointer
     this.collisionSystem = collisionSystem
-    this.handleOffscreen = handleOffscreen
+    this.offscreenCallback = handleOffscreen
     this.record = record
     this.debug = debug
   }
 
-  /**
-   * Updates the wrapped cloth simulation and applies pointer forces.
-   *
-   * @param {number} dt
-   * @returns {void}
-   */
   update(dt: number) {
     const cloth = this.item.cloth
     if (!cloth) return
@@ -114,45 +96,68 @@ class ClothBodyAdapter implements SleepableBody {
     this.collisionSystem.apply(cloth)
 
     if (cloth.isOffscreen(-CANONICAL_HEIGHT_METERS)) {
-      this.handleOffscreen()
+      this.offscreenCallback()
     }
   }
 
-  /**
-   * Indicates whether the underlying cloth is sleeping.
-   *
-   * @returns {boolean}
-   */
   isSleeping() {
     const cloth = this.item.cloth
     if (!cloth) return true
     return cloth.isSleeping()
   }
 
-  /**
-   * Forces the cloth awake.
-   *
-   * @returns {void}
-   */
   wake() {
     this.item.cloth?.wake()
   }
 
-  /**
-   * Optionally wakes the cloth if the supplied point lies within the mesh footprint.
-   *
-   * @param {THREE.Vector2} point
-   * @returns {void}
-   */
   wakeIfPointInside(point: THREE.Vector2) {
     this.item.cloth?.wakeIfPointInside(point)
   }
 
-  /**
-   * Computes an impulse radius, either from dataset overrides or canonical defaults.
-   *
-   * @returns {number}
-   */
+  warmStart(config: SimWarmStartConfig) {
+    this.item.cloth?.warmStart(config)
+  }
+
+  configureSleep(config: SimSleepConfig) {
+    const cloth = this.item.cloth
+    if (!cloth) return
+    cloth.setSleepThresholds(config.velocityThreshold, config.frameThreshold)
+  }
+
+  handleOffscreen() {
+    this.offscreenCallback()
+  }
+
+  onAttach() {}
+
+  onDetach() {}
+
+  getBoundingSphere() {
+    const cloth = this.item.cloth
+    if (cloth && typeof (cloth as { getBoundingSphere?: () => THREE.Sphere }).getBoundingSphere === 'function') {
+      const sphere = cloth.getBoundingSphere()
+      return {
+        center: new THREE.Vector2(sphere.center.x, sphere.center.y),
+        radius: sphere.radius,
+      }
+    }
+
+    const record = this.record
+    if (record) {
+      const center = record.mesh.position
+      const radius = Math.max(record.widthMeters, record.heightMeters) / 2 || 0.25
+      return {
+        center: new THREE.Vector2(center.x, center.y),
+        radius,
+      }
+    }
+
+    return {
+      center: new THREE.Vector2(0, 0),
+      radius: 0.25,
+    }
+  }
+
   private getImpulseRadius() {
     const attr = this.item.element.dataset.clothImpulseRadius
     const parsed = attr ? Number.parseFloat(attr) : NaN
@@ -164,11 +169,6 @@ class ClothBodyAdapter implements SleepableBody {
     return base > 0 ? base / 2 : 0.25
   }
 
-  /**
-   * Computes the impulse strength using dataset overrides and debug multipliers.
-   *
-   * @returns {number}
-   */
   private getImpulseStrength() {
     const attr = this.item.element.dataset.clothImpulseStrength
     const parsed = attr ? Number.parseFloat(attr) : NaN
@@ -177,10 +177,21 @@ class ClothBodyAdapter implements SleepableBody {
   }
 }
 
+export type ClothSceneControllerOptions = {
+  simulationSystem?: SimulationSystem
+  simulationRunner?: SimulationRunner
+  simWorld?: SimWorld
+  engine?: EngineWorld
+  fixedDelta?: number
+  maxSubSteps?: number
+}
+
 /**
- * High-level runtime that coordinates DOM/WebGL integration, cloth simulation, and camera orchestration.
+ * Coordinates DOM capture, pointer interaction, and simulation orchestration for the cloth demo.
+ * The controller owns no game-loop logic directly; instead it delegates to the injected
+ * {@link SimulationRunner} and {@link SimulationSystem} instances.
  */
-export class SimulationRuntime {
+export class ClothSceneController {
   private domToWebGL: DOMToWebGL | null = null
   private collisionSystem = new CollisionSystem()
   private items = new Map<HTMLElement, ClothItem>()
@@ -188,18 +199,11 @@ export class SimulationRuntime {
   private clock = new THREE.Clock()
   private disposed = false
   private pool: ElementPool | null = null
-  private scheduler = new SimulationScheduler()
-  private accumulator = 0
+  private simulationSystem: SimulationSystem
+  private simulationRunner: SimulationRunner
+  private simWorld: SimWorld
+  private entities = new EntityManager()
   private elementIds = new Map<HTMLElement, string>()
-  private readonly cameraSystem = new CameraSystem({
-    position: new THREE.Vector3(0, 0, 500),
-    target: new THREE.Vector3(0, 0, 0),
-    zoom: 1,
-    stiffness: DEFAULT_CAMERA_STIFFNESS,
-    damping: DEFAULT_CAMERA_DAMPING,
-    zoomStiffness: DEFAULT_CAMERA_ZOOM_STIFFNESS,
-    zoomDamping: DEFAULT_CAMERA_ZOOM_DAMPING,
-  })
   private onResize = () => this.handleResize()
   private onScroll = () => {
     this.syncStaticMeshes()
@@ -215,6 +219,10 @@ export class SimulationRuntime {
   private pointerHelper: THREE.Mesh | null = null
   private pointerHelperAttached = false
   private pointerColliderVisible = false
+  private sleepConfig: SimSleepConfig = {
+    velocityThreshold: 0.001,
+    frameThreshold: 60,
+  }
   private debug: DebugSettings = {
     realTime: true,
     wireframe: false,
@@ -225,18 +233,33 @@ export class SimulationRuntime {
     tessellationSegments: 24,
     pointerCollider: false,
     pinMode: 'top',
-    cameraStiffness: DEFAULT_CAMERA_STIFFNESS,
-    cameraDamping: DEFAULT_CAMERA_DAMPING,
-    cameraZoomStiffness: DEFAULT_CAMERA_ZOOM_STIFFNESS,
-    cameraZoomDamping: DEFAULT_CAMERA_ZOOM_DAMPING,
   }
   private onPointerMove = (event: PointerEvent) => this.handlePointerMove(event)
   private onPointerLeave = () => this.resetPointer()
 
   /**
-   * Initializes WebGL resources, prepares meshes, and begins the simulation loop.
-   *
-   * @returns {Promise<void>}
+   * Creates a new cloth scene controller. All dependencies are optional and may be supplied to
+   * facilitate testing or reuse across projects.
+   */
+  constructor(options: ClothSceneControllerOptions = {}) {
+    this.simWorld = options.simWorld ?? new SimWorld()
+    this.simulationSystem = options.simulationSystem ?? new SimulationSystem({ simWorld: this.simWorld })
+
+    const engine = options.engine ?? new EngineWorld()
+    engine.addSystem(this.simulationSystem, { id: 'simulation', priority: 100 })
+
+    this.simulationRunner =
+      options.simulationRunner ??
+      new SimulationRunner({
+        engine,
+        fixedDelta: options.fixedDelta,
+        maxSubSteps: options.maxSubSteps,
+      })
+  }
+
+  /**
+   * Prepares the controller by capturing cloth-enabled DOM elements, wiring event listeners,
+   * and seeding static collision geometry. Calling this method multiple times is a no-op.
    */
   async init() {
     if (this.domToWebGL) return
@@ -262,7 +285,6 @@ export class SimulationRuntime {
     window.addEventListener('pointercancel', this.onPointerLeave, { passive: true })
 
     this.clock.start()
-    this.applyCameraSnapshot()
     this.animate()
 
     if (this.pointerColliderVisible) {
@@ -271,9 +293,8 @@ export class SimulationRuntime {
   }
 
   /**
-   * Tears down all WebGL resources and event listeners.
-   *
-   * @returns {void}
+   * Releases all resources created by {@link init}, including DOM attachments, cloth entities,
+   * and simulation bodies. Safe to call even if initialization was skipped.
    */
   dispose() {
     this.disposed = true
@@ -300,6 +321,11 @@ export class SimulationRuntime {
     window.removeEventListener('pointercancel', this.onPointerLeave)
 
     for (const item of this.items.values()) {
+      if (item.releasePinsTimeout !== undefined) {
+        clearTimeout(item.releasePinsTimeout)
+        delete item.releasePinsTimeout
+      }
+      item.entity?.destroy()
       item.element.style.opacity = item.originalOpacity
       item.element.removeEventListener('click', item.clickHandler)
       this.pool?.destroy(item.element)
@@ -315,16 +341,12 @@ export class SimulationRuntime {
     this.items.clear()
     this.domToWebGL = null
     this.pool = null
-    this.scheduler.clear()
+    this.simulationSystem.clear()
+    this.setRealTime(false)
+    this.entities.clear()
     this.elementIds.clear()
   }
 
-  /**
-   * Prepares incoming DOM elements by capturing meshes and inserting them into the pool.
-   *
-   * @param {HTMLElement[]} elements
-   * @returns {Promise<void>}
-   */
   private async prepareElements(elements: HTMLElement[]) {
     if (!this.domToWebGL || !this.pool) return
 
@@ -355,12 +377,6 @@ export class SimulationRuntime {
     }
   }
 
-  /**
-   * Activates a DOM element, spawning a simulated cloth body for interaction.
-   *
-   * @param {HTMLElement} element
-   * @returns {void}
-   */
   private activate(element: HTMLElement) {
     if (!this.domToWebGL || !this.pool) return
 
@@ -386,11 +402,13 @@ export class SimulationRuntime {
     this.applyPinMode(cloth)
 
     const gravityVector = new THREE.Vector3(0, -this.debug.gravity, 0)
-    this.runWarmStart(cloth)
     cloth.setGravity(gravityVector)
 
     cloth.addTurbulence(0.06)
-    setTimeout(() => cloth.releaseAllPins(), 900)
+    item.releasePinsTimeout = window.setTimeout(() => {
+      cloth.releaseAllPins()
+      delete item.releasePinsTimeout
+    }, 900)
 
     item.cloth = cloth
     item.record = record
@@ -408,42 +426,30 @@ export class SimulationRuntime {
       record,
       this.debug
     )
-    this.scheduler.addBody(adapter)
+    this.simulationSystem.addBody(adapter, {
+      warmStart: this.createWarmStartConfig(),
+      sleep: this.sleepConfig,
+    })
+    const entity = this.entities.createEntity({ id: adapterId, name: element.id })
+    entity.addComponent(adapter)
     item.adapter = adapter
+    item.entity = entity
     element.removeEventListener('click', item.clickHandler)
   }
 
-  /**
-   * Advances timers, steps simulation components, and renders the scene each frame.
-   *
-   * @returns {void}
-   */
   private animate() {
     if (this.disposed || !this.domToWebGL) return
 
     this.rafId = requestAnimationFrame(() => this.animate())
     const delta = Math.min(this.clock.getDelta(), 0.05)
 
-    if (this.debug.realTime) {
-      this.accumulator = Math.min(this.accumulator + delta, MAX_ACCUMULATED_TIME)
-      while (this.accumulator >= FIXED_DT) {
-        this.stepCamera(FIXED_DT)
-        this.stepCloth(FIXED_DT)
-        this.accumulator -= FIXED_DT
-      }
-    }
+    this.simulationRunner.update(delta)
 
-    this.applyCameraSnapshot()
     this.decayPointerImpulse()
     this.updatePointerHelper()
     this.domToWebGL.render()
   }
 
-  /**
-   * Responds to viewport resizes by updating render targets and collision data.
-   *
-   * @returns {void}
-   */
   private handleResize() {
     if (!this.domToWebGL) return
     this.domToWebGL.resize()
@@ -453,11 +459,6 @@ export class SimulationRuntime {
     this.syncStaticMeshes()
   }
 
-  /**
-   * Keeps pooled meshes aligned with their DOM counterparts while dormant.
-   *
-   * @returns {void}
-   */
   private syncStaticMeshes() {
     if (!this.domToWebGL) return
 
@@ -470,12 +471,6 @@ export class SimulationRuntime {
     }
   }
 
-  /**
-   * Translates browser pointer events into canonical simulation space and records velocity.
-   *
-   * @param {PointerEvent} event
-   * @returns {void}
-   */
   private handlePointerMove(event: PointerEvent) {
     if (!this.domToWebGL) return
     const canonical = this.domToWebGL.pointerToCanonical(event.clientX, event.clientY)
@@ -488,7 +483,7 @@ export class SimulationRuntime {
     if (!this.pointer.active) {
       this.pointer.active = true
       this.pointer.previous.copy(this.pointer.position)
-      this.scheduler.notifyPointer(this.pointer.position)
+      this.simulationSystem.notifyPointer(this.pointer.position)
       this.updatePointerHelper()
       return
     }
@@ -500,15 +495,10 @@ export class SimulationRuntime {
       this.pointer.needsImpulse = true
     }
 
-    this.scheduler.notifyPointer(this.pointer.position)
+    this.simulationSystem.notifyPointer(this.pointer.position)
     this.updatePointerHelper()
   }
 
-  /**
-   * Clears pointer state when leaving interactive contexts.
-   *
-   * @returns {void}
-   */
   private resetPointer() {
     this.pointer.active = false
     this.pointer.needsImpulse = false
@@ -516,12 +506,6 @@ export class SimulationRuntime {
     this.updatePointerHelper()
   }
 
-  /**
-   * Fetches or allocates a deterministic adapter identifier for an element.
-   *
-   * @param {HTMLElement} element
-   * @returns {string}
-   */
   private getBodyId(element: HTMLElement) {
     let id = this.elementIds.get(element)
     if (!id) {
@@ -531,19 +515,21 @@ export class SimulationRuntime {
     return id
   }
 
-  /**
-   * Recycles cloth instances once they fall beyond the viewport.
-   *
-   * @param {ClothItem} item
-   * @returns {void}
-   */
   private handleClothOffscreen(item: ClothItem) {
     if (!this.pool) return
 
     const element = item.element
     const adapter = item.adapter
     if (adapter) {
-      this.scheduler.removeBody(adapter.id)
+      this.simulationSystem.removeBody(adapter.id)
+    }
+    if (item.releasePinsTimeout !== undefined) {
+      clearTimeout(item.releasePinsTimeout)
+      delete item.releasePinsTimeout
+    }
+    if (item.entity) {
+      item.entity.destroy()
+      item.entity = undefined
     }
 
     this.pool.recycle(element)
@@ -557,12 +543,7 @@ export class SimulationRuntime {
     item.adapter = undefined
   }
 
-  /**
-   * Toggles wireframe rendering across all cloth meshes.
-   *
-   * @param {boolean} enabled
-   * @returns {void}
-   */
+  /** Enables or disables wireframe rendering for every captured cloth mesh. */
   setWireframe(enabled: boolean) {
     this.debug.wireframe = enabled
     for (const item of this.items.values()) {
@@ -573,12 +554,7 @@ export class SimulationRuntime {
     }
   }
 
-  /**
-   * Updates gravity applied to active cloth bodies.
-   *
-   * @param {number} gravity
-   * @returns {void}
-   */
+  /** Applies a new gravity scalar to every active cloth body. */
   setGravity(gravity: number) {
     this.debug.gravity = gravity
     for (const item of this.items.values()) {
@@ -586,50 +562,32 @@ export class SimulationRuntime {
     }
   }
 
-  /**
-   * Configures the global pointer impulse multiplier.
-   *
-   * @param {number} multiplier
-   * @returns {void}
-   */
+  /** Adjusts the pointer impulse multiplier used by all cloth adapters. */
   setImpulseMultiplier(multiplier: number) {
     this.debug.impulseMultiplier = multiplier
   }
 
-  /**
-   * Enables or disables real-time simulation stepping.
-   *
-   * @param {boolean} enabled
-   * @returns {void}
-   */
+  /** Toggles real-time simulation updates. The controller still honours manual steps while paused. */
   setRealTime(enabled: boolean) {
     this.debug.realTime = enabled
+    this.simulationRunner.getEngine().setPaused(!enabled)
+    this.simulationRunner.setRealTime(enabled)
     if (enabled) {
-      this.accumulator = 0
       this.clock.getDelta()
     }
   }
 
-  /**
-   * Adjusts the number of physics substeps executed per fixed tick.
-   *
-   * @param {number} substeps
-   * @returns {void}
-   */
+  /** Sets the desired cloth physics sub-step count and propagates it to the runner and live cloths. */
   setSubsteps(substeps: number) {
     const clamped = Math.max(1, Math.round(substeps))
     this.debug.substeps = clamped
+    this.simulationRunner.setSubsteps(clamped)
     for (const item of this.items.values()) {
       item.cloth?.setSubsteps(clamped)
     }
   }
 
-  /**
-   * Sets the number of constraint solver iterations for active cloth bodies.
-   *
-   * @param {number} iterations
-   * @returns {void}
-   */
+  /** Updates constraint solver iterations for all cloth bodies. */
   setConstraintIterations(iterations: number) {
     const clamped = Math.max(1, Math.round(iterations))
     this.debug.constraintIterations = clamped
@@ -638,31 +596,22 @@ export class SimulationRuntime {
     }
   }
 
-  /**
-   * Chooses which cloth vertices start pinned in the simulation.
-   *
-   * @param {PinMode} mode
-   * @returns {void}
-   */
   setPinMode(mode: PinMode) {
     this.debug.pinMode = mode
     const gravityVector = new THREE.Vector3(0, -this.debug.gravity, 0)
     for (const item of this.items.values()) {
       const cloth = item.cloth
       if (!cloth) continue
-      cloth.clearPins()
+      cloth.releaseAllPins()
       this.applyPinMode(cloth)
-      this.runWarmStart(cloth)
       cloth.setGravity(gravityVector)
+      const adapter = item.adapter
+      if (adapter) {
+        this.simulationSystem.queueWarmStart(adapter.id, this.createWarmStartConfig())
+      }
     }
   }
 
-  /**
-   * Rebuilds dormant meshes with a new tessellation density.
-   *
-   * @param {number} segments
-   * @returns {Promise<void>}
-   */
   async setTessellationSegments(segments: number) {
     const pool = this.pool
     if (!pool) return
@@ -693,12 +642,6 @@ export class SimulationRuntime {
     this.collisionSystem.refresh()
   }
 
-  /**
-   * Toggles the pointer collider helper mesh.
-   *
-   * @param {boolean} enabled
-   * @returns {void}
-   */
   setPointerColliderVisible(enabled: boolean) {
     this.debug.pointerCollider = enabled
     this.pointerColliderVisible = enabled
@@ -722,111 +665,12 @@ export class SimulationRuntime {
     }
   }
 
-  /**
-   * Updates the positional spring stiffness that drives camera motion.
-   *
-   * @param {number} value
-   * @returns {void}
-   */
-  setCameraStiffness(value: number) {
-    const clamped = Math.max(0, value)
-    this.debug.cameraStiffness = clamped
-    this.cameraSystem.configure({ stiffness: clamped })
-  }
-
-  /**
-   * Updates the positional spring damping coefficient for the camera.
-   *
-   * @param {number} value
-   * @returns {void}
-   */
-  setCameraDamping(value: number) {
-    const clamped = Math.max(0, value)
-    this.debug.cameraDamping = clamped
-    this.cameraSystem.configure({ damping: clamped })
-  }
-
-  /**
-   * Updates the zoom spring stiffness constant.
-   *
-   * @param {number} value
-   * @returns {void}
-   */
-  setCameraZoomStiffness(value: number) {
-    const clamped = Math.max(0, value)
-    this.debug.cameraZoomStiffness = clamped
-    this.cameraSystem.configure({ zoomStiffness: clamped })
-  }
-
-  /**
-   * Updates the zoom spring damping coefficient.
-   *
-   * @param {number} value
-   * @returns {void}
-   */
-  setCameraZoomDamping(value: number) {
-    const clamped = Math.max(0, value)
-    this.debug.cameraZoomDamping = clamped
-    this.cameraSystem.configure({ zoomDamping: clamped })
-  }
-
-  /**
-   * Executes a single fixed simulation step when real-time playback is paused.
-   *
-   * @returns {void}
-   */
   stepOnce() {
-    this.stepCamera(FIXED_DT)
-    this.stepCloth(FIXED_DT)
-    this.applyCameraSnapshot()
+    this.simulationRunner.stepOnce()
     this.decayPointerImpulse()
     this.updatePointerHelper()
   }
 
-  /**
-   * Advances the camera system by one fixed timestep.
-   *
-   * @param {number} dt
-   * @returns {void}
-   */
-  private stepCamera(dt: number) {
-    this.cameraSystem.fixedUpdate(dt)
-  }
-
-  /**
-   * Mirrors the current camera snapshot onto the Three.js camera.
-   *
-   * @returns {void}
-   */
-  private applyCameraSnapshot() {
-    if (!this.domToWebGL) return
-    const snapshot = this.cameraSystem.getSnapshot()
-    const camera = this.domToWebGL.camera
-    camera.position.copy(snapshot.position)
-    camera.lookAt(snapshot.target)
-    camera.zoom = snapshot.zoom
-    camera.updateProjectionMatrix()
-  }
-
-  /**
-   * Steps the scheduler-driven cloth bodies with optional substepping.
-   *
-   * @param {number} dt
-   * @returns {void}
-   */
-  private stepCloth(dt: number) {
-    const substeps = Math.max(1, this.debug.substeps)
-    const stepSize = dt / substeps
-    for (let i = 0; i < substeps; i++) {
-      this.scheduler.step(stepSize)
-    }
-  }
-
-  /**
-   * Dampens accumulated pointer impulse velocity between frames.
-   *
-   * @returns {void}
-   */
   private decayPointerImpulse() {
     if (this.pointer.needsImpulse) {
       this.pointer.velocity.multiplyScalar(0.65)
@@ -837,11 +681,6 @@ export class SimulationRuntime {
     }
   }
 
-  /**
-   * Synchronizes the debug pointer helper with the latest pointer position.
-   *
-   * @returns {void}
-   */
   private updatePointerHelper() {
     if (!this.pointerHelper) return
     this.pointerHelper.visible = this.pointerColliderVisible
@@ -849,11 +688,6 @@ export class SimulationRuntime {
     this.pointerHelper.position.set(this.pointer.position.x, this.pointer.position.y, 0.2)
   }
 
-  /**
-   * Lazily creates the pointer helper mesh if needed.
-   *
-   * @returns {THREE.Mesh}
-   */
   private ensurePointerHelper() {
     if (!this.pointerHelper) {
       const geometry = new THREE.SphereGeometry(0.12, 16, 16)
@@ -864,12 +698,6 @@ export class SimulationRuntime {
     return this.pointerHelper
   }
 
-  /**
-   * Applies the currently selected pin mode to a cloth instance.
-   *
-   * @param {ClothPhysics} cloth
-   * @returns {void}
-   */
   private applyPinMode(cloth: ClothPhysics) {
     switch (this.debug.pinMode) {
       case 'top':
@@ -887,16 +715,10 @@ export class SimulationRuntime {
     }
   }
 
-  /**
-   * Performs warm-start passes to settle constraints before release.
-   *
-   * @param {ClothPhysics} cloth
-   * @returns {void}
-   */
-  private runWarmStart(cloth: ClothPhysics) {
-    if (WARM_START_PASSES <= 0) return
-    cloth.wake()
-    cloth.setGravity(new THREE.Vector3(0, 0, 0))
-    cloth.relaxConstraints(this.debug.constraintIterations * WARM_START_PASSES)
+  private createWarmStartConfig(): SimWarmStartConfig {
+    return {
+      passes: WARM_START_PASSES,
+      constraintIterations: this.debug.constraintIterations,
+    }
   }
 }

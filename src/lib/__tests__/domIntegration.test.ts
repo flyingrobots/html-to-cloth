@@ -37,12 +37,23 @@ const collisionMocks = {
   clear: vi.fn(),
 }
 
-const schedulerMocks = {
+const simulationRunnerMocks = {
+  update: vi.fn(),
+  stepOnce: vi.fn(),
+  setRealTime: vi.fn(),
+  setSubsteps: vi.fn(),
+  instances: [] as any[],
+}
+
+const simulationSystemMocks = {
   addBody: vi.fn(),
   removeBody: vi.fn(),
   notifyPointer: vi.fn(),
-  step: vi.fn(),
+  queueWarmStart: vi.fn(),
+  queueSleepConfiguration: vi.fn(),
   clear: vi.fn(),
+  getSnapshot: vi.fn(() => ({ bodies: [] })),
+  instances: [] as any[],
 }
 
 const clothMocks = {
@@ -66,12 +77,6 @@ vi.mock('../domToWebGL', () => {
     updateMeshTransform = domMocks.updateMeshTransform
     resize = domMocks.resize
     render = domMocks.render
-    camera = {
-      position: new THREE.Vector3(),
-      zoom: 1,
-      lookAt: vi.fn(),
-      updateProjectionMatrix: vi.fn(),
-    } as unknown as THREE.OrthographicCamera
     renderer = { dispose: vi.fn(() => domMocks.rendererDispose()) }
     detach = vi.fn(() => domMocks.detach())
     scene = {
@@ -149,17 +154,39 @@ vi.mock('../collisionSystem', () => {
   return { CollisionSystem: MockCollisionSystem }
 })
 
-vi.mock('../simulationScheduler', () => {
-  class MockSimulationScheduler {
-    addBody = vi.fn((body: any) => schedulerMocks.addBody(body))
-    removeBody = vi.fn((id: string) => schedulerMocks.removeBody(id))
-    notifyPointer = vi.fn((point: THREE.Vector2) => schedulerMocks.notifyPointer(point))
-    step = vi.fn((dt: number) => schedulerMocks.step(dt))
-    stepCloth = vi.fn((dt: number) => schedulerMocks.step(dt))
-    clear = vi.fn(() => schedulerMocks.clear())
+vi.mock('../../engine/simulationRunner', () => {
+  class MockSimulationRunner {
+    constructor() {
+      simulationRunnerMocks.instances.push(this)
+    }
+
+    update = vi.fn((dt: number) => simulationRunnerMocks.update(dt))
+    stepOnce = vi.fn(() => simulationRunnerMocks.stepOnce())
+    setRealTime = vi.fn((value: boolean) => simulationRunnerMocks.setRealTime(value))
+    setSubsteps = vi.fn((value: number) => simulationRunnerMocks.setSubsteps(value))
   }
 
-  return { SimulationScheduler: MockSimulationScheduler }
+  return { SimulationRunner: MockSimulationRunner }
+})
+
+vi.mock('../../engine/systems/simulationSystem', () => {
+  class MockSimulationSystem {
+    constructor() {
+      simulationSystemMocks.instances.push(this)
+    }
+
+    addBody = vi.fn((body: any, options?: any) => simulationSystemMocks.addBody(body, options))
+    removeBody = vi.fn((id: string) => simulationSystemMocks.removeBody(id))
+    notifyPointer = vi.fn((point: THREE.Vector2) => simulationSystemMocks.notifyPointer(point))
+    queueWarmStart = vi.fn((id: string, config: any) => simulationSystemMocks.queueWarmStart(id, config))
+    queueSleepConfiguration = vi.fn((id: string, config: any) =>
+      simulationSystemMocks.queueSleepConfiguration(id, config)
+    )
+    clear = vi.fn(() => simulationSystemMocks.clear())
+    getSnapshot = vi.fn(() => simulationSystemMocks.getSnapshot())
+  }
+
+  return { SimulationSystem: MockSimulationSystem }
 })
 
 vi.mock('../clothPhysics', () => {
@@ -167,7 +194,6 @@ vi.mock('../clothPhysics', () => {
     public pinTopEdge = vi.fn()
     public pinBottomEdge = vi.fn()
     public pinCorners = vi.fn()
-    public clearPins = vi.fn()
     public addTurbulence = vi.fn()
     public releaseAllPins = vi.fn()
     public update = vi.fn()
@@ -182,6 +208,8 @@ vi.mock('../clothPhysics', () => {
     public setConstraintIterations = vi.fn()
     public setSubsteps = vi.fn()
     public relaxConstraints = vi.fn()
+    public setSleepThresholds = vi.fn()
+    public isSleeping = vi.fn(() => false)
 
     constructor(public mesh: THREE.Mesh) {
       clothMocks.instances.push(this)
@@ -191,7 +219,36 @@ vi.mock('../clothPhysics', () => {
   return { ClothPhysics: MockClothPhysics }
 })
 
-import { SimulationRuntime } from '../simulationRuntime'
+import { ClothSceneController } from '../clothSceneController'
+
+const getSimulationRunner = () => {
+  const instance = simulationRunnerMocks.instances.at(-1)
+  if (!instance) {
+    throw new Error('Simulation runner instance not found')
+  }
+  return instance as {
+    update: ReturnType<typeof vi.fn>
+    stepOnce: ReturnType<typeof vi.fn>
+    setRealTime: ReturnType<typeof vi.fn>
+    setSubsteps: ReturnType<typeof vi.fn>
+  }
+}
+
+const getSimulationSystem = () => {
+  const instance = simulationSystemMocks.instances.at(-1)
+  if (!instance) {
+    throw new Error('Simulation system instance not found')
+  }
+  return instance as {
+    addBody: ReturnType<typeof vi.fn>
+    removeBody: ReturnType<typeof vi.fn>
+    notifyPointer: ReturnType<typeof vi.fn>
+    queueWarmStart: ReturnType<typeof vi.fn>
+    queueSleepConfiguration: ReturnType<typeof vi.fn>
+    clear: ReturnType<typeof vi.fn>
+    getSnapshot: ReturnType<typeof vi.fn>
+  }
+}
 
 const resetSpies = () => {
   domMocks.capture.mockReset()
@@ -224,11 +281,21 @@ const resetSpies = () => {
   collisionMocks.refresh.mockReset()
   collisionMocks.clear.mockReset()
 
-  schedulerMocks.addBody.mockReset()
-  schedulerMocks.removeBody.mockReset()
-  schedulerMocks.notifyPointer.mockReset()
-  schedulerMocks.step.mockReset()
-  schedulerMocks.clear.mockReset()
+  simulationRunnerMocks.update.mockReset()
+  simulationRunnerMocks.stepOnce.mockReset()
+  simulationRunnerMocks.setRealTime.mockReset()
+  simulationRunnerMocks.setSubsteps.mockReset()
+  simulationRunnerMocks.instances.length = 0
+
+  simulationSystemMocks.addBody.mockReset()
+  simulationSystemMocks.removeBody.mockReset()
+  simulationSystemMocks.notifyPointer.mockReset()
+  simulationSystemMocks.queueWarmStart.mockReset()
+  simulationSystemMocks.queueSleepConfiguration.mockReset()
+  simulationSystemMocks.clear.mockReset()
+  simulationSystemMocks.getSnapshot.mockReset()
+  simulationSystemMocks.getSnapshot.mockImplementation(() => ({ bodies: [] }))
+  simulationSystemMocks.instances.length = 0
 
   clothMocks.instances.length = 0
   clothMocks.applyImpulse.mockReset()
@@ -246,6 +313,7 @@ beforeAll(() => {
 
 beforeEach(() => {
   resetSpies()
+  vi.useFakeTimers()
   rafSpy = vi.spyOn(globalThis, 'requestAnimationFrame').mockReturnValue(1 as any)
   cafSpy = vi.spyOn(globalThis, 'cancelAnimationFrame').mockImplementation(() => {})
   document.body.innerHTML = `
@@ -270,12 +338,14 @@ beforeEach(() => {
 afterEach(() => {
   rafSpy.mockRestore()
   cafSpy.mockRestore()
+  vi.runOnlyPendingTimers()
+  vi.useRealTimers()
   document.body.innerHTML = ''
 })
 
-describe('SimulationRuntime DOM integration', () => {
+describe('ClothSceneController DOM integration', () => {
   it('captures cloth-enabled elements, hides DOM, and mounts meshes on init', async () => {
-    const webgl = new SimulationRuntime()
+    const webgl = new ClothSceneController()
     await webgl.init()
 
     const clothElements = Array.from(document.querySelectorAll<HTMLElement>('.cloth-enabled'))
@@ -293,7 +363,7 @@ describe('SimulationRuntime DOM integration', () => {
   })
 
   it('refreshes meshes and collision bounds on scroll/resize', async () => {
-    const webgl = new SimulationRuntime()
+    const webgl = new ClothSceneController()
     await webgl.init()
 
     const initialSetCalls = collisionMocks.setViewportDimensions.mock.calls.length
@@ -307,30 +377,37 @@ describe('SimulationRuntime DOM integration', () => {
     webgl.dispose()
   })
 
-  it('activates cloth on click and routes pointer events through scheduler', async () => {
-    const webgl = new SimulationRuntime()
+  it('activates cloth on click and routes pointer events through the simulation system', async () => {
+    const webgl = new ClothSceneController()
     await webgl.init()
+
+    const simulation = getSimulationSystem()
 
     const button = document.getElementById('cta') as HTMLElement
     button.dispatchEvent(new MouseEvent('click'))
 
     expect(clothMocks.instances).toHaveLength(1)
-    expect(schedulerMocks.addBody).toHaveBeenCalledTimes(1)
+    expect(simulation.addBody).toHaveBeenCalledTimes(1)
+    const [, options] = simulation.addBody.mock.calls[0]
+    expect(options?.warmStart).toBeDefined()
+    expect(options?.sleep).toMatchObject({ frameThreshold: expect.any(Number) })
 
     window.dispatchEvent(new PointerEvent('pointermove', { clientX: 500, clientY: 400 }))
-    expect(schedulerMocks.notifyPointer).toHaveBeenCalled()
+    expect(simulation.notifyPointer).toHaveBeenCalled()
 
     webgl.dispose()
   })
 
   it('applies default impulse radius based on mesh width', async () => {
-    const webgl = new SimulationRuntime()
+    const webgl = new ClothSceneController()
     await webgl.init()
+
+    const simulation = getSimulationSystem()
 
     const button = document.getElementById('cta') as HTMLElement
     button.dispatchEvent(new MouseEvent('click'))
 
-    const adapter = schedulerMocks.addBody.mock.calls[0][0]
+    const adapter = simulation.addBody.mock.calls[0][0]
     const cloth = clothMocks.instances[0]
     const pointer = (webgl as any).pointer as any
 
@@ -357,11 +434,13 @@ describe('SimulationRuntime DOM integration', () => {
     button.dataset.clothImpulseRadius = '0.9'
     button.dataset.clothImpulseStrength = '1.5'
 
-    const webgl = new SimulationRuntime()
+    const webgl = new ClothSceneController()
     await webgl.init()
 
+    const simulation = getSimulationSystem()
+
     button.dispatchEvent(new MouseEvent('click'))
-    const adapter = schedulerMocks.addBody.mock.calls[0][0]
+    const adapter = simulation.addBody.mock.calls[0][0]
     const cloth = clothMocks.instances[0]
     const pointer = (webgl as any).pointer as any
 
@@ -383,14 +462,16 @@ describe('SimulationRuntime DOM integration', () => {
   })
 
   it('returns cloth to dormant state after it falls offscreen', async () => {
-    const webgl = new SimulationRuntime()
+    const webgl = new ClothSceneController()
     await webgl.init()
+
+    const simulation = getSimulationSystem()
 
     const button = document.getElementById('cta') as HTMLElement
     button.dispatchEvent(new MouseEvent('click'))
 
-    expect(schedulerMocks.addBody).toHaveBeenCalledTimes(1)
-    const adapter = schedulerMocks.addBody.mock.calls[0][0]
+    expect(simulation.addBody).toHaveBeenCalledTimes(1)
+    const adapter = simulation.addBody.mock.calls[0][0]
     const cloth = clothMocks.instances[0]
 
     cloth.isOffscreen = vi.fn().mockReturnValue(true)
@@ -399,37 +480,35 @@ describe('SimulationRuntime DOM integration', () => {
     expect(poolMocks.recycle).toHaveBeenCalledWith(button)
     expect(poolMocks.resetGeometry).toHaveBeenCalledWith(button)
     expect(poolMocks.mount).toHaveBeenCalledWith(button)
-    expect(schedulerMocks.removeBody).toHaveBeenCalled()
+    expect(simulation.removeBody).toHaveBeenCalled()
 
-    schedulerMocks.addBody.mockClear()
+    simulation.addBody.mockClear()
 
     button.dispatchEvent(new MouseEvent('click'))
-    expect(schedulerMocks.addBody).toHaveBeenCalledTimes(1)
+    expect(simulation.addBody).toHaveBeenCalledTimes(1)
     expect(clothMocks.instances.length).toBe(2)
 
     webgl.dispose()
   })
 
   it('steps physics using fixed substeps when stepping manually', async () => {
-    const webgl = new SimulationRuntime()
+    const webgl = new ClothSceneController()
     await webgl.init()
 
-    schedulerMocks.step.mockClear()
+    const simulation = getSimulationRunner()
+    simulation.stepOnce.mockClear()
 
     ;(webgl as any).setSubsteps(3)
-    ;(webgl as any).stepOnce()
+    expect(simulation.setSubsteps).toHaveBeenCalledWith(3)
 
-    expect(schedulerMocks.step).toHaveBeenCalledTimes(3)
-    const calls = schedulerMocks.step.mock.calls.map(([dt]) => dt)
-    calls.forEach((dt) => {
-      expect(dt).toBeCloseTo(1 / 180, 5)
-    })
+    ;(webgl as any).stepOnce()
+    expect(simulation.stepOnce).toHaveBeenCalledTimes(1)
 
     webgl.dispose()
   })
 
   it('resets pointer state and geometry before activating a cloth body', async () => {
-    const webgl = new SimulationRuntime()
+    const webgl = new ClothSceneController()
     await webgl.init()
 
     window.dispatchEvent(new PointerEvent('pointermove', { clientX: 200, clientY: 200 }))
@@ -452,7 +531,7 @@ describe('SimulationRuntime DOM integration', () => {
   })
 
   it('applies configured pin mode and gravity to newly activated cloth', async () => {
-    const webgl = new SimulationRuntime()
+    const webgl = new ClothSceneController()
     await webgl.init()
 
     ;(webgl as any).setPinMode('corners')
@@ -467,11 +546,32 @@ describe('SimulationRuntime DOM integration', () => {
     const gravityArg = cloth.setGravity.mock.calls.at(-1)?.[0] as THREE.Vector3
     expect(gravityArg.y).toBeCloseTo(-14)
 
+    const simulation = getSimulationSystem()
+    simulation.queueWarmStart.mockClear()
+    ;(webgl as any).setPinMode('bottom')
+    expect(simulation.queueWarmStart).toHaveBeenCalled()
+
     webgl.dispose()
   })
 
+  it('clears pending release pin timers on dispose', async () => {
+    const webgl = new ClothSceneController()
+    await webgl.init()
+
+    const button = document.getElementById('cta') as HTMLElement
+    button.dispatchEvent(new MouseEvent('click'))
+
+    const cloth = clothMocks.instances.at(-1) as any
+    expect(cloth.releaseAllPins).not.toHaveBeenCalled()
+
+    webgl.dispose()
+    vi.runAllTimers()
+
+    expect(cloth.releaseAllPins).not.toHaveBeenCalled()
+  })
+
   it('rebuilds meshes when tessellation segments change', async () => {
-    const webgl = new SimulationRuntime()
+    const webgl = new ClothSceneController()
     await webgl.init()
 
     poolMocks.prepare.mockClear()
@@ -487,7 +587,7 @@ describe('SimulationRuntime DOM integration', () => {
   })
 
   it('updates constraint iterations for active cloth bodies', async () => {
-    const webgl = new SimulationRuntime()
+    const webgl = new ClothSceneController()
     await webgl.init()
 
     const button = document.getElementById('cta') as HTMLElement
@@ -504,7 +604,7 @@ describe('SimulationRuntime DOM integration', () => {
   })
 
   it('toggles pointer collider visualization in the scene', async () => {
-    const webgl = new SimulationRuntime()
+    const webgl = new ClothSceneController()
     await webgl.init()
 
     domMocks.sceneAdd.mockClear()

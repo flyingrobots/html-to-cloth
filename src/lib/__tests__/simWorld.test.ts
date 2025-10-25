@@ -120,6 +120,24 @@ describe('SimWorld', () => {
     expect(body.wakeIfPointInsideCalls).toHaveLength(0)
   })
 
+  it('exposes a fresh snapshot of body positions and sleep state', () => {
+    const world = new SimWorld(new SimulationScheduler())
+    const body = new MockBody('snap', new THREE.Vector2(0, 0), 0.5)
+
+    world.addBody(body)
+
+    const initial = world.getSnapshot()
+    expect(initial.bodies).toHaveLength(1)
+    expect(initial.bodies[0]).toMatchObject({ id: 'snap', sleeping: false })
+
+    body.setPosition(1, 2)
+    world.step(0.016)
+
+    const updated = world.getSnapshot()
+    expect(updated.bodies[0].center.x).toBeCloseTo(1)
+    expect(updated.bodies[0].center.y).toBeCloseTo(2)
+  })
+
   it('prevents duplicate ids and throws meaningful errors', () => {
     const world = new SimWorld(new SimulationScheduler())
     const first = new MockBody('dup', new THREE.Vector2(0, 0), 1)
