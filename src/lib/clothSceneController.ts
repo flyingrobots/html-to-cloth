@@ -246,7 +246,7 @@ export class ClothSceneController {
     this.simulationSystem = options.simulationSystem ?? new SimulationSystem({ simWorld: this.simWorld })
 
     const engine = options.engine ?? new EngineWorld()
-    engine.addSystem(this.simulationSystem, { id: 'simulation', priority: 100 })
+    engine.addSystem(this.simulationSystem, { priority: 100 })
 
     this.simulationRunner =
       options.simulationRunner ??
@@ -570,7 +570,6 @@ export class ClothSceneController {
   /** Toggles real-time simulation updates. The controller still honours manual steps while paused. */
   setRealTime(enabled: boolean) {
     this.debug.realTime = enabled
-    this.simulationRunner.getEngine().setPaused(!enabled)
     this.simulationRunner.setRealTime(enabled)
     if (enabled) {
       this.clock.getDelta()

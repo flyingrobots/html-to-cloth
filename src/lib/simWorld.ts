@@ -24,7 +24,7 @@ export type SimSleepConfig = {
 
 export type SimBodySnapshot = {
   id: string
-  center: THREE.Vector2
+  center: { x: number; y: number }
   radius: number
   sleeping: boolean
 }
@@ -94,9 +94,7 @@ export class SimWorld {
 
   /** Removes every body and resets the internal snapshot. */
   clear() {
-    for (const id of this.bodies.keys()) {
-      this.scheduler.removeBody(id)
-    }
+    this.scheduler.clear()
     this.bodies.clear()
     this.previousCenters.clear()
     this.snapshot = { bodies: [] }
@@ -107,7 +105,7 @@ export class SimWorld {
     return {
       bodies: this.snapshot.bodies.map((entry) => ({
         id: entry.id,
-        center: entry.center.clone(),
+        center: { x: entry.center.x, y: entry.center.y },
         radius: entry.radius,
         sleeping: entry.sleeping,
       })),
@@ -120,7 +118,7 @@ export class SimWorld {
       const sphere = body.getBoundingSphere()
       bodies.push({
         id: body.id,
-        center: sphere.center.clone(),
+        center: { x: sphere.center.x, y: sphere.center.y },
         radius: sphere.radius,
         sleeping: body.isSleeping(),
       })
