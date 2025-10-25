@@ -335,7 +335,7 @@ export class ClothPhysics {
     const iterations = Math.max(0, Math.round(config.constraintIterations * config.passes))
     if (iterations === 0) return
     this.wake()
-    const zeroGravity = new THREE.Vector3(0, 0, 0)
+    const zeroGravity = this.tmpVector.set(0, 0, 0)
     this.gravityController.runWithOverride(zeroGravity, () => {
       this.relaxConstraints(iterations)
     })

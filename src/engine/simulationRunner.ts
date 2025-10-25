@@ -56,21 +56,20 @@ export class SimulationRunner {
   }
 
   /**
-   * Enables or disables real-time ticking. When disabled the accumulator is preserved so
-   * that calling {@link setRealTime} with `true` immediately continues from the buffered time.
+   * Enables or disables real-time ticking. Pausing resets the accumulator; resuming requires a
+   * subsequent {@link update} call to continue the simulation.
    */
   setRealTime(enabled: boolean) {
     this.realTime = enabled
     this.engine.setPaused(!enabled)
     this.loop.setPaused(!enabled)
-    if (enabled) {
-      this.loop.reset()
-    }
   }
 
   /** Sets the number of sub steps to execute inside each fixed tick. */
   setSubsteps(substeps: number) {
-    this.substeps = Math.max(1, Math.round(substeps))
+    if (!Number.isFinite(substeps)) return
+    const clamped = Math.max(1, Math.min(16, Math.round(substeps)))
+    this.substeps = clamped
   }
 
   /** Returns the underlying engine to allow external system registration. */

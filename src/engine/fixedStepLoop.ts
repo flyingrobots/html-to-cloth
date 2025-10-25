@@ -17,18 +17,23 @@ export class FixedStepLoop {
     this.step = options.step
   }
 
+  /**
+   * Consumes elapsed time when the loop is running; paused loops ignore accumulation entirely.
+   */
   update(elapsed: number) {
+    if (this.paused) return
     if (elapsed > 0) {
       this.accumulator += elapsed
     }
-
-    if (this.paused) return
-
     this.consumeAccumulator()
   }
 
   setPaused(value: boolean) {
+    if (this.paused === value) return
     this.paused = value
+    if (value) {
+      this.reset()
+    }
   }
 
   reset() {

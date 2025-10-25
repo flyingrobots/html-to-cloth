@@ -1,14 +1,6 @@
 {
-  "entryPoints": [
-    "src/engine/entity/entityManager.ts",
-    "src/engine/entity/entity.ts",
-    "src/engine/entity/component.ts",
-    "src/engine/simulationRunner.ts",
-    "src/engine/systems/simulationSystem.ts",
-    "src/lib/clothSceneController.ts",
-    "src/lib/simWorld.ts",
-    "src/lib/clothPhysics.ts"
-  ],
+  "entryPoints": ["src/engine", "src/lib"],
+  "entryPointStrategy": "expand",
   "plugin": ["typedoc-plugin-markdown"],
   "out": "docs/api",
   "excludePrivate": true,
@@ -16,5 +8,5 @@
   "includeVersion": true,
   "gitRevision": "HEAD",
   "categorizeByGroup": false,
-  "readme": "none"
+  "readme": "docs/api/README.md"
 }

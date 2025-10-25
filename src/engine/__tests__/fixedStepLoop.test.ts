@@ -39,7 +39,7 @@ describe('FixedStepLoop', () => {
     expect(step).toHaveBeenCalledTimes(1)
 
     loop.setPaused(false)
-    loop.update(0.0)
+    loop.update(0.015)
     expect(step).toHaveBeenCalledTimes(2)
   })
 

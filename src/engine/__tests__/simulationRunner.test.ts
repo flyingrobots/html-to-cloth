@@ -35,7 +35,7 @@ describe('SimulationRunner', () => {
     runner.stepOnce()
 
     expect(system.fixedUpdate).toHaveBeenCalledTimes(3)
-    const durations = system.fixedUpdate?.mock.calls.map(([dt]) => dt)
+    const durations = system.fixedUpdate.mock.calls.map(([dt]) => dt)
     durations.forEach((dt) => expect(dt).toBeCloseTo(1 / 180))
   })
 
@@ -85,5 +85,23 @@ describe('SimulationRunner', () => {
     runner.stepOnce()
 
     expect(system.fixedUpdate).toHaveBeenCalled()
+  })
+
+  it('clamps substep configuration to a safe range', () => {
+    const world = new EngineWorld()
+    const system = createSystem()
+    world.addSystem(system, { id: 'test' })
+
+    const runner = new SimulationRunner({ engine: world, fixedDelta: 1 / 60 })
+    runner.setSubsteps(42)
+    runner.stepOnce()
+
+    expect(system.fixedUpdate).toHaveBeenCalledTimes(16)
+
+    system.fixedUpdate.mockClear()
+    runner.setSubsteps(Number.NaN)
+    runner.stepOnce()
+
+    expect(system.fixedUpdate).toHaveBeenCalledTimes(16)
   })
 })

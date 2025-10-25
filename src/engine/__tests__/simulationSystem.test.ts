@@ -43,8 +43,8 @@ describe('SimulationSystem', () => {
 
     system.addBody(body as any, { warmStart: warmConfig(), sleep: sleepConfig() })
 
-    system.fixedUpdate?.(0.016)
-    system.fixedUpdate?.(0.016)
+    system.fixedUpdate(0.016)
+    system.fixedUpdate(0.016)
 
     expect(simWorld.addBody).toHaveBeenCalledWith(body)
     expect(simWorld.step).toHaveBeenCalledTimes(2)
@@ -60,11 +60,11 @@ describe('SimulationSystem', () => {
     const system = new SimulationSystem({ simWorld })
 
     system.addBody(body as any, { warmStart: warmConfig() })
-    system.fixedUpdate?.(0.016)
+    system.fixedUpdate(0.016)
 
     const nextWarm = { passes: 1, constraintIterations: 8 }
     system.queueWarmStart(body.id, nextWarm)
-    system.fixedUpdate?.(0.016)
+    system.fixedUpdate(0.016)
 
     expect(body.warmStart).toHaveBeenCalledTimes(2)
     expect(body.warmStart).toHaveBeenNthCalledWith(2, nextWarm)
@@ -76,11 +76,11 @@ describe('SimulationSystem', () => {
     const system = new SimulationSystem({ simWorld })
 
     system.addBody(body as any, { sleep: sleepConfig() })
-    system.fixedUpdate?.(0.016)
+    system.fixedUpdate(0.016)
 
     const updatedConfig = { velocityThreshold: 0.002, frameThreshold: 90 }
     system.queueSleepConfiguration(body.id, updatedConfig)
-    system.fixedUpdate?.(0.016)
+    system.fixedUpdate(0.016)
 
     expect(body.configureSleep).toHaveBeenCalledTimes(2)
     expect(body.configureSleep).toHaveBeenNthCalledWith(2, updatedConfig)
@@ -88,19 +88,22 @@ describe('SimulationSystem', () => {
 
   it('returns the latest snapshot after stepping', () => {
     const simWorld = createSimWorld()
-    const snapshotA = { bodies: [{ id: 'a', center: new THREE.Vector2(1, 1), radius: 0.5, sleeping: false }] }
-    const snapshotB = { bodies: [{ id: 'a', center: new THREE.Vector2(2, 1), radius: 0.5, sleeping: false }] }
+    const snapshotA = { bodies: [{ id: 'a', center: { x: 1, y: 1 }, radius: 0.5, sleeping: false }] }
+    const snapshotB = { bodies: [{ id: 'a', center: { x: 2, y: 1 }, radius: 0.5, sleeping: false }] }
 
     simWorld.getSnapshot
       .mockReturnValueOnce(snapshotA)
       .mockReturnValueOnce(snapshotB)
 
     const system = new SimulationSystem({ simWorld })
-    system.fixedUpdate?.(0.016)
-    expect(system.getSnapshot()).toEqual(snapshotA)
+    system.fixedUpdate(0.016)
+    const first = system.getSnapshot()
+    expect(first).toEqual(snapshotA)
 
-    system.fixedUpdate?.(0.016)
-    expect(system.getSnapshot()).toEqual(snapshotB)
+    system.fixedUpdate(0.016)
+    const second = system.getSnapshot()
+    expect(second).toEqual(snapshotB)
+    expect(second).not.toBe(first)
   })
 
   it('routes pointer notifications and clears bodies', () => {
@@ -113,6 +116,7 @@ describe('SimulationSystem', () => {
 
     system.clear()
     expect(simWorld.clear).toHaveBeenCalled()
+    expect(system.getSnapshot()).toEqual({ bodies: [] })
   })
 
   it('removes registered bodies on request', () => {
@@ -131,7 +135,7 @@ describe('SimulationSystem', () => {
     const system = new SimulationSystem({ simWorld })
     const world = new EngineWorld()
 
-    system.onAttach?.(world)
+    system.onAttach(world)
 
     expect((system as any).world).toBe(world)
   })
