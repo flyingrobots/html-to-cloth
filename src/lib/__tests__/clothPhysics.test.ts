@@ -139,6 +139,22 @@ describe('ClothPhysics', () => {
     expect(after.x).not.toBeCloseTo(before.x)
   })
 
+  it('returns a 2D bounding sphere compatible with SimWorld', () => {
+    const { cloth } = makeCloth(3, 3)
+
+    const sphere = cloth.getBoundingSphere()
+
+    expect(sphere).toEqual(
+      expect.objectContaining({
+        center: expect.any(THREE.Vector2),
+        radius: expect.any(Number),
+      })
+    )
+    expect(sphere.center).toBeInstanceOf(THREE.Vector2)
+    expect(Number.isFinite(sphere.radius)).toBe(true)
+    expect(sphere.radius).toBeGreaterThan(0)
+  })
+
   it('wakes when a point enters its bounding sphere', () => {
     const { cloth } = makeCloth(3, 3)
     cloth.setGravity(new THREE.Vector3(0, 0, 0))
