@@ -89,3 +89,4 @@ Web design feels clunky not because the medium is doomed, but because we’ve le
 
 - 2025-10-12: Swapped PortfolioWebGL to fixed-step substepping, added solver/tessellation/pin debug controls with pointer collider viz, and warmed cloth activation via geometry resets.
 - 2025-10-25: Added camera spring specs for dt spike clamping, zero-stiffness safeguards, and snapshot pooling to anchor the stabilization pass.
+- 2025-10-25: Refactored camera spring/system to keep pooled snapshots and introduced shared engine system/world types so Vitest resolves imports cleanly.

@@ -1,9 +1,9 @@
 import * as THREE from 'three'
 
 import type { EngineWorld, EngineSystem } from '../types'
-import { CameraSpring, type CameraSpringOptions } from './CameraSpring'
+import { CameraSpring, type CameraSpringOptions, type MutableCameraSnapshot } from './CameraSpring'
 
-export type CameraSnapshot = ReturnType<CameraSpring['getSnapshot']>
+export type CameraSnapshot = Readonly<MutableCameraSnapshot>
 
 export class CameraSystem implements EngineSystem {
   id?: string
@@ -11,7 +11,7 @@ export class CameraSystem implements EngineSystem {
   allowWhilePaused = true
 
   private readonly spring: CameraSpring
-  private snapshot: CameraSnapshot
+  private readonly snapshot: MutableCameraSnapshot
   private world: EngineWorld | null = null
 
   constructor(options: CameraSpringOptions = {}) {
@@ -29,7 +29,7 @@ export class CameraSystem implements EngineSystem {
 
   fixedUpdate(dt: number) {
     this.spring.update(dt)
-    this.snapshot = this.spring.getSnapshot()
+    this.spring.getSnapshot(this.snapshot)
   }
 
   getSnapshot() {
@@ -52,7 +52,7 @@ export class CameraSystem implements EngineSystem {
       this.spring.setZoom(zoom)
     }
     this.spring.jumpToTarget()
-    this.snapshot = this.spring.getSnapshot()
+    this.spring.getSnapshot(this.snapshot)
   }
 
   configure(options: Partial<Omit<CameraSpringOptions, 'position' | 'target' | 'zoom' | 'targetZoom'>>) {

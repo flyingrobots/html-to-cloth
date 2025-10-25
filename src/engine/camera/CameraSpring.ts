@@ -11,8 +11,30 @@ export type CameraSpringOptions = {
   targetZoom?: number
 }
 
+export type MutableCameraSnapshot = {
+  position: THREE.Vector3
+  velocity: THREE.Vector3
+  target: THREE.Vector3
+  zoom: number
+  zoomVelocity: number
+  targetZoom: number
+}
+
+export type CameraSnapshot = Readonly<MutableCameraSnapshot>
+
+export const CAMERA_SPRING_MAX_DELTA = 1 / 30
+
 const DEFAULT_STIFFNESS = 120
 const DEFAULT_DAMPING = 20
+
+const createMutableSnapshot = (): MutableCameraSnapshot => ({
+  position: new THREE.Vector3(),
+  velocity: new THREE.Vector3(),
+  target: new THREE.Vector3(),
+  zoom: 1,
+  zoomVelocity: 0,
+  targetZoom: 1,
+})
 
 export class CameraSpring {
   private readonly position = new THREE.Vector3()
@@ -98,14 +120,14 @@ export class CameraSpring {
     if (options.zoomDamping !== undefined) this.zoomDamping = options.zoomDamping
   }
 
-  getSnapshot() {
-    return {
-      position: this.position.clone(),
-      velocity: this.velocity.clone(),
-      zoom: this.zoom,
-      zoomVelocity: this.zoomVelocity,
-      target: this.target.clone(),
-      targetZoom: this.targetZoom,
-    }
+  getSnapshot(target?: MutableCameraSnapshot): MutableCameraSnapshot {
+    const snapshot = target ?? createMutableSnapshot()
+    snapshot.position.copy(this.position)
+    snapshot.velocity.copy(this.velocity)
+    snapshot.target.copy(this.target)
+    snapshot.zoom = this.zoom
+    snapshot.zoomVelocity = this.zoomVelocity
+    snapshot.targetZoom = this.targetZoom
+    return snapshot
   }
 }
