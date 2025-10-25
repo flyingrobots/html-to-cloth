@@ -86,3 +86,4 @@ Web design feels clunky not because the medium is doomed, but because we’ve le
 - 2025-10-12: Integrated shadcn/ui (card, dialog, slider, switch) and rebuilt debug palette with real-time controls.
 
 - 2025-10-12: Swapped ClothSceneController to fixed-step substepping, added solver/tessellation/pin debug controls with pointer collider viz, and warmed cloth activation via geometry resets.
+- 2025-10-25: Hardened the engine layer—cloth now reports 2D bounding spheres, fixed-step loops ignore paused accumulation, the runner clamps substeps, and new specs guard snapshot immutability and entity edge cases.
