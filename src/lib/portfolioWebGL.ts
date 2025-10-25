@@ -1,4 +1,5 @@
 import * as THREE from 'three'
+import { CameraSystem } from '../engine/camera'
 import { DOMToWebGL } from './domToWebGL'
 import type { DOMMeshRecord } from './domToWebGL'
 import { ClothPhysics } from './clothPhysics'
@@ -13,6 +14,11 @@ const WARM_START_PASSES = 2
 
 export type PinMode = 'top' | 'bottom' | 'corners' | 'none'
 
+export const DEFAULT_CAMERA_STIFFNESS = 120
+export const DEFAULT_CAMERA_DAMPING = 20
+export const DEFAULT_CAMERA_ZOOM_STIFFNESS = 120
+export const DEFAULT_CAMERA_ZOOM_DAMPING = 20
+
 type DebugSettings = {
   realTime: boolean
   wireframe: boolean
@@ -23,6 +29,10 @@ type DebugSettings = {
   tessellationSegments: number
   pointerCollider: boolean
   pinMode: PinMode
+  cameraStiffness: number
+  cameraDamping: number
+  cameraZoomStiffness: number
+  cameraZoomDamping: number
 }
 
 type PointerState = {
@@ -134,6 +144,15 @@ export class PortfolioWebGL {
   private scheduler = new SimulationScheduler()
   private accumulator = 0
   private elementIds = new Map<HTMLElement, string>()
+  private readonly cameraSystem = new CameraSystem({
+    position: new THREE.Vector3(0, 0, 500),
+    target: new THREE.Vector3(0, 0, 0),
+    zoom: 1,
+    stiffness: DEFAULT_CAMERA_STIFFNESS,
+    damping: DEFAULT_CAMERA_DAMPING,
+    zoomStiffness: DEFAULT_CAMERA_ZOOM_STIFFNESS,
+    zoomDamping: DEFAULT_CAMERA_ZOOM_DAMPING,
+  })
   private onResize = () => this.handleResize()
   private onScroll = () => {
     this.syncStaticMeshes()
@@ -159,6 +178,10 @@ export class PortfolioWebGL {
     tessellationSegments: 24,
     pointerCollider: false,
     pinMode: 'top',
+    cameraStiffness: DEFAULT_CAMERA_STIFFNESS,
+    cameraDamping: DEFAULT_CAMERA_DAMPING,
+    cameraZoomStiffness: DEFAULT_CAMERA_ZOOM_STIFFNESS,
+    cameraZoomDamping: DEFAULT_CAMERA_ZOOM_DAMPING,
   }
   private onPointerMove = (event: PointerEvent) => this.handlePointerMove(event)
   private onPointerLeave = () => this.resetPointer()
@@ -187,6 +210,7 @@ export class PortfolioWebGL {
     window.addEventListener('pointercancel', this.onPointerLeave, { passive: true })
 
     this.clock.start()
+    this.applyCameraSnapshot()
     this.animate()
 
     if (this.pointerColliderVisible) {
@@ -329,11 +353,13 @@ export class PortfolioWebGL {
     if (this.debug.realTime) {
       this.accumulator = Math.min(this.accumulator + delta, MAX_ACCUMULATED_TIME)
       while (this.accumulator >= FIXED_DT) {
+        this.stepCamera(FIXED_DT)
         this.stepCloth(FIXED_DT)
         this.accumulator -= FIXED_DT
       }
     }
 
+    this.applyCameraSnapshot()
     this.decayPointerImpulse()
     this.updatePointerHelper()
     this.domToWebGL.render()
@@ -535,10 +561,68 @@ export class PortfolioWebGL {
     }
   }
 
+  /**
+   * Updates the positional spring stiffness that drives camera motion.
+   */
+  setCameraStiffness(value: number) {
+    const clamped = Math.max(0, value)
+    this.debug.cameraStiffness = clamped
+    this.cameraSystem.configure({ stiffness: clamped })
+  }
+
+  /**
+   * Updates the positional spring damping coefficient for the camera.
+   */
+  setCameraDamping(value: number) {
+    const clamped = Math.max(0, value)
+    this.debug.cameraDamping = clamped
+    this.cameraSystem.configure({ damping: clamped })
+  }
+
+  /**
+   * Updates the zoom spring stiffness constant.
+   */
+  setCameraZoomStiffness(value: number) {
+    const clamped = Math.max(0, value)
+    this.debug.cameraZoomStiffness = clamped
+    this.cameraSystem.configure({ zoomStiffness: clamped })
+  }
+
+  /**
+   * Updates the zoom spring damping coefficient.
+   */
+  setCameraZoomDamping(value: number) {
+    const clamped = Math.max(0, value)
+    this.debug.cameraZoomDamping = clamped
+    this.cameraSystem.configure({ zoomDamping: clamped })
+  }
+
   stepOnce() {
+    this.stepCamera(FIXED_DT)
     this.stepCloth(FIXED_DT)
+    this.applyCameraSnapshot()
     this.decayPointerImpulse()
     this.updatePointerHelper()
+  }
+
+  /**
+   * Advances the camera system by one fixed timestep.
+   */
+  private stepCamera(dt: number) {
+    this.cameraSystem.fixedUpdate(dt)
+  }
+
+  /**
+   * Mirrors the current camera snapshot onto the Three.js camera.
+   */
+  private applyCameraSnapshot() {
+    if (!this.domToWebGL) return
+    const snapshot = this.cameraSystem.getSnapshot()
+    const camera = this.domToWebGL.camera
+    camera.position.copy(snapshot.position)
+    camera.lookAt(snapshot.target)
+    camera.zoom = snapshot.zoom
+    camera.updateProjectionMatrix()
   }
 
   private stepCloth(dt: number) {

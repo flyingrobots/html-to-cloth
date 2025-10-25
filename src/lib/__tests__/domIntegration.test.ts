@@ -66,6 +66,12 @@ vi.mock('../domToWebGL', () => {
     updateMeshTransform = domMocks.updateMeshTransform
     resize = domMocks.resize
     render = domMocks.render
+    camera = {
+      position: new THREE.Vector3(),
+      zoom: 1,
+      lookAt: vi.fn(),
+      updateProjectionMatrix: vi.fn(),
+    } as unknown as THREE.OrthographicCamera
     renderer = { dispose: vi.fn(() => domMocks.rendererDispose()) }
     detach = vi.fn(() => domMocks.detach())
     scene = {

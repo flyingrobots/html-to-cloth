@@ -27,7 +27,14 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { ChevronDown } from "lucide-react"
 
-import { PortfolioWebGL, type PinMode } from "./lib/portfolioWebGL"
+import {
+  PortfolioWebGL,
+  type PinMode,
+  DEFAULT_CAMERA_STIFFNESS,
+  DEFAULT_CAMERA_DAMPING,
+  DEFAULT_CAMERA_ZOOM_STIFFNESS,
+  DEFAULT_CAMERA_ZOOM_DAMPING,
+} from "./lib/portfolioWebGL"
 
 function Kbd({ children }: { children: React.ReactNode }) {
   return (
@@ -58,6 +65,14 @@ function DebugPalette({
   onPointerColliderVisibleChange,
   pinMode,
   onPinModeChange,
+  cameraStiffness,
+  onCameraStiffnessChange,
+  cameraDamping,
+  onCameraDampingChange,
+  cameraZoomStiffness,
+  onCameraZoomStiffnessChange,
+  cameraZoomDamping,
+  onCameraZoomDampingChange,
   onStep,
   onReset,
 }: {
@@ -81,6 +96,14 @@ function DebugPalette({
   onPointerColliderVisibleChange: (value: boolean) => void
   pinMode: PinMode
   onPinModeChange: (value: PinMode) => void
+  cameraStiffness: number
+  onCameraStiffnessChange: (value: number) => void
+  cameraDamping: number
+  onCameraDampingChange: (value: number) => void
+  cameraZoomStiffness: number
+  onCameraZoomStiffnessChange: (value: number) => void
+  cameraZoomDamping: number
+  onCameraZoomDampingChange: (value: number) => void
   onStep: () => void
   onReset: () => void
 }) {
@@ -190,6 +213,60 @@ function DebugPalette({
             </div>
             <div className="space-y-2">
               <div className="flex items-center justify-between text-sm font-medium">
+                <span>Camera Stiffness</span>
+                <span className="text-muted-foreground">{cameraStiffness.toFixed(0)}</span>
+              </div>
+              <Slider
+                value={[cameraStiffness]}
+                min={0}
+                max={400}
+                step={5}
+                onValueChange={(value) => onCameraStiffnessChange(Math.round(value[0] ?? cameraStiffness))}
+              />
+            </div>
+            <div className="space-y-2">
+              <div className="flex items-center justify-between text-sm font-medium">
+                <span>Camera Damping</span>
+                <span className="text-muted-foreground">{cameraDamping.toFixed(1)}</span>
+              </div>
+              <Slider
+                value={[cameraDamping]}
+                min={0}
+                max={60}
+                step={0.5}
+                onValueChange={(value) => onCameraDampingChange(value[0] ?? cameraDamping)}
+              />
+            </div>
+            <div className="space-y-2">
+              <div className="flex items-center justify-between text-sm font-medium">
+                <span>Zoom Stiffness</span>
+                <span className="text-muted-foreground">{cameraZoomStiffness.toFixed(0)}</span>
+              </div>
+              <Slider
+                value={[cameraZoomStiffness]}
+                min={0}
+                max={400}
+                step={5}
+                onValueChange={(value) =>
+                  onCameraZoomStiffnessChange(Math.round(value[0] ?? cameraZoomStiffness))
+                }
+              />
+            </div>
+            <div className="space-y-2">
+              <div className="flex items-center justify-between text-sm font-medium">
+                <span>Zoom Damping</span>
+                <span className="text-muted-foreground">{cameraZoomDamping.toFixed(1)}</span>
+              </div>
+              <Slider
+                value={[cameraZoomDamping]}
+                min={0}
+                max={60}
+                step={0.5}
+                onValueChange={(value) => onCameraZoomDampingChange(value[0] ?? cameraZoomDamping)}
+              />
+            </div>
+            <div className="space-y-2">
+              <div className="flex items-center justify-between text-sm font-medium">
                 <span>Pin Mode</span>
                 <span className="text-muted-foreground">{pinModeLabels[pinMode]}</span>
               </div>
@@ -246,6 +323,10 @@ function Demo() {
   const [substeps, setSubsteps] = useState(1)
   const [pointerColliderVisible, setPointerColliderVisible] = useState(false)
   const [pinMode, setPinMode] = useState<PinMode>("top")
+  const [cameraStiffness, setCameraStiffness] = useState(DEFAULT_CAMERA_STIFFNESS)
+  const [cameraDamping, setCameraDamping] = useState(DEFAULT_CAMERA_DAMPING)
+  const [cameraZoomStiffness, setCameraZoomStiffness] = useState(DEFAULT_CAMERA_ZOOM_STIFFNESS)
+  const [cameraZoomDamping, setCameraZoomDamping] = useState(DEFAULT_CAMERA_ZOOM_DAMPING)
 
   useEffect(() => {
     if (typeof window === "undefined") return
@@ -315,6 +396,22 @@ function Demo() {
     controllerRef.current?.setPinMode(pinMode)
   }, [pinMode])
 
+  useEffect(() => {
+    controllerRef.current?.setCameraStiffness(cameraStiffness)
+  }, [cameraStiffness])
+
+  useEffect(() => {
+    controllerRef.current?.setCameraDamping(cameraDamping)
+  }, [cameraDamping])
+
+  useEffect(() => {
+    controllerRef.current?.setCameraZoomStiffness(cameraZoomStiffness)
+  }, [cameraZoomStiffness])
+
+  useEffect(() => {
+    controllerRef.current?.setCameraZoomDamping(cameraZoomDamping)
+  }, [cameraZoomDamping])
+
   const modifierKey =
     typeof navigator !== "undefined" && navigator?.platform?.toLowerCase().includes("mac") ? "⌘" : "Ctrl"
 
@@ -357,6 +454,14 @@ function Demo() {
         onPointerColliderVisibleChange={setPointerColliderVisible}
         pinMode={pinMode}
         onPinModeChange={setPinMode}
+        cameraStiffness={cameraStiffness}
+        onCameraStiffnessChange={setCameraStiffness}
+        cameraDamping={cameraDamping}
+        onCameraDampingChange={setCameraDamping}
+        cameraZoomStiffness={cameraZoomStiffness}
+        onCameraZoomStiffnessChange={setCameraZoomStiffness}
+        cameraZoomDamping={cameraZoomDamping}
+        onCameraZoomDampingChange={setCameraZoomDamping}
         onStep={() => controllerRef.current?.stepOnce()}
         onReset={() => {
           setWireframe(false)
@@ -368,6 +473,10 @@ function Demo() {
           setSubsteps(1)
           setPointerColliderVisible(false)
           setPinMode("top")
+          setCameraStiffness(DEFAULT_CAMERA_STIFFNESS)
+          setCameraDamping(DEFAULT_CAMERA_DAMPING)
+          setCameraZoomStiffness(DEFAULT_CAMERA_ZOOM_STIFFNESS)
+          setCameraZoomDamping(DEFAULT_CAMERA_ZOOM_DAMPING)
         }}
       />
     </>
