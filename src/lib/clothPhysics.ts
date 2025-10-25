@@ -67,16 +67,14 @@ export class ClothPhysics {
     this.storedSubsteps = Math.max(1, Math.round(substeps))
   }
 
-  releaseAllPins() {
+  clearPins() {
     for (const particle of this.particles) {
       particle.pinned = false
     }
   }
 
-  clearPins() {
-    for (const particle of this.particles) {
-      particle.pinned = false
-    }
+  releaseAllPins() {
+    this.clearPins()
   }
 
   getVertexPositions() {
