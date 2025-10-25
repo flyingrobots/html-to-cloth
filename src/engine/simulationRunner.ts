@@ -2,6 +2,7 @@ import { FixedStepLoop } from './fixedStepLoop'
 import { EngineWorld } from './world'
 
 const DEFAULT_FIXED_DELTA = 1 / 60
+const MAX_SUBSTEPS = 16
 
 /**
  * Configuration options for {@link SimulationRunner}.
@@ -63,14 +64,14 @@ export class SimulationRunner {
     this.realTime = enabled
     this.engine.setPaused(!enabled)
     this.loop.setPaused(!enabled)
-    if (enabled) {
-      this.loop.reset()
-    }
   }
 
   /** Sets the number of sub steps to execute inside each fixed tick. */
   setSubsteps(substeps: number) {
-    this.substeps = Math.max(1, Math.round(substeps))
+    if (!Number.isFinite(substeps)) return
+    const rounded = Math.round(substeps)
+    const clamped = Math.max(1, Math.min(MAX_SUBSTEPS, rounded))
+    this.substeps = clamped
   }
 
   /** Returns the underlying engine to allow external system registration. */
