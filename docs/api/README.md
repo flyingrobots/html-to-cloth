@@ -15,16 +15,19 @@ layer can import and compose any engine pieces it needs.
 ## Key Concepts
 
 ### Entities & Components
+
 - `EntityManager`, `Entity`, and `Component` provide a minimalist ECS.
 - Entities store components; systems (e.g., `SimulationSystem`) operate on pre-filtered entities
   without fishing for component data manually.
 
 ### Engine World & Loops
+
 - `EngineWorld` holds registered systems, handles priority ordering, and lets the loop pause/resume.
 - `FixedStepLoop` consumes elapsed time in fixed quanta while avoiding spiral-of-death scenarios.
 - `SimulationRunner` couples the loop with the world, supporting real-time ticking and manual steps.
 
 ### Simulation Systems
+
 - `SimulationSystem` adapts the engine loop to `SimWorld`, queueing warm starts and sleep configs
   for each cloth body.
 - `SimWorld` aggregates `SimBody` instances, advances them via the scheduler, and produces snapshots
@@ -36,27 +39,64 @@ layer can import and compose any engine pieces it needs.
 ## Quick Start
 
 ```ts
-import { EngineWorld, SimulationRunner } from '@demo/engine'
-import { SimulationSystem } from '@demo/engine/systems'
-import { SimWorld } from '@demo/lib/simWorld'
+import * as THREE from 'three'
+import { EngineWorld, SimulationRunner } from '@/engine'
+import { SimulationSystem } from '@/engine/systems/simulationSystem'
+import { SimWorld } from '@/lib/simWorld'
+import { ClothSceneController } from '@/lib/clothSceneController'
 
-const world = new EngineWorld()
-const simWorld = new SimWorld()
-const simSystem = new SimulationSystem({ simWorld })
-const runner = new SimulationRunner({ engine: world })
+async function bootstrap() {
+  // 1. Create the engine core pieces that drive the fixed-step loop.
+  const world = new EngineWorld()
+  const simWorld = new SimWorld()
+  const simulationSystem = new SimulationSystem({ simWorld })
+  const runner = new SimulationRunner({ engine: world })
 
-world.addSystem(simSystem, { priority: 100 })
+  // Register the simulation system with a higher priority so it runs early.
+  world.addSystem(simulationSystem, { priority: 100 })
 
-function loop(delta: number) {
-  runner.update(delta)
-  requestAnimationFrame((next) => loop(next / 1000))
+  // 2. Spin up the DOM/WebGL controller. Elements with `.cloth-enabled` will be captured.
+  const controller = new ClothSceneController({
+    engine: world,
+    simWorld,
+    simulationSystem,
+    simulationRunner: runner,
+  })
+
+  await controller.init()
+
+  // 3. Start the render loop. We store the last frame time so delta seconds stay accurate.
+  let lastFrame = performance.now()
+  function frame(now: number) {
+    const deltaSeconds = (now - lastFrame) / 1000
+    lastFrame = now
+
+    runner.update(deltaSeconds)
+    requestAnimationFrame(frame)
+  }
+
+  requestAnimationFrame(frame)
+
+  // 4. Optional helper for teardown—call this when navigating away.
+  return () => {
+    controller.dispose()
+    simWorld.clear()
+  }
 }
 
-requestAnimationFrame((start) => loop(start / 1000))
+bootstrap().catch((error) => {
+  console.error('Failed to bootstrap cloth demo', error)
+})
 ```
 
-Add cloth bodies through `SimWorld.addBody`, hook up the DOM controller, and extend the system list to
-render or debug snapshots.
+Common gotchas:
+
+- Ensure the DOM contains at least one element with `class="cloth-enabled"`; the controller swaps
+  those nodes into WebGL meshes on first click.
+- Dispose the controller before removing the canvas/DOM (e.g., during route changes) so listeners
+  and simulation bodies are cleaned up.
+- When authoring custom cloth bodies, create `ClothPhysics` instances backed by `THREE.Mesh`
+  geometry and register them with `SimWorld.addBody` using adapters that implement `SimBody`.
 
 ## Additional Guides
 

@@ -40,7 +40,7 @@ export type SimWorldSnapshot = {
 export class SimWorld {
   private scheduler: SimulationScheduler
   private bodies = new Map<string, SimBody>()
-  private previousCenters = new Map<string, THREE.Vector2>()
+  private previousCenters = new Map<string, { x: number; y: number }>()
   private snapshot: SimWorldSnapshot = { bodies: [] }
 
   constructor(scheduler?: SimulationScheduler) {
@@ -54,7 +54,8 @@ export class SimWorld {
     }
     this.bodies.set(body.id, body)
     this.scheduler.addBody(body)
-    this.previousCenters.set(body.id, body.getBoundingSphere().center.clone())
+    const sphere = body.getBoundingSphere()
+    this.previousCenters.set(body.id, { x: sphere.center.x, y: sphere.center.y })
     this.updateSnapshot()
   }
 
@@ -69,7 +70,8 @@ export class SimWorld {
   /** Advances all awake bodies and performs sleeping-body sweep tests. */
   step(dt: number) {
     for (const [id, body] of this.bodies.entries()) {
-      this.previousCenters.set(id, body.getBoundingSphere().center.clone())
+      const sphere = body.getBoundingSphere()
+      this.previousCenters.set(id, { x: sphere.center.x, y: sphere.center.y })
     }
 
     this.scheduler.step(dt)
@@ -148,13 +150,14 @@ export class SimWorld {
   }
 
   private segmentIntersectsSphere(
-    start: THREE.Vector2,
+    start: { x: number; y: number },
     end: THREE.Vector2,
     center: THREE.Vector2,
     radius: number
   ) {
-    const ab = end.clone().sub(start)
-    const ac = center.clone().sub(start)
+    const startVec = new THREE.Vector2(start.x, start.y)
+    const ab = end.clone().sub(startVec)
+    const ac = center.clone().sub(startVec)
 
     const abLengthSq = ab.lengthSq()
     if (abLengthSq === 0) {
@@ -162,8 +165,7 @@ export class SimWorld {
     }
 
     const t = THREE.MathUtils.clamp(ac.dot(ab) / abLengthSq, 0, 1)
-    const closest = start.clone().add(ab.multiplyScalar(t))
-    const distanceSq = closest.distanceToSquared(center)
-    return distanceSq <= radius * radius
+    const closest = startVec.clone().add(ab.multiplyScalar(t))
+    return closest.distanceToSquared(center) <= radius * radius
   }
 }

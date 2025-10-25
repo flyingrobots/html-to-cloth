@@ -56,10 +56,7 @@ export class SimulationRunner {
     this.executeStep(this.fixedDelta)
   }
 
-  /**
-   * Enables or disables real-time ticking. Pausing discards accumulated time; resuming requires a
-   * subsequent {@link update} call to continue the simulation.
-   */
+  /** Enables or disables real-time ticking. Pausing discards accumulated time. */
   setRealTime(enabled: boolean) {
     this.realTime = enabled
     this.engine.setPaused(!enabled)

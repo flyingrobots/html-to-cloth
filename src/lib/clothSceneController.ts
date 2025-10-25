@@ -202,6 +202,7 @@ export class ClothSceneController {
   private simulationSystem: SimulationSystem
   private simulationRunner: SimulationRunner
   private simWorld: SimWorld
+  private engine: EngineWorld
   private entities = new EntityManager()
   private elementIds = new Map<HTMLElement, string>()
   private onResize = () => this.handleResize()
@@ -245,13 +246,13 @@ export class ClothSceneController {
     this.simWorld = options.simWorld ?? new SimWorld()
     this.simulationSystem = options.simulationSystem ?? new SimulationSystem({ simWorld: this.simWorld })
 
-    const engine = options.engine ?? new EngineWorld()
-    engine.addSystem(this.simulationSystem, { priority: 100 })
+    this.engine = options.engine ?? new EngineWorld()
+    this.engine.addSystem(this.simulationSystem, { priority: 100 })
 
     this.simulationRunner =
       options.simulationRunner ??
       new SimulationRunner({
-        engine,
+        engine: this.engine,
         fixedDelta: options.fixedDelta,
         maxSubSteps: options.maxSubSteps,
       })
@@ -343,6 +344,10 @@ export class ClothSceneController {
     this.pool = null
     this.simulationSystem.clear()
     this.setRealTime(false)
+    if (this.engine) {
+      const systemId = this.simulationSystem.id ?? 'simulation'
+      this.engine.removeSystem(systemId)
+    }
     this.entities.clear()
     this.elementIds.clear()
   }
