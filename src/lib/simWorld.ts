@@ -67,7 +67,7 @@ export class SimWorld {
     this.updateSnapshot()
   }
 
-  hasBody(id: string) {
+  hasBody(id: string): boolean {
     return this.bodies.has(id)
   }
 

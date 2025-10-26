@@ -43,6 +43,7 @@ const simulationRunnerMocks = {
   setRealTime: vi.fn(),
   setSubsteps: vi.fn(),
   setPaused: vi.fn(),
+  frame: vi.fn(),
   instances: [] as any[],
 }
 
@@ -165,7 +166,11 @@ vi.mock('../../engine/simulationRunner', () => {
     stepOnce = vi.fn(() => simulationRunnerMocks.stepOnce())
     setRealTime = vi.fn((value: boolean) => simulationRunnerMocks.setRealTime(value))
     setSubsteps = vi.fn((value: number) => simulationRunnerMocks.setSubsteps(value))
-    getEngine = vi.fn(() => ({ setPaused: simulationRunnerMocks.setPaused }))
+    frame = vi.fn((dt: number) => simulationRunnerMocks.frame(dt))
+    getEngine = vi.fn(() => ({
+      setPaused: simulationRunnerMocks.setPaused,
+      frame: simulationRunnerMocks.frame,
+    }))
   }
 
   return { SimulationRunner: MockSimulationRunner }
@@ -173,6 +178,8 @@ vi.mock('../../engine/simulationRunner', () => {
 
 vi.mock('../../engine/systems/simulationSystem', () => {
   class MockSimulationSystem {
+    public id = `simulation-mock-${simulationSystemMocks.instances.length + 1}`
+
     constructor() {
       simulationSystemMocks.instances.push(this)
     }
@@ -289,6 +296,7 @@ const resetSpies = () => {
   simulationRunnerMocks.setRealTime.mockReset()
   simulationRunnerMocks.setSubsteps.mockReset()
   simulationRunnerMocks.setPaused.mockReset()
+  simulationRunnerMocks.frame.mockReset()
   simulationRunnerMocks.instances.length = 0
 
   simulationSystemMocks.addBody.mockReset()

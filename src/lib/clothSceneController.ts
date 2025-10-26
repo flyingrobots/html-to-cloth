@@ -132,9 +132,9 @@ class ClothBodyAdapter implements SimBody, Component {
 
   onDetach() {}
 
-  getBoundingSphere() {
+  getBoundingSphere(): ReturnType<SimBody['getBoundingSphere']> {
     const cloth = this.item.cloth
-    if (cloth && typeof (cloth as { getBoundingSphere?: () => THREE.Sphere }).getBoundingSphere === 'function') {
+    if (cloth) {
       const sphere = cloth.getBoundingSphere()
       return {
         center: new THREE.Vector2(sphere.center.x, sphere.center.y),
@@ -142,19 +142,11 @@ class ClothBodyAdapter implements SimBody, Component {
       }
     }
 
-    const record = this.record
-    if (record) {
-      const center = record.mesh.position
-      const radius = Math.max(record.widthMeters, record.heightMeters) / 2 || 0.25
-      return {
-        center: new THREE.Vector2(center.x, center.y),
-        radius,
-      }
-    }
-
+    const center = this.record.mesh.position
+    const radius = Math.max(this.record.widthMeters ?? 0, this.record.heightMeters ?? 0) / 2 || 0.25
     return {
-      center: new THREE.Vector2(0, 0),
-      radius: 0.25,
+      center: new THREE.Vector2(center.x, center.y),
+      radius,
     }
   }
 
@@ -254,7 +246,7 @@ export class ClothSceneController {
       new SimulationRunner({
         engine: this.engine,
         fixedDelta: options.fixedDelta,
-        maxSubSteps: options.maxSubSteps,
+        maxSubSteps: options.maxSubSteps ?? this.debug.substeps,
       })
   }
 
@@ -342,13 +334,9 @@ export class ClothSceneController {
     this.items.clear()
     this.domToWebGL = null
     this.pool = null
-    this.simulationSystem.clear()
+    // Pause, then detach; onDetach() will clear once.
     this.setRealTime(false)
-    if (this.engine) {
-      const systemId = this.simulationSystem.id ?? 'simulation'
-      this.engine.removeSystem(systemId)
-    }
-    this.entities.clear()
+    this.engine.removeSystem(this.simulationSystem.id)
     this.elementIds.clear()
   }
 
@@ -449,6 +437,7 @@ export class ClothSceneController {
     const delta = Math.min(this.clock.getDelta(), 0.05)
 
     this.simulationRunner.update(delta)
+    this.simulationRunner.getEngine().frame(delta)
 
     this.decayPointerImpulse()
     this.updatePointerHelper()

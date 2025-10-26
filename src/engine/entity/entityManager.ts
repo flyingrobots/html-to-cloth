@@ -10,12 +10,20 @@ export class EntityManager {
 
   /** Creates a new entity with optional metadata. */
   createEntity(options: EntityOptions = {}) {
-    if (options.id !== undefined) {
-      if (typeof options.id !== 'string' || options.id.trim().length === 0) {
+    const rawId = options.id
+    let id: string
+    if (rawId !== undefined) {
+      if (typeof rawId !== 'string') {
         throw new Error('Entity id must be a non-empty string')
       }
+      const trimmed = rawId.trim()
+      if (trimmed.length === 0) {
+        throw new Error('Entity id must be a non-empty string')
+      }
+      id = trimmed
+    } else {
+      id = this.generateId()
     }
-    const id = options.id ?? this.generateId()
     if (this.entities.has(id)) {
       throw new Error(`Entity with id ${id} already exists`)
     }

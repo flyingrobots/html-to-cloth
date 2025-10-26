@@ -6,9 +6,16 @@ export type EngineSystemOptions = {
   allowWhilePaused?: boolean
 }
 
+export interface EngineLogger {
+  error(...args: unknown[]): void
+  warn?(...args: unknown[]): void
+  info?(...args: unknown[]): void
+}
+
 export interface EngineWorldLike {
   setPaused(value: boolean): void
   isPaused(): boolean
+  getLogger?(): EngineLogger
 }
 
 export interface EngineSystem<TWorld extends EngineWorldLike = EngineWorldLike> {

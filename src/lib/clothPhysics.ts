@@ -116,7 +116,7 @@ export class ClothPhysics {
     }
   }
 
-  getBoundingSphere() {
+  getBoundingSphere(): { center: THREE.Vector2; radius: number } {
     if (!this.mesh.geometry.boundingSphere) {
       this.mesh.geometry.computeBoundingSphere()
     }

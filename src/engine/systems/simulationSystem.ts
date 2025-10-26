@@ -8,7 +8,7 @@ import type {
   SimSleepConfig,
 } from '../../lib/simWorld'
 import type { EngineWorld } from '../world'
-import type { EngineSystem } from '../types'
+import type { EngineLogger, EngineSystem } from '../types'
 
 export type SimulationSystemOptions = {
   simWorld: SimWorld
@@ -27,38 +27,56 @@ export type RegisterBodyOptions = {
   sleep?: SimSleepConfig
 }
 
+const DEFAULT_LOGGER: EngineLogger = {
+  error: (...args: unknown[]) => console.error(...args),
+}
+
+function freezeSnapshot(snapshot: SimWorldSnapshot): Readonly<SimWorldSnapshot> {
+  for (const body of snapshot.bodies) {
+    Object.freeze(body.center)
+    Object.freeze(body)
+  }
+  Object.freeze(snapshot.bodies)
+  return Object.freeze(snapshot)
+}
+
+let systemCounter = 0
+
 /**
  * Engine system responsible for orchestrating cloth simulation bodies. Acts as the bridge
  * between the fixed-step engine loop and the `SimWorld`, managing warm-start/sleep queues
  * and exposing immutable snapshots for read-only consumers.
  */
-let systemCounter = 0
-
 export class SimulationSystem implements EngineSystem<EngineWorld> {
   id: string
   allowWhilePaused = false
 
   private readonly simWorld: SimWorld
   private readonly bodies = new Map<string, BodyRecord>()
-  private snapshot: SimWorldSnapshot = { bodies: [] }
+  private snapshot: Readonly<SimWorldSnapshot> = freezeSnapshot({ bodies: [] })
+  private logger: EngineLogger = DEFAULT_LOGGER
 
   constructor(options: SimulationSystemOptions) {
+    if (!options?.simWorld) {
+      throw new Error('SimulationSystem requires a valid simWorld instance')
+    }
     this.simWorld = options.simWorld
     this.id = `simulation-${systemCounter++}`
   }
 
   onAttach(world: EngineWorld) {
-    // no-op for now; hook reserved for future metrics or logging
+    this.logger = world.getLogger()
   }
 
   onDetach() {
-    this.clear()
+    this.bodies.clear()
+    this.snapshot = freezeSnapshot({ bodies: [] })
   }
 
   fixedUpdate(dt: number) {
     this.flushPendingConfiguration()
     this.simWorld.step(dt)
-    this.snapshot = this.simWorld.getSnapshot()
+    this.snapshot = freezeSnapshot(this.simWorld.getSnapshot())
   }
 
   notifyPointer(point: Vector2) {
@@ -68,7 +86,7 @@ export class SimulationSystem implements EngineSystem<EngineWorld> {
   /** Registers a new simulated body with optional warm-start and sleep configuration. */
   addBody(body: SimBody, options: RegisterBodyOptions = {}) {
     if (this.bodies.has(body.id) || this.simWorld.hasBody(body.id)) {
-      throw new Error(`Simulation body with id ${body.id} already registered`)
+      throw new Error(`Simulation body with id '${body.id}' already registered`)
     }
     this.simWorld.addBody(body)
     const record: BodyRecord = {
@@ -91,7 +109,7 @@ export class SimulationSystem implements EngineSystem<EngineWorld> {
   clear() {
     this.simWorld.clear()
     this.bodies.clear()
-    this.snapshot = { bodies: [] }
+    this.snapshot = freezeSnapshot({ bodies: [] })
   }
 
   /** Queues a warm-start configuration to be applied on the next fixed update. */
@@ -111,7 +129,7 @@ export class SimulationSystem implements EngineSystem<EngineWorld> {
   }
 
   /** Returns the most recent snapshot captured after the last fixed update. */
-  getSnapshot() {
+  getSnapshot(): Readonly<SimWorldSnapshot> {
     return this.snapshot
   }
 
@@ -122,7 +140,7 @@ export class SimulationSystem implements EngineSystem<EngineWorld> {
           record.body.configureSleep?.(record.sleep)
           record.pendingSleep = false
         } catch (error) {
-          console.error(`Failed to apply sleep configuration for body ${record.body.id}`, error)
+          this.logger.error(`Failed to apply sleep configuration for body ${record.body.id}`, error)
         }
       }
 
@@ -131,7 +149,7 @@ export class SimulationSystem implements EngineSystem<EngineWorld> {
           record.body.warmStart?.(record.warmStart)
           record.pendingWarmStart = false
         } catch (error) {
-          console.error(`Failed to apply warm start for body ${record.body.id}`, error)
+          this.logger.error(`Failed to apply warm start for body ${record.body.id}`, error)
         }
       }
     }
