@@ -56,10 +56,7 @@ export class SimulationRunner {
     this.executeStep(this.fixedDelta)
   }
 
-  /**
-   * Enables or disables real-time ticking. Pausing discards accumulated time; resuming relies on
-   * fresh updates rather than draining a buffered backlog.
-   */
+  /** Enables or disables real-time ticking. Pausing discards accumulated time. */
   setRealTime(enabled: boolean) {
     this.realTime = enabled
     this.engine.setPaused(!enabled)
@@ -69,8 +66,7 @@ export class SimulationRunner {
   /** Sets the number of sub steps to execute inside each fixed tick. */
   setSubsteps(substeps: number) {
     if (!Number.isFinite(substeps)) return
-    const rounded = Math.round(substeps)
-    const clamped = Math.max(1, Math.min(MAX_SUBSTEPS, rounded))
+    const clamped = Math.max(1, Math.min(MAX_SUBSTEPS, Math.round(substeps)))
     this.substeps = clamped
   }
 

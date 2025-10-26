@@ -85,4 +85,18 @@ describe('Entity + EntityManager', () => {
     expect(entity.hasComponent(MockComponent)).toBe(false)
     expect(entity.removeComponent(MockComponent)).toBeUndefined()
   })
+
+  it('rejects invalid entity ids', () => {
+    const manager = new EntityManager()
+    expect(() => manager.createEntity({ id: '' })).toThrow('non-empty')
+    expect(() => manager.createEntity({ id: '   ' })).toThrow('non-empty')
+    expect(() => manager.createEntity({ id: 123 as unknown as string })).toThrow('non-empty')
+  })
+
+  it('skips used ids when generating new ones', () => {
+    const manager = new EntityManager()
+    manager.createEntity({ id: 'entity-1' })
+    const generated = manager.createEntity()
+    expect(generated.id).toBe('entity-2')
+  })
 })

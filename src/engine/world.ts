@@ -14,16 +14,18 @@ export class EngineWorld {
 
   addSystem(system: EngineSystem, options: EngineSystemOptions = {}) {
     const id = this.resolveId(system, options)
+    if (this.systems.some((entry) => entry.id === id)) {
+      throw new Error(`Engine system id '${id}' already registered`)
+    }
+    if (this.systems.some((entry) => entry.system === system)) {
+      throw new Error('Engine system instance already registered')
+    }
     const entry: RegisteredSystem = {
       id,
       system,
       priority: options.priority ?? system.priority ?? 0,
       allowWhilePaused: options.allowWhilePaused ?? system.allowWhilePaused ?? false,
     }
-
-    system.id = id
-    system.priority = entry.priority
-    system.allowWhilePaused = entry.allowWhilePaused
 
     this.systems.push(entry)
     this.sortSystems()

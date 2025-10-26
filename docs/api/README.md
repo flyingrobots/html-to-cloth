@@ -1,76 +1,126 @@
 # Cloth Engine API Overview
 
-Welcome to the generated API reference for the cloth demo engine. This guide introduces the
-core concepts that surface throughout the TypeDoc output and shows how the pieces fit together.
+This API surface is generated from the engine and simulation modules that power the cloth demo.
+Keep these reference points in mind while browsing the TypeDoc output.
 
-## Architecture at a Glance
+## Architecture Overview
 
-The engine code is split into two broad layers:
+- **Engine Core (`src/engine`)** – Entities, components, systems, and the orchestration layer.
+- **Simulation Layer (`src/lib`)** – Cloth-specific physics, the simulation world, and the DOM scene
+  controller that bridges the engine with the WebGL pipeline.
 
-- **Engine Core (`src/engine`)** – shared infrastructure such as the entity/component system,
-  the fixed-step loop, and orchestrators like `SimulationRunner` and `SimulationSystem`.
-- **Simulation Modules (`src/lib`)** – cloth-specific systems, world coordination logic, and
-  the scene controller that bridges DOM meshes with the engine core.
-
-Each layer is designed so that higher level modules depend on the layer beneath them, never the
-other way around. That separation lets us reuse the engine primitives for future simulations.
+The layer cake is intentional: engine primitives have no knowledge of cloth, while the simulation
+layer can import and compose any engine pieces it needs.
 
 ## Key Concepts
 
-### Entity / Component System
+### Entities & Components
 
-- `EntityManager`, `Entity`, and `Component` form a lightweight ECS used by higher level systems.
-- Entities are simple component bags; systems declare the data they operate on and the manager
-  keeps registration in sync.
+- `EntityManager`, `Entity`, and `Component` provide a minimalist ECS.
+- Entities store components; systems (e.g., `SimulationSystem`) operate on pre-filtered entities
+  without fishing for component data manually.
 
-### Engine World & Systems
+### Engine World & Loops
 
-- `EngineWorld` owns system lifecycles, priorities, and pause state. Systems implement
-  `fixedUpdate`/`frameUpdate` hooks to participate in the loop.
-- `SimulationRunner` drives a `FixedStepLoop`, wiring elapsed time into the world and supporting
-  manual stepping for debug tooling.
-- `SimulationSystem` bridges the engine world with the cloth `SimWorld`, queuing warm-start and
-  sleep configuration for each body.
+- `EngineWorld` holds registered systems, handles priority ordering, and lets the loop pause/resume.
+- `FixedStepLoop` consumes elapsed time in fixed quanta while avoiding spiral-of-death scenarios.
+- `SimulationRunner` couples the loop with the world, supporting real-time ticking and manual steps.
 
-### Simulation Layer
+### Simulation Systems
 
-- `SimWorld` tracks all simulated cloth bodies, manages wake/sleep checks, and produces immutable
-  snapshots for render/debug consumers.
-- `ClothPhysics` encapsulates the Verlet cloth solver with pinning, impulses, and warm-start
-  support.
-- `ClothSceneController` (public entry point) wires DOM capture, pointer input, and the simulation
-  runner together.
+- `SimulationSystem` adapts the engine loop to `SimWorld`, queueing warm starts and sleep configs
+  for each cloth body.
+- `SimWorld` aggregates `SimBody` instances, advances them via the scheduler, and produces snapshots
+  for rendering/debug tools.
+- `ClothPhysics` is the Verlet cloth solver with pinning, impulses, and warm-start helpers.
+- `ClothSceneController` captures DOM meshes, forwards pointer interaction, and wires everything
+  into the simulation runner.
 
 ## Quick Start
 
 ```ts
-import { EngineWorld, SimulationRunner } from '@demo/engine'
-import { SimulationSystem } from '@demo/engine/systems'
-import { SimWorld } from '@demo/lib/simWorld'
+import * as THREE from 'three'
+import { EngineWorld, SimulationRunner } from '@/engine'
+import { SimulationSystem } from '@/engine/systems/simulationSystem'
+import { SimWorld, type SimBody } from '@/lib/simWorld'
+import { ClothPhysics } from '@/lib/clothPhysics'
+import { ClothSceneController } from '@/lib/clothSceneController'
 
-const world = new EngineWorld()
-const simWorld = new SimWorld()
-const simulationSystem = new SimulationSystem({ simWorld })
-const runner = new SimulationRunner({ engine: world })
+async function bootstrap() {
+  // 1. Create the engine primitives.
+  const world = new EngineWorld()
+  const simWorld = new SimWorld()
+  const simulationSystem = new SimulationSystem({ simWorld })
+  const runner = new SimulationRunner({ engine: world })
 
-world.addSystem(simulationSystem, { priority: 100 })
+  world.addSystem(simulationSystem, { priority: 100 })
 
-function gameLoop(deltaSeconds: number) {
-  runner.update(deltaSeconds)
-  requestAnimationFrame((next) => gameLoop(next / 1000))
+  // 2. Register a cloth body programmatically (optional).
+  const geometry = new THREE.PlaneGeometry(1, 1, 16, 16)
+  const material = new THREE.MeshBasicMaterial({ color: 0xffffff })
+  const mesh = new THREE.Mesh(geometry, material)
+  const cloth = new ClothPhysics(mesh)
+
+  const clothBody: SimBody = {
+    id: 'demo-cloth',
+    update: (dt) => cloth.update(dt),
+    isSleeping: () => cloth.isSleeping(),
+    wake: () => cloth.wake(),
+    wakeIfPointInside: (point) => cloth.wakeIfPointInside(point),
+    getBoundingSphere: () => cloth.getBoundingSphere(),
+    warmStart: (config) => cloth.warmStart(config),
+    configureSleep: (config) => cloth.setSleepThresholds(config.velocityThreshold, config.frameThreshold),
+  }
+
+  simWorld.addBody(clothBody)
+
+  // 3. Spin up the DOM/WebGL controller. Cloth elements with `.cloth-enabled` will be captured.
+  const controller = new ClothSceneController({
+    engine: world,
+    simWorld,
+    simulationSystem,
+    simulationRunner: runner,
+  })
+
+  await controller.init()
+
+  // 4. Start the render loop.
+  let lastFrame = performance.now()
+  function frame(now: number) {
+    const deltaSeconds = (now - lastFrame) / 1000
+    lastFrame = now
+
+    runner.update(deltaSeconds)
+    requestAnimationFrame(frame)
+  }
+
+  requestAnimationFrame(frame)
+
+  // 5. Return a cleanup hook for route changes or hot reloads.
+  return () => {
+    controller.dispose()
+    simWorld.clear()
+  }
 }
 
-requestAnimationFrame((initial) => gameLoop(initial / 1000))
+bootstrap().catch((error) => {
+  console.error('Failed to bootstrap cloth demo', error)
+})
 ```
 
-From here you can add cloth bodies via `SimWorld.addBody`, wire the DOM controller, or extend the
-system list with rendering/debug logic.
+Common gotchas:
 
-## Further Reading
+- Ensure the DOM contains at least one element with `class="cloth-enabled"`; the controller swaps
+  those nodes into WebGL meshes on first click.
+- Dispose the controller before removing the canvas/DOM (e.g., during route changes) so listeners
+  and simulation bodies are cleaned up.
+- When authoring custom cloth bodies, create `ClothPhysics` instances backed by `THREE.Mesh`
+  geometry and register them with `SimWorld.addBody` using adapters that implement `SimBody`.
 
-- `docs/engine-refactor.md` – broader strategy for the engine modernization.
-- `docs/data-flow.md` – diagrams of DOM, simulation, and render flows.
-- Source code under `src/engine` and `src/lib` – each module includes JSDoc comments that TypeDoc
-  surfaces for deeper reference.
+## Additional Guides
 
-Happy hacking!
+- `docs/engine-refactor.md` – high-level roadmap for the ongoing engine overhaul.
+- `docs/data-flow.md` – diagrams explaining DOM capture, simulation, and render pipelines.
+- Source modules under `src/engine` and `src/lib` include rich JSDoc that TypeDoc surfaces.
+
+Enjoy exploring the internals!
