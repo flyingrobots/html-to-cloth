@@ -27,6 +27,7 @@ vi.mock('../../lib/clothSceneController', () => {
     setPointerColliderVisible() {}
     setPinMode() {}
     stepOnce() {}
+    setSleepConfig() {}
 
     getRunner() { return runner }
     getEngine() { return {} }

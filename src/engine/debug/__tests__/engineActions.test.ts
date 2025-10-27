@@ -80,6 +80,7 @@ describe('EngineActions', () => {
     const simulation = {
       broadcastGravity: vi.fn(),
       broadcastConstraintIterations: vi.fn(),
+      broadcastWarmStart: vi.fn(),
     } as unknown as SimulationSystem
 
     const actions = new EngineActions({ runner, world, simulation })
