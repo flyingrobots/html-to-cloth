@@ -5,6 +5,7 @@ import { EngineWorld } from '../../world'
 import { SimulationRunner } from '../../simulationRunner'
 import { CameraSystem } from '../../camera/CameraSystem'
 import { EngineActions } from '../engineActions'
+import type { SimulationSystem } from '../../systems/simulationSystem'
 import type { EngineSystem } from '../../types'
 
 describe('EngineActions', () => {
@@ -72,5 +73,21 @@ describe('EngineActions', () => {
     expect(after.zoom).toBeCloseTo(1)
     expect(after.velocity.length()).toBe(0)
   })
-})
 
+  it('broadcasts gravity and constraint iterations via SimulationSystem', () => {
+    const world = new EngineWorld()
+    const runner = new SimulationRunner({ engine: world })
+    const simulation = {
+      broadcastGravity: vi.fn(),
+      broadcastConstraintIterations: vi.fn(),
+    } as unknown as SimulationSystem
+
+    const actions = new EngineActions({ runner, world, simulation })
+
+    actions.setGravityScalar(12)
+    expect(simulation.broadcastGravity).toHaveBeenCalled()
+
+    actions.setConstraintIterations(6)
+    expect(simulation.broadcastConstraintIterations).toHaveBeenCalledWith(6)
+  })
+})

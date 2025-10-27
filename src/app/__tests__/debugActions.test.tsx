@@ -5,6 +5,7 @@ import { render, screen, fireEvent } from '@testing-library/react'
 // Minimal mock for ClothSceneController so App can run without WebGL/DOM plumbing.
 const runner = { setRealTime: vi.fn(), stepOnce: vi.fn(), setSubsteps: vi.fn() }
 const camera = { setTargetZoom: vi.fn() }
+const simulation = { broadcastGravity: vi.fn(), broadcastConstraintIterations: vi.fn() }
 
 vi.mock('../../lib/clothSceneController', () => {
   class MockClothSceneController {
@@ -25,6 +26,7 @@ vi.mock('../../lib/clothSceneController', () => {
     getRunner() { return runner }
     getEngine() { return {} }
     getCameraSystem() { return camera as any }
+    getSimulationSystem() { return simulation as any }
   }
   return { ClothSceneController: MockClothSceneController }
 })
@@ -73,5 +75,25 @@ describe('Debug UI → EngineActions integration (App)', () => {
     await Promise.resolve()
     expect(camera.setTargetZoom).toHaveBeenCalled()
   })
-})
 
+  it('broadcasts gravity and constraint iterations via EngineActions when sliders change', async () => {
+    render(<App />)
+    fireEvent.keyDown(window, { key: 'j', ctrlKey: true })
+
+    // Gravity
+    const gravityLabel = await screen.findByText('Gravity')
+    const gravityRow = gravityLabel.closest('div')?.parentElement as HTMLElement
+    const gravitySlider = gravityRow.querySelector('[data-slot="slider"]') as HTMLElement
+    fireEvent.click(gravitySlider)
+    await Promise.resolve()
+    expect(simulation.broadcastGravity).toHaveBeenCalled()
+
+    // Constraint iterations
+    const iterationsLabel = await screen.findByText('Constraint Iterations')
+    const iterationsRow = iterationsLabel.closest('div')?.parentElement as HTMLElement
+    const iterationsSlider = iterationsRow.querySelector('[data-slot="slider"]') as HTMLElement
+    fireEvent.click(iterationsSlider)
+    await Promise.resolve()
+    expect(simulation.broadcastConstraintIterations).toHaveBeenCalled()
+  })
+})

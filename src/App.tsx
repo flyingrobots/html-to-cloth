@@ -280,6 +280,7 @@ function Demo() {
           runner: controller.getRunner(),
           world: controller.getEngine(),
           camera: controller.getCameraSystem() ?? undefined,
+          simulation: controller.getSimulationSystem() ?? undefined,
         })
         // Seed camera zoom so renderer starts from the UI's value.
         actionsRef.current.setCameraTargetZoom(cameraZoom)
@@ -320,7 +321,8 @@ function Demo() {
   }, [realTime])
 
   useEffect(() => {
-    controllerRef.current?.setGravity(gravity)
+    actionsRef.current?.setGravityScalar(gravity)
+    if (!actionsRef.current) controllerRef.current?.setGravity(gravity)
   }, [gravity])
 
   useEffect(() => {
@@ -328,7 +330,8 @@ function Demo() {
   }, [impulseMultiplier])
 
   useEffect(() => {
-    controllerRef.current?.setConstraintIterations(constraintIterations)
+    actionsRef.current?.setConstraintIterations(constraintIterations)
+    if (!actionsRef.current) controllerRef.current?.setConstraintIterations(constraintIterations)
   }, [constraintIterations])
 
   useEffect(() => {

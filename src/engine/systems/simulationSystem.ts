@@ -1,4 +1,4 @@
-import type { Vector2 } from 'three'
+import type { Vector2, Vector3 } from 'three'
 
 import type {
   SimWorld,
@@ -131,6 +131,17 @@ export class SimulationSystem implements EngineSystem<EngineWorld> {
   /** Returns the most recent snapshot captured after the last fixed update. */
   getSnapshot(): Readonly<SimWorldSnapshot> {
     return this.snapshot
+  }
+
+  /** Broadcasts constraint iteration changes to any bodies exposing the optional hook. */
+  broadcastConstraintIterations(iterations: number) {
+    const count = Math.max(1, Math.round(iterations))
+    ;(this.simWorld as any).forEachBody?.((body: SimBody) => body.setConstraintIterations?.(count))
+  }
+
+  /** Broadcasts gravity changes to any bodies exposing the optional hook. */
+  broadcastGravity(gravity: Vector3) {
+    ;(this.simWorld as any).forEachBody?.((body: SimBody) => body.setGlobalGravity?.(gravity))
   }
 
   private flushPendingConfiguration() {

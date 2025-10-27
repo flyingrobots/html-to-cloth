@@ -126,6 +126,14 @@ class ClothBodyAdapter implements SimBody, Component {
     cloth.setSleepThresholds(config.velocityThreshold, config.frameThreshold)
   }
 
+  setConstraintIterations(iterations: number) {
+    this.item.cloth?.setConstraintIterations(iterations)
+  }
+
+  setGlobalGravity(gravity: THREE.Vector3) {
+    this.item.cloth?.setGravity(gravity)
+  }
+
   handleOffscreen() {
     this.offscreenCallback()
   }
@@ -744,5 +752,10 @@ export class ClothSceneController {
       passes: WARM_START_PASSES,
       constraintIterations: this.debug.constraintIterations,
     }
+  }
+
+  /** Returns the simulation system for debug actions. */
+  getSimulationSystem() {
+    return this.simulationSystem
   }
 }
