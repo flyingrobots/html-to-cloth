@@ -71,6 +71,9 @@ describe('WorldRenderer integration – render while paused', () => {
   })
 
   it('continues to render frames via engine.frame() when SimulationRunner real-time is disabled', async () => {
+    // Block the controller's internal RAF loop so only our manual frame() calls render.
+    const rafSpy = vi.spyOn(globalThis, 'requestAnimationFrame').mockReturnValue(1 as any)
+    const cafSpy = vi.spyOn(globalThis, 'cancelAnimationFrame').mockImplementation(() => {})
     // Seed a cloth-enabled element so controller init completes.
     document.body.innerHTML = `
       <main>
@@ -111,5 +114,7 @@ describe('WorldRenderer integration – render while paused', () => {
     expect(domMocks.render).toHaveBeenCalledTimes(3)
 
     controller.dispose()
+    rafSpy.mockRestore()
+    cafSpy.mockRestore()
   })
 })
