@@ -281,6 +281,8 @@ function Demo() {
           world: controller.getEngine(),
           camera: controller.getCameraSystem() ?? undefined,
         })
+        // Seed camera zoom so renderer starts from the UI's value.
+        actionsRef.current.setCameraTargetZoom(cameraZoom)
       } catch {
         // In tests or reduced-motion scenarios, controller internals may be absent; ignore.
       }
