@@ -8,7 +8,9 @@ A portfolio playground that hides a WebGL cloth simulation beneath an accessible
 
 | Layer | Responsibilities | Source |
 | ----- | ---------------- | ------ |
-| UI / DOM | captures elements, handles pointer input, renders Three.js scene | `src/lib/clothSceneController.ts` + React components |
+| UI / DOM | captures elements, handles pointer input, debug UI | `src/lib/clothSceneController.ts` + React components |
+| Render | applies camera snapshot to DOMToWebGL and renders each frame | `src/engine/render/worldRendererSystem.ts`, `src/lib/domToWebGL.ts` |
+| Camera | spring camera with read-only snapshots | `src/engine/camera/CameraSystem.ts`, `src/engine/camera/CameraSpring.ts` |
 | Simulation | cloth physics, collision clamps, sleep/wake, scheduler | `src/lib/clothPhysics.ts`, `src/lib/simWorld.ts`, `src/lib/collisionSystem.ts` |
 | Engine | fixed-step loop & system ordering | `src/engine/simulationRunner.ts`, `src/engine/world.ts` |
 | Entity | lightweight ECS tracking cloth body adapters | `src/engine/entity/` |
@@ -33,7 +35,9 @@ npm run docs:api   # generate Markdown API reference via TypeDoc
 Key entry points:
 
 - `src/App.tsx` – React shell + debug drawer wiring.
-- `src/lib/clothSceneController.ts` – DOM orchestration + simulation delegation.
+- `src/lib/clothSceneController.ts` – DOM orchestration + simulation delegation (rendering handled by a system).
+- `src/engine/render/worldRendererSystem.ts` – applies the camera snapshot and calls DOMToWebGL render.
+- `src/engine/camera/CameraSystem.ts` – spring-based camera that exposes read-only snapshots.
 - `src/engine/simulationRunner.ts` – deterministic fixed-step loop.
 - `src/lib/clothPhysics.ts` – cloth solver plus impulse helpers.
 
@@ -41,11 +45,14 @@ Key entry points:
 
 - Unit suites cover cloth physics, impulse helpers, simulation scheduler, SimWorld, entity lifecycle, and the simulation runner.
 - Integration suite (`src/lib/__tests__/domIntegration.test.ts`) verifies DOM capture, activation lifecycle, pointer wakeups, offscreen recycling, and debug controls.
+- App UI tests (`src/app/__tests__/debugActions.test.tsx`) assert that the debug palette routes actions into the engine (real-time, substeps, camera zoom, gravity, iterations).
 - Manual QA scenarios are listed in [`TEST_PLAN.md`](TEST_PLAN.md); progress is tracked in [`PROGRESS_CHECKLIST.md`](PROGRESS_CHECKLIST.md).
 
 ## Workflow
 
 We follow the cycle described in [`AGENTS.md`](AGENTS.md): branch-per-task, write failing specs first, implement, document, log the session, open a PR. Notes and experiments are appended to [`BLOG_NOTES.md`](BLOG_NOTES.md).
+
+Debug actions entry point: create `EngineActions` with `runner`, `world`, `camera`, and `simulation` from the controller. The UI never reaches into simulation internals directly.
 
 ## Roadmap
 

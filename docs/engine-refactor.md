@@ -26,9 +26,12 @@ Adopt the architecture patterns from the Caverns project so simulation and rende
 - [ ] Ensure DOM capture meshes, pointer helpers, and overlays read the camera snapshot without mutating simulation state.
 - [ ] Update integration tests to assert render-only systems no longer tick simulation when paused.
 
+Notes: The renderer runs during `engine.frame(dt)` and applies the camera snapshot each frame. Controller no longer calls `render()` directly.
+
 ## 5. Rewire UI and Presets
 
-- [ ] Route debug drawer interactions through engine actions (sleep thresholds, camera config, pointer toggles).
+- [x] Route debug drawer interactions through engine actions (runner, camera zoom, gravity, constraint iterations).
+- [ ] Expose sleep thresholds and warm-start passes via simulation actions; migrate remaining toggles.
 - [ ] Update presets to dispatch combined physics + camera actions via the world instead of touching controller internals.
 - [ ] Verify inspector metrics come from the engine snapshot (world velocities, camera state, etc.).
 
