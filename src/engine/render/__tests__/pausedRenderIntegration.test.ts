@@ -36,6 +36,30 @@ vi.mock('../../../lib/domToWebGL', () => {
   return { DOMToWebGL: MockDOMToWebGL }
 })
 
+vi.mock('../../../lib/elementPool', () => {
+  class MockElementPool {
+    prepare = vi.fn(async (_el: HTMLElement, _segments = 24) => {})
+    mount = vi.fn((_el: HTMLElement) => {})
+    getRecord = vi.fn((_el: HTMLElement) => {
+      const geom = new THREE.PlaneGeometry(1, 1, 1, 1)
+      const mat = new THREE.MeshBasicMaterial()
+      const mesh = new THREE.Mesh(geom, mat)
+      const initialPositions = new Float32Array((geom.attributes.position.array as Float32Array).slice())
+      return {
+        mesh,
+        baseWidthMeters: 1,
+        baseHeightMeters: 1,
+        widthMeters: 1,
+        heightMeters: 1,
+        texture: new THREE.Texture(),
+        initialPositions,
+        segments: 1,
+      }
+    })
+  }
+  return { ElementPool: MockElementPool }
+})
+
 describe('WorldRenderer integration – render while paused', () => {
   beforeEach(() => {
     domMocks.render.mockClear()
@@ -47,6 +71,23 @@ describe('WorldRenderer integration – render while paused', () => {
   })
 
   it('continues to render frames via engine.frame() when SimulationRunner real-time is disabled', async () => {
+    // Seed a cloth-enabled element so controller init completes.
+    document.body.innerHTML = `
+      <main>
+        <button id="cta" class="cloth-enabled">Peel Back</button>
+      </main>
+    `
+    ;(document.getElementById('cta') as HTMLElement).getBoundingClientRect = () => ({
+      left: 100,
+      top: 200,
+      right: 220,
+      bottom: 260,
+      width: 120,
+      height: 60,
+      x: 100,
+      y: 200,
+      toJSON() {},
+    })
     // Use real engine/runner so frame(dt) executes registered systems.
     const engine = new EngineWorld()
     const simWorld = new SimWorld()
