@@ -360,7 +360,7 @@ function Demo() {
 
     const controller = new ClothSceneController()
     controllerRef.current = controller
-    void controller.init().then(() => {
+    void controller.init().then(async () => {
       try {
         const { RenderSettingsState } = await import('./engine/render/RenderSettingsState')
         actionsRef.current = new EngineActions({
