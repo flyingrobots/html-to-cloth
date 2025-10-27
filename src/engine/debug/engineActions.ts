@@ -77,6 +77,20 @@ export class EngineActions {
     this.simulation?.broadcastConstraintIterations(iterations)
   }
 
+  /** Updates sleep thresholds for all bodies and future activations (UI should also update controller defaults). */
+  setSleepConfig(velocityThreshold: number, frameThreshold: number) {
+    if (!this.simulation) return
+    this.simulation.broadcastSleepConfiguration({ velocityThreshold, frameThreshold })
+  }
+
+  /** Queues warm-start passes for all bodies using current or provided iterations. */
+  warmStartNow(passes: number, constraintIterations: number) {
+    if (!this.simulation) return
+    const p = Math.max(0, Math.round(passes))
+    const it = Math.max(1, Math.round(constraintIterations))
+    this.simulation.broadcastWarmStart({ passes: p, constraintIterations: it })
+  }
+
   /** Exposes the attached world for advanced hooks (read-only usage suggested). */
   getWorld() {
     return this.world

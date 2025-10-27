@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react"
 import { ThemeProvider } from "@/components/theme-provider"
 import { ModeToggle } from "@/components/mode-toggle"
 import { Button } from "@/components/ui/button"
-import { Dialog, DialogContent } from "@/components/ui/dialog"
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog"
 import {
   Card,
   CardContent,
@@ -50,6 +50,12 @@ function DebugPalette({
   onConstraintIterationsChange,
   substeps,
   onSubstepsChange,
+  sleepVelocity,
+  onSleepVelocityChange,
+  sleepFrames,
+  onSleepFramesChange,
+  warmStartPasses,
+  onWarmStartPassesChange,
   cameraZoom,
   onCameraZoomChange,
   pointerColliderVisible,
@@ -75,6 +81,12 @@ function DebugPalette({
   onConstraintIterationsChange: (value: number) => void
   substeps: number
   onSubstepsChange: (value: number) => void
+  sleepVelocity: number
+  onSleepVelocityChange: (value: number) => void
+  sleepFrames: number
+  onSleepFramesChange: (value: number) => void
+  warmStartPasses: number
+  onWarmStartPassesChange: (value: number) => void
   cameraZoom: number
   onCameraZoomChange: (value: number) => void
   pointerColliderVisible: boolean
@@ -93,7 +105,11 @@ function DebugPalette({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-md border-none bg-background p-0">
+      <DialogContent className="max-w-md border-none bg-background p-0" aria-describedby="debug-desc">
+        <DialogHeader className="sr-only">
+          <DialogTitle>Debug Settings</DialogTitle>
+          <DialogDescription id="debug-desc">Simulation and render controls</DialogDescription>
+        </DialogHeader>
         <Card>
           <CardHeader>
             <CardTitle>Debug Settings</CardTitle>
@@ -175,24 +191,63 @@ function DebugPalette({
                 onValueChange={(value) => onConstraintIterationsChange(Math.round(value[0] ?? constraintIterations))}
               />
             </div>
-          <div className="space-y-2">
-            <div className="flex items-center justify-between text-sm font-medium">
-              <span>Substeps</span>
-              <span className="text-muted-foreground">{substeps}</span>
+            <div className="space-y-2">
+              <div className="flex items-center justify-between text-sm font-medium">
+                <span>Substeps</span>
+                <span className="text-muted-foreground">{substeps}</span>
+              </div>
+              <Slider
+                value={[substeps]}
+                min={1}
+                max={8}
+                step={1}
+                onValueChange={(value) => onSubstepsChange(Math.round(value[0] ?? substeps))}
+              />
             </div>
-            <Slider
-              value={[substeps]}
-              min={1}
-              max={8}
-              step={1}
-              onValueChange={(value) => onSubstepsChange(Math.round(value[0] ?? substeps))}
-            />
-          </div>
-          <div className="space-y-2">
-            <div className="flex items-center justify-between text-sm font-medium">
-              <span>Camera Zoom</span>
-              <span className="text-muted-foreground">{cameraZoom.toFixed(2)}×</span>
+            <div className="space-y-2">
+              <div className="flex items-center justify-between text-sm font-medium">
+                <span>Sleep Velocity Threshold</span>
+                <span className="text-muted-foreground">{sleepVelocity.toExponential(2)}</span>
+              </div>
+              <Slider
+                value={[sleepVelocity]}
+                min={0}
+                max={0.01}
+                step={0.0005}
+                onValueChange={(value) => onSleepVelocityChange(Number(value[0] ?? sleepVelocity))}
+              />
             </div>
+            <div className="space-y-2">
+              <div className="flex items-center justify-between text-sm font-medium">
+                <span>Sleep Frame Threshold</span>
+                <span className="text-muted-foreground">{sleepFrames}f</span>
+              </div>
+              <Slider
+                value={[sleepFrames]}
+                min={10}
+                max={240}
+                step={10}
+                onValueChange={(value) => onSleepFramesChange(Math.round(value[0] ?? sleepFrames))}
+              />
+            </div>
+            <div className="space-y-2">
+              <div className="flex items-center justify-between text-sm font-medium">
+                <span>Warm Start Passes</span>
+                <span className="text-muted-foreground">{warmStartPasses}</span>
+              </div>
+              <Slider
+                value={[warmStartPasses]}
+                min={0}
+                max={6}
+                step={1}
+                onValueChange={(value) => onWarmStartPassesChange(Math.round(value[0] ?? warmStartPasses))}
+              />
+            </div>
+            <div className="space-y-2">
+              <div className="flex items-center justify-between text-sm font-medium">
+                <span>Camera Zoom</span>
+                <span className="text-muted-foreground">{cameraZoom.toFixed(2)}×</span>
+              </div>
             <Slider
               value={[cameraZoom]}
               min={0.5}
@@ -258,6 +313,9 @@ function Demo() {
   const [tessellationSegments, setTessellationSegments] = useState(24)
   const [constraintIterations, setConstraintIterations] = useState(4)
   const [substeps, setSubsteps] = useState(1)
+  const [sleepVelocity, setSleepVelocity] = useState(0.001)
+  const [sleepFrames, setSleepFrames] = useState(60)
+  const [warmStartPasses, setWarmStartPasses] = useState(2)
   const [cameraZoom, setCameraZoom] = useState(1)
   const [pointerColliderVisible, setPointerColliderVisible] = useState(false)
   const [pinMode, setPinMode] = useState<PinMode>("top")
@@ -282,6 +340,9 @@ function Demo() {
         // Seed gravity and iterations to reflect UI defaults.
         actionsRef.current.setGravityScalar(gravity)
         actionsRef.current.setConstraintIterations(constraintIterations)
+        // Seed sleep thresholds default for new activations and current bodies.
+        controller.setSleepConfig({ velocityThreshold: sleepVelocity, frameThreshold: sleepFrames })
+        actionsRef.current.setSleepConfig(sleepVelocity, sleepFrames)
       } catch {
         // In tests or reduced-motion scenarios, controller internals may be absent; ignore.
       }
@@ -331,6 +392,13 @@ function Demo() {
     actionsRef.current?.setConstraintIterations(constraintIterations)
     if (!actionsRef.current) controllerRef.current?.setConstraintIterations(constraintIterations)
   }, [constraintIterations])
+
+  useEffect(() => {
+    // Update default + broadcast when sleep thresholds change
+    controllerRef.current?.setSleepConfig({ velocityThreshold: sleepVelocity, frameThreshold: sleepFrames })
+    actionsRef.current?.setSleepConfig(sleepVelocity, sleepFrames)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sleepVelocity, sleepFrames])
 
   useEffect(() => {
     actionsRef.current?.setSubsteps(substeps)
@@ -393,6 +461,12 @@ function Demo() {
         onConstraintIterationsChange={setConstraintIterations}
         substeps={substeps}
         onSubstepsChange={setSubsteps}
+        sleepVelocity={sleepVelocity}
+        onSleepVelocityChange={setSleepVelocity}
+        sleepFrames={sleepFrames}
+        onSleepFramesChange={setSleepFrames}
+        warmStartPasses={warmStartPasses}
+        onWarmStartPassesChange={setWarmStartPasses}
         cameraZoom={cameraZoom}
         onCameraZoomChange={setCameraZoom}
         pointerColliderVisible={pointerColliderVisible}
@@ -411,6 +485,9 @@ function Demo() {
           setCameraZoom(1)
           setPointerColliderVisible(false)
           setPinMode("top")
+          // Apply seeded defaults
+          controllerRef.current?.setSleepConfig({ velocityThreshold: 0.001, frameThreshold: 60 })
+          actionsRef.current?.setSleepConfig(0.001, 60)
         }}
       />
     </>

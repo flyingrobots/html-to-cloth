@@ -89,5 +89,8 @@ describe('EngineActions', () => {
 
     actions.setConstraintIterations(6)
     expect(simulation.broadcastConstraintIterations).toHaveBeenCalledWith(6)
+
+    actions.warmStartNow(2, 4)
+    expect(simulation.broadcastWarmStart).toHaveBeenCalledWith({ passes: 2, constraintIterations: 4 })
   })
 })

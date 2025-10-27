@@ -148,6 +148,22 @@ export class SimulationSystem implements EngineSystem<EngineWorld> {
     )
   }
 
+  /** Queues sleep configuration for all registered bodies to apply on next fixed update. */
+  broadcastSleepConfiguration(config: SimSleepConfig) {
+    for (const record of this.bodies.values()) {
+      record.sleep = config
+      record.pendingSleep = true
+    }
+  }
+
+  /** Queues warm-start for all registered bodies to apply on next fixed update. */
+  broadcastWarmStart(config: SimWarmStartConfig) {
+    for (const record of this.bodies.values()) {
+      record.warmStart = config
+      record.pendingWarmStart = true
+    }
+  }
+
   private flushPendingConfiguration() {
     for (const record of this.bodies.values()) {
       if (record.pendingSleep && record.sleep) {

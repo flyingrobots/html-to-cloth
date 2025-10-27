@@ -628,6 +628,12 @@ export class ClothSceneController {
     }
   }
 
+  /** Updates default sleep thresholds used for future activations and broadcasts to current bodies. */
+  setSleepConfig(config: SimSleepConfig) {
+    this.sleepConfig = { ...config }
+    this.simulationSystem.broadcastSleepConfiguration(this.sleepConfig)
+  }
+
   setPinMode(mode: PinMode) {
     this.debug.pinMode = mode
     const gravityVector = new THREE.Vector3(0, -this.debug.gravity, 0)
