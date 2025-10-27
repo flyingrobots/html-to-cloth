@@ -362,13 +362,14 @@ function Demo() {
     controllerRef.current = controller
     void controller.init().then(() => {
       try {
+        const { RenderSettingsState } = await import('./engine/render/RenderSettingsState')
         actionsRef.current = new EngineActions({
           runner: controller.getRunner(),
           world: controller.getEngine(),
           camera: controller.getCameraSystem() ?? undefined,
           simulation: controller.getSimulationSystem() ?? undefined,
           overlay: controller.getOverlayState() ?? undefined,
-          renderSettings: new (await import('./engine/render/RenderSettingsState')).RenderSettingsState(),
+          renderSettings: new RenderSettingsState(),
           setTessellation: (segments: number) => controller.setTessellationSegments(segments),
         })
         // Seed camera zoom so renderer starts from the UI's value.
