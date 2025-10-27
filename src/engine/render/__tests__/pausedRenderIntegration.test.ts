@@ -56,6 +56,7 @@ vi.mock('../../../lib/elementPool', () => {
         segments: 1,
       }
     })
+    destroy = vi.fn((_el?: HTMLElement) => {})
   }
   return { ElementPool: MockElementPool }
 })
