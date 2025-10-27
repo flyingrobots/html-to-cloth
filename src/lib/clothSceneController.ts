@@ -516,7 +516,6 @@ export class ClothSceneController {
       this.pointer.active = true
       this.pointer.previous.copy(this.pointer.position)
       this.simulationSystem.notifyPointer(this.pointer.position)
-      this.updatePointerHelper()
       return
     }
 
