@@ -469,6 +469,21 @@ export class ClothSceneController {
     this.engine.addSystem(this.worldRenderer, { priority: 10, allowWhilePaused: true })
   }
 
+  /** Returns the underlying engine world for debug actions. */
+  getEngine() {
+    return this.engine
+  }
+
+  /** Returns the simulation runner for debug actions. */
+  getRunner() {
+    return this.simulationRunner
+  }
+
+  /** Returns the camera system if installed; otherwise null. */
+  getCameraSystem() {
+    return this.cameraSystem
+  }
+
   private syncStaticMeshes() {
     if (!this.domToWebGL) return
 

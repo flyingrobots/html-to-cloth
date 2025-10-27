@@ -28,6 +28,7 @@ import {
 import { ChevronDown } from "lucide-react"
 
 import { ClothSceneController, type PinMode } from "./lib/clothSceneController"
+import { EngineActions } from "./engine/debug/engineActions"
 
 function Kbd({ children }: { children: React.ReactNode }) {
   return (
@@ -54,6 +55,8 @@ function DebugPalette({
   onConstraintIterationsChange,
   substeps,
   onSubstepsChange,
+  cameraZoom,
+  onCameraZoomChange,
   pointerColliderVisible,
   onPointerColliderVisibleChange,
   pinMode,
@@ -77,6 +80,8 @@ function DebugPalette({
   onConstraintIterationsChange: (value: number) => void
   substeps: number
   onSubstepsChange: (value: number) => void
+  cameraZoom: number
+  onCameraZoomChange: (value: number) => void
   pointerColliderVisible: boolean
   onPointerColliderVisibleChange: (value: boolean) => void
   pinMode: PinMode
@@ -175,19 +180,32 @@ function DebugPalette({
                 onValueChange={(value) => onConstraintIterationsChange(Math.round(value[0] ?? constraintIterations))}
               />
             </div>
-            <div className="space-y-2">
-              <div className="flex items-center justify-between text-sm font-medium">
-                <span>Substeps</span>
-                <span className="text-muted-foreground">{substeps}</span>
-              </div>
-              <Slider
-                value={[substeps]}
-                min={1}
-                max={8}
-                step={1}
-                onValueChange={(value) => onSubstepsChange(Math.round(value[0] ?? substeps))}
-              />
+          <div className="space-y-2">
+            <div className="flex items-center justify-between text-sm font-medium">
+              <span>Substeps</span>
+              <span className="text-muted-foreground">{substeps}</span>
             </div>
+            <Slider
+              value={[substeps]}
+              min={1}
+              max={8}
+              step={1}
+              onValueChange={(value) => onSubstepsChange(Math.round(value[0] ?? substeps))}
+            />
+          </div>
+          <div className="space-y-2">
+            <div className="flex items-center justify-between text-sm font-medium">
+              <span>Camera Zoom</span>
+              <span className="text-muted-foreground">{cameraZoom.toFixed(2)}×</span>
+            </div>
+            <Slider
+              value={[cameraZoom]}
+              min={0.5}
+              max={3}
+              step={0.1}
+              onValueChange={(value) => onCameraZoomChange(Number.parseFloat((value[0] ?? cameraZoom).toString()))}
+            />
+          </div>
             <div className="space-y-2">
               <div className="flex items-center justify-between text-sm font-medium">
                 <span>Pin Mode</span>
@@ -235,6 +253,7 @@ function DebugPalette({
 
 function Demo() {
   const controllerRef = useRef<ClothSceneController | null>(null)
+  const actionsRef = useRef<EngineActions | null>(null)
   const realTimeRef = useRef(true)
   const [debugOpen, setDebugOpen] = useState(false)
   const [wireframe, setWireframe] = useState(false)
@@ -244,6 +263,7 @@ function Demo() {
   const [tessellationSegments, setTessellationSegments] = useState(24)
   const [constraintIterations, setConstraintIterations] = useState(4)
   const [substeps, setSubsteps] = useState(1)
+  const [cameraZoom, setCameraZoom] = useState(1)
   const [pointerColliderVisible, setPointerColliderVisible] = useState(false)
   const [pinMode, setPinMode] = useState<PinMode>("top")
 
@@ -254,7 +274,17 @@ function Demo() {
 
     const controller = new ClothSceneController()
     controllerRef.current = controller
-    void controller.init()
+    void controller.init().then(() => {
+      try {
+        actionsRef.current = new EngineActions({
+          runner: controller.getRunner(),
+          world: controller.getEngine(),
+          camera: controller.getCameraSystem() ?? undefined,
+        })
+      } catch {
+        // In tests or reduced-motion scenarios, controller internals may be absent; ignore.
+      }
+    })
 
     const handler = (event: KeyboardEvent) => {
       if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "j") {
@@ -273,6 +303,7 @@ function Demo() {
       window.removeEventListener("keydown", handler)
       controller.dispose()
       controllerRef.current = null
+      actionsRef.current = null
     }
   }, [])
 
@@ -282,7 +313,8 @@ function Demo() {
 
   useEffect(() => {
     realTimeRef.current = realTime
-    controllerRef.current?.setRealTime(realTime)
+    actionsRef.current?.setRealTime(realTime)
+    if (!actionsRef.current) controllerRef.current?.setRealTime(realTime)
   }, [realTime])
 
   useEffect(() => {
@@ -298,8 +330,13 @@ function Demo() {
   }, [constraintIterations])
 
   useEffect(() => {
-    controllerRef.current?.setSubsteps(substeps)
+    actionsRef.current?.setSubsteps(substeps)
+    if (!actionsRef.current) controllerRef.current?.setSubsteps(substeps)
   }, [substeps])
+
+  useEffect(() => {
+    actionsRef.current?.setCameraTargetZoom(cameraZoom)
+  }, [cameraZoom])
 
   useEffect(() => {
     const controller = controllerRef.current
@@ -353,11 +390,13 @@ function Demo() {
         onConstraintIterationsChange={setConstraintIterations}
         substeps={substeps}
         onSubstepsChange={setSubsteps}
+        cameraZoom={cameraZoom}
+        onCameraZoomChange={setCameraZoom}
         pointerColliderVisible={pointerColliderVisible}
         onPointerColliderVisibleChange={setPointerColliderVisible}
         pinMode={pinMode}
         onPinModeChange={setPinMode}
-        onStep={() => controllerRef.current?.stepOnce()}
+        onStep={() => actionsRef.current?.stepOnce()}
         onReset={() => {
           setWireframe(false)
           setRealTime(true)
@@ -366,6 +405,7 @@ function Demo() {
           setTessellationSegments(24)
           setConstraintIterations(4)
           setSubsteps(1)
+          setCameraZoom(1)
           setPointerColliderVisible(false)
           setPinMode("top")
         }}
