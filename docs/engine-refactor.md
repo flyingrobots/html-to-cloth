@@ -16,13 +16,13 @@ Adopt the architecture patterns from the Caverns project so simulation and rende
 
 ## 3. Introduce Camera System
 
-- [ ] Port the caverns camera spring, updating math/constants to use canonical metres.
+- [x] Port the caverns camera spring, updating math/constants to use canonical metres.
 - [ ] Expose camera configuration via world actions; keep render-only structures read-only mirrors.
-- [ ] Write tests verifying the spring converges and respects damping.
+- [x] Write tests verifying the spring converges and respects damping.
 
 ## 4. Convert `ClothSceneController` into a Render System
 
-- [ ] Split render responsibilities into `WorldRenderer` (bridging engine world → DOMToWebGL) and UI adapters.
+- [x] Split render responsibilities into `WorldRenderer` (bridging engine world → DOMToWebGL) and UI adapters.
 - [ ] Ensure DOM capture meshes, pointer helpers, and overlays read the camera snapshot without mutating simulation state.
 - [ ] Update integration tests to assert render-only systems no longer tick simulation when paused.
 
