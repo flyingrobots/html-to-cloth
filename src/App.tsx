@@ -284,6 +284,9 @@ function Demo() {
         })
         // Seed camera zoom so renderer starts from the UI's value.
         actionsRef.current.setCameraTargetZoom(cameraZoom)
+        // Seed gravity and iterations to reflect UI defaults.
+        actionsRef.current.setGravityScalar(gravity)
+        actionsRef.current.setConstraintIterations(constraintIterations)
       } catch {
         // In tests or reduced-motion scenarios, controller internals may be absent; ignore.
       }
