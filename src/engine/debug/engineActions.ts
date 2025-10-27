@@ -5,6 +5,7 @@ import type { EngineWorld } from '../world'
 import type { CameraSystem } from '../camera/CameraSystem'
 import type { SimulationSystem } from '../systems/simulationSystem'
 import { DebugOverlayState } from '../render/DebugOverlayState'
+import { RenderSettingsState } from '../render/RenderSettingsState'
 
 export type EngineActionsOptions = {
   runner: SimulationRunner
@@ -12,6 +13,8 @@ export type EngineActionsOptions = {
   camera?: CameraSystem | null
   simulation?: SimulationSystem | null
   overlay?: DebugOverlayState | null
+  renderSettings?: RenderSettingsState | null
+  setTessellation?: (segments: number) => void | Promise<void>
 }
 
 /**
@@ -26,6 +29,8 @@ export class EngineActions {
   private readonly camera: CameraSystem | null
   private readonly simulation: SimulationSystem | null
   private readonly overlay: DebugOverlayState | null
+  private readonly renderSettings: RenderSettingsState | null
+  private readonly setTessellationCb?: (segments: number) => void | Promise<void>
 
   constructor(options: EngineActionsOptions) {
     this.runner = options.runner
@@ -33,6 +38,8 @@ export class EngineActions {
     this.camera = options.camera ?? null
     this.simulation = options.simulation ?? null
     this.overlay = options.overlay ?? null
+    this.renderSettings = options.renderSettings ?? null
+    this.setTessellationCb = options.setTessellation
   }
 
   /** Enables/disables real-time ticking. */
@@ -98,6 +105,16 @@ export class EngineActions {
   /** Toggles pointer overlay visibility (render-only gizmos). */
   setPointerOverlayVisible(visible: boolean) {
     if (this.overlay) this.overlay.visible = visible
+  }
+
+  /** Toggles cloth wireframe rendering (applied by RenderSettingsSystem). */
+  setWireframe(enabled: boolean) {
+    if (this.renderSettings) this.renderSettings.wireframe = enabled
+  }
+
+  /** Requests tessellation change (rebuild inactive meshes via controller-provided callback). */
+  async setTessellation(segments: number) {
+    if (this.setTessellationCb) await this.setTessellationCb(segments)
   }
 
   /** Exposes the attached world for advanced hooks (read-only usage suggested). */

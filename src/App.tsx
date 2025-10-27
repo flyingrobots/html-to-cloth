@@ -368,6 +368,8 @@ function Demo() {
           camera: controller.getCameraSystem() ?? undefined,
           simulation: controller.getSimulationSystem() ?? undefined,
           overlay: controller.getOverlayState() ?? undefined,
+          renderSettings: new (await import('./engine/render/RenderSettingsState')).RenderSettingsState(),
+          setTessellation: (segments: number) => controller.setTessellationSegments(segments),
         })
         // Seed camera zoom so renderer starts from the UI's value.
         actionsRef.current.setCameraTargetZoom(cameraZoom)
@@ -404,7 +406,7 @@ function Demo() {
   }, [])
 
   useEffect(() => {
-    controllerRef.current?.setWireframe(wireframe)
+    actionsRef.current?.setWireframe(wireframe)
   }, [wireframe])
 
   useEffect(() => {
@@ -444,9 +446,7 @@ function Demo() {
   }, [cameraZoom])
 
   useEffect(() => {
-    const controller = controllerRef.current
-    if (!controller) return
-    void controller.setTessellationSegments(tessellationSegments)
+    void actionsRef.current?.setTessellation(tessellationSegments)
   }, [tessellationSegments])
 
   useEffect(() => {

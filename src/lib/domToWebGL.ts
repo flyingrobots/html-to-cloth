@@ -109,6 +109,8 @@ export class DOMToWebGL {
     })
 
     const mesh = new THREE.Mesh(geometry, material)
+    ;(mesh as any).userData.isStatic = true
+    ;(mesh as any).userData.isCloth = false
     mesh.frustumCulled = false
     mesh.position.set(...this.domPositionToWorld(rect))
 

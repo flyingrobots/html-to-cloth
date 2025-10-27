@@ -424,6 +424,9 @@ export class ClothSceneController {
       record,
       this.debug
     )
+    // Mark mesh as cloth for render settings system.
+    ;(record.mesh as any).userData.isCloth = true
+    ;(record.mesh as any).userData.isStatic = false
     this.simulationSystem.addBody(adapter, {
       warmStart: this.createWarmStartConfig(),
       sleep: this.sleepConfig,
@@ -564,6 +567,12 @@ export class ClothSceneController {
       item.entity = undefined
     }
 
+    // Mark mesh as static again for render settings system.
+    const mesh = item.record?.mesh
+    if (mesh) {
+      ;(mesh as any).userData.isCloth = false
+      ;(mesh as any).userData.isStatic = true
+    }
     this.pool.recycle(element)
     this.pool.resetGeometry(element)
     this.pool.mount(element)
@@ -577,13 +586,8 @@ export class ClothSceneController {
 
   /** Enables or disables wireframe rendering for every captured cloth mesh. */
   setWireframe(enabled: boolean) {
+    // Deprecated: wireframe toggled via RenderSettingsSystem
     this.debug.wireframe = enabled
-    for (const item of this.items.values()) {
-      const material = item.record?.mesh.material as THREE.MeshBasicMaterial | undefined
-      if (material) {
-        material.wireframe = enabled
-      }
-    }
   }
 
   /** Applies a new gravity scalar to every active cloth body. */
