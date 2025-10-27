@@ -11,6 +11,8 @@ import { SimulationRunner } from '../engine/simulationRunner'
 import { EntityManager } from '../engine/entity/entityManager'
 import { CameraSystem } from '../engine/camera/CameraSystem'
 import { WorldRendererSystem } from '../engine/render/worldRendererSystem'
+import { DebugOverlaySystem } from '../engine/render/DebugOverlaySystem'
+import { DebugOverlayState } from '../engine/render/DebugOverlayState'
 import type { Entity } from '../engine/entity/entity'
 import type { Component } from '../engine/entity/component'
 import { SimWorld, type SimBody, type SimWarmStartConfig, type SimSleepConfig } from './simWorld'
@@ -208,6 +210,8 @@ export class ClothSceneController {
   private entities = new EntityManager()
   private cameraSystem: CameraSystem | null = null
   private worldRenderer: WorldRendererSystem | null = null
+  private overlaySystem: DebugOverlaySystem | null = null
+  private overlayState: DebugOverlayState | null = null
   private elementIds = new Map<HTMLElement, string>()
   private onResize = () => this.handleResize()
   private onScroll = () => {
@@ -472,9 +476,13 @@ export class ClothSceneController {
     // Create a camera system and world renderer that reads snapshots each frame.
     this.cameraSystem = new CameraSystem()
     this.worldRenderer = new WorldRendererSystem({ view: this.domToWebGL, camera: this.cameraSystem })
+    // Debug overlay state/system for render-only gizmos (e.g., pointer collider)
+    this.overlayState = new DebugOverlayState()
+    this.overlaySystem = new DebugOverlaySystem({ view: this.domToWebGL as any, state: this.overlayState })
     // Register with lower priority than simulation so render sees the latest snapshot.
     this.engine.addSystem(this.cameraSystem, { priority: 50, allowWhilePaused: true })
     this.engine.addSystem(this.worldRenderer, { priority: 10, allowWhilePaused: true })
+    this.engine.addSystem(this.overlaySystem, { priority: 5, allowWhilePaused: true })
   }
 
   /** Returns the underlying engine world for debug actions. */
@@ -490,6 +498,11 @@ export class ClothSceneController {
   /** Returns the camera system if installed; otherwise null. */
   getCameraSystem() {
     return this.cameraSystem
+  }
+
+  /** Returns the overlay state for EngineActions. */
+  getOverlayState() {
+    return this.overlayState
   }
 
   private syncStaticMeshes() {
@@ -512,6 +525,7 @@ export class ClothSceneController {
 
     this.pointer.previous.copy(this.pointer.position)
     this.pointer.position.set(x, y)
+    this.overlayState?.pointer.set(x, y)
 
     if (!this.pointer.active) {
       this.pointer.active = true
@@ -536,6 +550,7 @@ export class ClothSceneController {
     this.pointer.active = false
     this.pointer.needsImpulse = false
     this.pointer.velocity.set(0, 0)
+    this.overlayState?.pointer.set(0, 0)
     this.updatePointerHelper()
   }
 

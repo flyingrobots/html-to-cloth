@@ -367,6 +367,7 @@ function Demo() {
           world: controller.getEngine(),
           camera: controller.getCameraSystem() ?? undefined,
           simulation: controller.getSimulationSystem() ?? undefined,
+          overlay: controller.getOverlayState() ?? undefined,
         })
         // Seed camera zoom so renderer starts from the UI's value.
         actionsRef.current.setCameraTargetZoom(cameraZoom)
@@ -449,7 +450,8 @@ function Demo() {
   }, [tessellationSegments])
 
   useEffect(() => {
-    controllerRef.current?.setPointerColliderVisible(pointerColliderVisible)
+    actionsRef.current?.setPointerOverlayVisible(pointerColliderVisible)
+    controllerRef.current?.setPointerColliderVisible(pointerColliderVisible) // backwards compat during transition
   }, [pointerColliderVisible])
 
   useEffect(() => {
