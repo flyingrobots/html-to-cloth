@@ -103,6 +103,8 @@ describe('WorldRenderer integration – render while paused', () => {
     // Pausing disables fixed updates but our render system is allowWhilePaused=true.
     runner.setRealTime(false)
     expect(engine.isPaused()).toBe(true)
+    // Clear any initial render that happened during controller.init()'s first animate call.
+    domMocks.render.mockClear()
 
     // Drive a frame manually and verify the DOM view renders.
     engine.frame(1 / 60)
