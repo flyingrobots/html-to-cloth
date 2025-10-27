@@ -14,3 +14,12 @@ if (typeof window !== 'undefined' && typeof (window as any).matchMedia !== 'func
     dispatchEvent: () => false,
   })
 }
+
+// Radix UI uses ResizeObserver internally; provide a minimal stub for jsdom.
+if (typeof (globalThis as any).ResizeObserver === 'undefined') {
+  ;(globalThis as any).ResizeObserver = class {
+    observe() {}
+    unobserve() {}
+    disconnect() {}
+  }
+}
