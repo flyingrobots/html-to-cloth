@@ -51,7 +51,6 @@ describe('WorldRenderer integration – render while paused', () => {
     const engine = new EngineWorld()
     const simWorld = new SimWorld()
     const simulationSystem = new SimulationSystem({ simWorld })
-    engine.addSystem(simulationSystem, { priority: 100 })
     const runner = new SimulationRunner({ engine })
 
     const controller = new ClothSceneController({ engine, simulationRunner: runner, simWorld, simulationSystem })
@@ -73,4 +72,3 @@ describe('WorldRenderer integration – render while paused', () => {
     controller.dispose()
   })
 })
-
