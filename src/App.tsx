@@ -59,6 +59,8 @@ function DebugPalette({
   onWarmStartPassesChange,
   cameraZoom,
   onCameraZoomChange,
+  onWarmStartNow,
+  onPresetSelect,
   pointerColliderVisible,
   onPointerColliderVisibleChange,
   pinMode,
@@ -90,6 +92,8 @@ function DebugPalette({
   onWarmStartPassesChange: (value: number) => void
   cameraZoom: number
   onCameraZoomChange: (value: number) => void
+  onWarmStartNow?: () => void
+  onPresetSelect?: (name: string) => void
   pointerColliderVisible: boolean
   onPointerColliderVisibleChange: (value: boolean) => void
   pinMode: PinMode
@@ -130,10 +134,7 @@ function DebugPalette({
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="start" className="w-48">
-                  <DropdownMenuRadioGroup
-                    value=""
-                    onValueChange={(value) => (props as any).onPresetSelect?.(value)}
-                  >
+                  <DropdownMenuRadioGroup value="" onValueChange={(value) => onPresetSelect?.(value)}>
                     {PRESETS.map((p) => (
                       <DropdownMenuRadioItem key={p.name} value={p.name}>
                         {p.name}
@@ -270,11 +271,7 @@ function DebugPalette({
                 onValueChange={(value) => onWarmStartPassesChange(Math.round(value[0] ?? warmStartPasses))}
               />
               <div>
-                <Button
-                  variant="secondary"
-                  onClick={() => (props as any).onWarmStartNow?.()}
-                  className="justify-self-start"
-                >
+                <Button variant="secondary" onClick={() => onWarmStartNow?.()} className="justify-self-start">
                   Warm Start Now
                 </Button>
               </div>
