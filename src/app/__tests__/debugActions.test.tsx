@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import React from 'react'
 import { render, screen, fireEvent } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 
 // Minimal mock for ClothSceneController so App can run without WebGL/DOM plumbing.
 const runner = { setRealTime: vi.fn(), stepOnce: vi.fn(), setSubsteps: vi.fn() }
@@ -132,12 +133,12 @@ describe('Debug UI → EngineActions integration (App)', () => {
     render(<App />)
     fireEvent.keyDown(window, { key: 'j', ctrlKey: true })
 
+    const user = userEvent.setup()
     const presetBtn = await screen.findByText('Choose Preset')
-    fireEvent.click(presetBtn)
-    // Fallback to clicking the last radio item if text query is flaky in portal
-    const items = await screen.findAllByRole('menuitemradio')
-    const target = items.at(-1)!
-    fireEvent.click(target)
+    await user.click(presetBtn)
+    // Try text first, then role fallback
+    const heavy = (await screen.findAllByText('Heavy'))[0]
+    await user.click(heavy)
 
     await Promise.resolve()
     expect(simulation.broadcastGravity).toHaveBeenCalled()
