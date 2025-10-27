@@ -24,6 +24,7 @@ import { ChevronDown } from "lucide-react"
 
 import { ClothSceneController, type PinMode } from "./lib/clothSceneController"
 import { EngineActions } from "./engine/debug/engineActions"
+import { PRESETS } from "./app/presets"
 
 function Kbd({ children }: { children: React.ReactNode }) {
   return (
@@ -116,6 +117,32 @@ function DebugPalette({
             <CardDescription>Control simulation parameters</CardDescription>
           </CardHeader>
           <CardContent className="grid gap-6">
+            <div className="space-y-2">
+              <div className="flex items-center justify-between text-sm font-medium">
+                <span>Preset</span>
+                <span className="text-muted-foreground">Quick configuration</span>
+              </div>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="outline" className="w-full justify-between">
+                    Choose Preset
+                    <ChevronDown className="size-4 opacity-70" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="start" className="w-48">
+                  <DropdownMenuRadioGroup
+                    value=""
+                    onValueChange={(value) => (props as any).onPresetSelect?.(value)}
+                  >
+                    {PRESETS.map((p) => (
+                      <DropdownMenuRadioItem key={p.name} value={p.name}>
+                        {p.name}
+                      </DropdownMenuRadioItem>
+                    ))}
+                  </DropdownMenuRadioGroup>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
             <div className="flex items-center justify-between gap-4">
               <div>
                 <p className="font-semibold leading-none">Wireframe</p>
@@ -242,6 +269,15 @@ function DebugPalette({
                 step={1}
                 onValueChange={(value) => onWarmStartPassesChange(Math.round(value[0] ?? warmStartPasses))}
               />
+              <div>
+                <Button
+                  variant="secondary"
+                  onClick={() => (props as any).onWarmStartNow?.()}
+                  className="justify-self-start"
+                >
+                  Warm Start Now
+                </Button>
+              </div>
             </div>
             <div className="space-y-2">
               <div className="flex items-center justify-between text-sm font-medium">
@@ -469,6 +505,17 @@ function Demo() {
         onWarmStartPassesChange={setWarmStartPasses}
         cameraZoom={cameraZoom}
         onCameraZoomChange={setCameraZoom}
+        onWarmStartNow={() => actionsRef.current?.warmStartNow(warmStartPasses, constraintIterations)}
+        onPresetSelect={(name: string) => {
+          const p = PRESETS.find((x) => x.name === name)
+          if (!p) return
+          setGravity(p.gravity)
+          setConstraintIterations(p.iterations)
+          setSleepVelocity(p.sleepVelocity)
+          setSleepFrames(p.sleepFrames)
+          setWarmStartPasses(p.warmStartPasses)
+          setCameraZoom(p.cameraZoom)
+        }}
         pointerColliderVisible={pointerColliderVisible}
         onPointerColliderVisibleChange={setPointerColliderVisible}
         pinMode={pinMode}

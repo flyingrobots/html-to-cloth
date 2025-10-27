@@ -121,8 +121,25 @@ describe('Debug UI → EngineActions integration (App)', () => {
     const warmSlider = warmRow.querySelector('[data-slot="slider"]') as HTMLElement
     fireEvent.click(warmSlider)
     await Promise.resolve()
-    // Broadcast occurs on apply — simulate manual invocation via actions
-    // In app we currently only set passes; test the EngineActions path directly
-    // by constructing and calling warmStartNow
+    // Click the Warm Start Now button to apply immediately
+    const warmButton = await screen.findByText('Warm Start Now')
+    fireEvent.click(warmButton)
+    await Promise.resolve()
+    expect(simulation.broadcastWarmStart).toHaveBeenCalled()
+  })
+
+  it('applies a preset and routes multiple engine actions', async () => {
+    render(<App />)
+    fireEvent.keyDown(window, { key: 'j', ctrlKey: true })
+
+    const presetBtn = await screen.findByText('Choose Preset')
+    fireEvent.click(presetBtn)
+    const heavy = await screen.findByText('Heavy')
+    fireEvent.click(heavy)
+
+    await Promise.resolve()
+    expect(simulation.broadcastGravity).toHaveBeenCalled()
+    expect(simulation.broadcastConstraintIterations).toHaveBeenCalled()
+    expect(camera.setTargetZoom).toHaveBeenCalled()
   })
 })
