@@ -451,7 +451,6 @@ function Demo() {
 
   useEffect(() => {
     actionsRef.current?.setPointerOverlayVisible(pointerColliderVisible)
-    controllerRef.current?.setPointerColliderVisible(pointerColliderVisible) // backwards compat during transition
   }, [pointerColliderVisible])
 
   useEffect(() => {

@@ -225,9 +225,6 @@ export class ClothSceneController {
     active: false,
     needsImpulse: false,
   }
-  private pointerHelper: THREE.Mesh | null = null
-  private pointerHelperAttached = false
-  private pointerColliderVisible = false
   private sleepConfig: SimSleepConfig = {
     velocityThreshold: 0.001,
     frameThreshold: 60,
@@ -299,9 +296,7 @@ export class ClothSceneController {
     this.clock.start()
     this.animate()
 
-    if (this.pointerColliderVisible) {
-      this.setPointerColliderVisible(true)
-    }
+    // Debug overlay handles pointer gizmos; nothing to toggle here.
   }
 
   /**
@@ -314,16 +309,7 @@ export class ClothSceneController {
       cancelAnimationFrame(this.rafId)
     }
 
-    if (this.pointerHelper) {
-      if (this.domToWebGL) {
-        this.domToWebGL.scene.remove(this.pointerHelper)
-      }
-      this.pointerHelper.geometry.dispose()
-      const material = this.pointerHelper.material as THREE.Material
-      material.dispose()
-      this.pointerHelper = null
-      this.pointerHelperAttached = false
-    }
+    // Pointer helper removed; overlay system manages gizmos.
 
     window.removeEventListener('resize', this.onResize)
     window.removeEventListener('scroll', this.onScroll)
@@ -459,7 +445,6 @@ export class ClothSceneController {
     this.simulationRunner.getEngine().frame(delta)
 
     this.decayPointerImpulse()
-    this.updatePointerHelper()
   }
 
   private handleResize() {
@@ -543,7 +528,7 @@ export class ClothSceneController {
     }
 
     this.simulationSystem.notifyPointer(this.pointer.position)
-    this.updatePointerHelper()
+    // overlay pointer updated elsewhere
   }
 
   private resetPointer() {
@@ -551,7 +536,7 @@ export class ClothSceneController {
     this.pointer.needsImpulse = false
     this.pointer.velocity.set(0, 0)
     this.overlayState?.pointer.set(0, 0)
-    this.updatePointerHelper()
+    // overlay pointer updated elsewhere
   }
 
   private getBodyId(element: HTMLElement) {
@@ -695,33 +680,11 @@ export class ClothSceneController {
     this.collisionSystem.refresh()
   }
 
-  setPointerColliderVisible(enabled: boolean) {
-    this.debug.pointerCollider = enabled
-    this.pointerColliderVisible = enabled
-    if (!this.domToWebGL) return
-
-    const helper = this.ensurePointerHelper()
-
-    if (enabled) {
-      if (!this.pointerHelperAttached) {
-        this.domToWebGL.scene.add(helper)
-        this.pointerHelperAttached = true
-      }
-      helper.visible = true
-      this.updatePointerHelper()
-    } else {
-      helper.visible = false
-      if (this.pointerHelperAttached) {
-        this.domToWebGL.scene.remove(helper)
-        this.pointerHelperAttached = false
-      }
-    }
-  }
+  // setPointerColliderVisible removed in favour of DebugOverlaySystem
 
   stepOnce() {
     this.simulationRunner.stepOnce()
     this.decayPointerImpulse()
-    this.updatePointerHelper()
   }
 
   private decayPointerImpulse() {
@@ -734,22 +697,7 @@ export class ClothSceneController {
     }
   }
 
-  private updatePointerHelper() {
-    if (!this.pointerHelper) return
-    this.pointerHelper.visible = this.pointerColliderVisible
-    if (!this.pointerColliderVisible) return
-    this.pointerHelper.position.set(this.pointer.position.x, this.pointer.position.y, 0.2)
-  }
-
-  private ensurePointerHelper() {
-    if (!this.pointerHelper) {
-      const geometry = new THREE.SphereGeometry(0.12, 16, 16)
-      const material = new THREE.MeshBasicMaterial({ color: 0xff6699, wireframe: true })
-      this.pointerHelper = new THREE.Mesh(geometry, material)
-      this.pointerHelper.visible = false
-    }
-    return this.pointerHelper
-  }
+  // Pointer helper removed; overlay system renders gizmos
 
   private applyPinMode(cloth: ClothPhysics) {
     switch (this.debug.pinMode) {
