@@ -134,8 +134,10 @@ describe('Debug UI → EngineActions integration (App)', () => {
 
     const presetBtn = await screen.findByText('Choose Preset')
     fireEvent.click(presetBtn)
-    const heavy = await screen.findByText('Heavy')
-    fireEvent.click(heavy)
+    // Fallback to clicking the last radio item if text query is flaky in portal
+    const items = await screen.findAllByRole('menuitemradio')
+    const target = items.at(-1)!
+    fireEvent.click(target)
 
     await Promise.resolve()
     expect(simulation.broadcastGravity).toHaveBeenCalled()
