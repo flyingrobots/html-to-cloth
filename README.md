@@ -46,6 +46,15 @@ Key entry points:
 - Unit suites cover cloth physics, impulse helpers, simulation scheduler, SimWorld, entity lifecycle, and the simulation runner.
 - Integration suite (`src/lib/__tests__/domIntegration.test.ts`) verifies DOM capture, activation lifecycle, pointer wakeups, offscreen recycling, and debug controls.
 - App UI tests (`src/app/__tests__/debugActions.test.tsx`) assert that the debug palette routes actions into the engine (real-time, substeps, camera zoom, gravity, iterations).
+- Render-while-paused integration (`src/engine/render/__tests__/pausedRenderIntegration.test.ts`) verifies the render system still runs during `engine.frame(dt)` when real-time is disabled.
+
+## Debug Presets
+
+For quick demos, the debug palette includes presets that apply multiple settings at once:
+
+- Floaty – gravity 6.0, 3 iterations, looser sleep (0.0005, 80f), 1.2× zoom, warm-start 2 passes
+- Crisp – gravity 9.81, 6 iterations, default sleep (0.001, 60f), 1.0× zoom, warm-start 3 passes
+- Heavy – gravity 14.0, 8 iterations, tighter sleep (0.002, 40f), 0.9× zoom, warm-start 1 pass
 - Manual QA scenarios are listed in [`TEST_PLAN.md`](TEST_PLAN.md); progress is tracked in [`PROGRESS_CHECKLIST.md`](PROGRESS_CHECKLIST.md).
 
 ## Workflow
