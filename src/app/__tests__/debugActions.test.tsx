@@ -34,6 +34,7 @@ vi.mock('../../lib/clothSceneController', () => {
     getEngine() { return {} }
     getCameraSystem() { return camera as any }
     getSimulationSystem() { return simulation as any }
+    getOverlayState() { return { visible: false } as any }
   }
   return { ClothSceneController: MockClothSceneController }
 })
