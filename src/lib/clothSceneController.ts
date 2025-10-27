@@ -9,6 +9,8 @@ import { EngineWorld } from '../engine/world'
 import { SimulationSystem } from '../engine/systems/simulationSystem'
 import { SimulationRunner } from '../engine/simulationRunner'
 import { EntityManager } from '../engine/entity/entityManager'
+import { CameraSystem } from '../engine/camera/CameraSystem'
+import { WorldRendererSystem } from '../engine/render/worldRendererSystem'
 import type { Entity } from '../engine/entity/entity'
 import type { Component } from '../engine/entity/component'
 import { SimWorld, type SimBody, type SimWarmStartConfig, type SimSleepConfig } from './simWorld'
@@ -196,6 +198,8 @@ export class ClothSceneController {
   private simWorld: SimWorld
   private engine: EngineWorld
   private entities = new EntityManager()
+  private cameraSystem: CameraSystem | null = null
+  private worldRenderer: WorldRendererSystem | null = null
   private elementIds = new Map<HTMLElement, string>()
   private onResize = () => this.handleResize()
   private onScroll = () => {
@@ -276,6 +280,9 @@ export class ClothSceneController {
     window.addEventListener('pointerup', this.onPointerLeave, { passive: true })
     window.addEventListener('pointerleave', this.onPointerLeave, { passive: true })
     window.addEventListener('pointercancel', this.onPointerLeave, { passive: true })
+
+    // Register camera + render systems once the DOM/WebGL view exists.
+    this.installRenderPipeline()
 
     this.clock.start()
     this.animate()
@@ -441,7 +448,6 @@ export class ClothSceneController {
 
     this.decayPointerImpulse()
     this.updatePointerHelper()
-    this.domToWebGL.render()
   }
 
   private handleResize() {
@@ -451,6 +457,16 @@ export class ClothSceneController {
     this.collisionSystem.setViewportDimensions(viewport.width, viewport.height)
     this.collisionSystem.refresh()
     this.syncStaticMeshes()
+  }
+
+  private installRenderPipeline() {
+    if (!this.domToWebGL) return
+    // Create a camera system and world renderer that reads snapshots each frame.
+    this.cameraSystem = new CameraSystem()
+    this.worldRenderer = new WorldRendererSystem({ view: this.domToWebGL, camera: this.cameraSystem })
+    // Register with lower priority than simulation so render sees the latest snapshot.
+    this.engine.addSystem(this.cameraSystem, { priority: 50, allowWhilePaused: true })
+    this.engine.addSystem(this.worldRenderer, { priority: 10, allowWhilePaused: true })
   }
 
   private syncStaticMeshes() {
