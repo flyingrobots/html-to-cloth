@@ -20,4 +20,6 @@ jobs:
         run: npm run lint
       - name: Build
         run: npm run build
+      - name: Docs (TypeDoc)
+        run: npm run docs:api
       - run: npm test -- --run

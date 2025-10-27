@@ -7,9 +7,11 @@ the component and data-flow diagrams with additional rationale and extension tip
 ## Layers Overview
 
 1. **UI/DOM Layer** – browser-facing code (`clothSceneController`, React components) that captures
-   DOM elements, handles pointer input, and exposes debug actions.
+   DOM elements, handles pointer input, and exposes debug actions. Render-only gizmos (e.g., pointer
+   collider) are handled by a dedicated overlay system rather than the controller.
 2. **Render Layer** – `WorldRendererSystem` copies a camera snapshot into `DOMToWebGL` and renders
    each frame (`EngineWorld.frame(dt)`), running even while simulation is paused.
+   A `DebugOverlaySystem` also runs here to draw developer gizmos using `DebugOverlayState`.
 3. **Simulation Layer** – `SimulationSystem`, `SimWorld`, `SimulationScheduler`, and physics modules
    (`ClothPhysics`, collision helpers). This layer is pure data/logic and exposes snapshots.
 4. **Engine Layer** – `EngineWorld`, `SimulationRunner`, fixed-step loop. Responsible for deterministic

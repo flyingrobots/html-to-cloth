@@ -33,7 +33,8 @@
 1. The app calls `engine.frame(delta)` every RAF.
 2. `WorldRendererSystem.frameUpdate(delta)` reads the pooled camera snapshot from `CameraSystem`, copies it to
    the orthographic camera owned by `DOMToWebGL`, updates the projection matrix, and calls `render()`.
-3. Render runs while the engine is paused; it never mutates simulation state.
+3. `DebugOverlaySystem.frameUpdate(delta)` reads `DebugOverlayState` (pointer, visibility) and draws gizmos.
+4. Render runs while the engine is paused; it never mutates simulation state.
 
 ## 5. Pointer Interaction Flow
 
