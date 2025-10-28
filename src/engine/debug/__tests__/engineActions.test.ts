@@ -107,4 +107,22 @@ describe('EngineActions', () => {
     actions.setConstraintIterations(6.8)
     expect(simulation.broadcastConstraintIterations).toHaveBeenCalledWith(6.8)
   })
+
+  it('camera methods are safe no-ops when camera is absent', () => {
+    const world = new EngineWorld()
+    const runner = new SimulationRunner({ engine: world })
+    const actions = new EngineActions({ runner, world, camera: null, simulation: null as any })
+    expect(() => actions.setCameraTarget(new (require('three').Vector3)(1, 2, 3))).not.toThrow()
+    expect(() => actions.setCameraTargetZoom(2)).not.toThrow()
+    expect(() => actions.jumpCamera(new (require('three').Vector3)(0, 0, 0), 1)).not.toThrow()
+  })
+
+  it('simulation methods are safe no-ops when simulation is absent', () => {
+    const world = new EngineWorld()
+    const runner = new SimulationRunner({ engine: world })
+    const actions = new EngineActions({ runner, world, camera: null, simulation: null as any })
+    expect(() => actions.setGravityScalar(9.81)).not.toThrow()
+    expect(() => actions.setConstraintIterations(4)).not.toThrow()
+    expect(() => actions.warmStartNow(2, 4)).not.toThrow()
+  })
 })

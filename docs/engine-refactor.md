@@ -18,10 +18,10 @@ Adopt the architecture patterns from the Caverns project so simulation and rende
 
 - [x] Port the caverns camera spring, updating math/constants to use canonical metres.
 - [ ] Expose camera configuration via world actions; keep render-only structures read-only mirrors.
-- [x] Spring tests with explicit acceptance criteria:
-  - Converges to within ±0.1 of target position after 120 steps at 1/60 s.
-  - Zoom converges to within ±0.1 after 120 steps at 1/60 s.
-  - With zero stiffness/damping, position and zoom remain unchanged; velocity=0 (tolerance 1e-6).
+- [ ] Acceptance criteria (spring):
+  - [ ] Position settles within ±0.5% of target in ≤ 1.0 s at 60 FPS.
+  - [ ] Overshoot ≤ 10% for the default damping.
+  - [ ] Steady‑state velocity ≤ 1e‑4 units/s after settle window.
 
 ## 4. Convert `ClothSceneController` into a Render System
 

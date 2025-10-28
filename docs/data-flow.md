@@ -65,6 +65,6 @@
 ## 9. Debug Actions
 
 - UI constructs `EngineActions` by calling getters on `ClothSceneController` to obtain the `runner`,
-`world`, `camera`, and `simulation` references, and then packages controls into that object.
+  `world`, `camera`, and `simulation` references, and then packages controls into that object.
 - Actions include real-time toggling, manual stepping, substep adjustments, camera zoom/target, and
-broadcasted changes for gravity/constraint iterations via `SimulationSystem`.
+  broadcasted changes for gravity/constraint iterations via `SimulationSystem`.

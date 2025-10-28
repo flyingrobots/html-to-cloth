@@ -352,15 +352,16 @@ export class ClothSceneController {
     this.items.clear()
     this.domToWebGL = null
     this.pool = null
-    // Pause, then detach; onDetach() will clear once.
+    // Pause, clear simulation state, then detach systems.
     this.setRealTime(false)
+    this.simulationSystem.clear()
     // Remove registered systems to avoid leaking across re-initializations.
     if (this.cameraSystem) {
-      this.engine.removeSystemInstance?.(this.cameraSystem)
+      this.engine.removeSystemInstance(this.cameraSystem)
       this.cameraSystem = null
     }
     if (this.worldRenderer) {
-      this.engine.removeSystemInstance?.(this.worldRenderer)
+      this.engine.removeSystemInstance(this.worldRenderer)
       this.worldRenderer = null
     }
     // Also remove by stable id as a fallback/cleanup.

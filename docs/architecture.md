@@ -55,7 +55,8 @@ in `typedoc.json` and includes version and git revision metadata for traceabilit
 
 - `ClothSceneController` is exercised via DOM integration tests; targeted unit tests can be added by
   injecting mocked `SimulationRunner`/`SimulationSystem` instances. App tests validate that the debug
-  palette routes actions into `EngineActions`.
+  palette routes actions into `EngineActions`. The paused-render invariant is covered by
+  `src/engine/render/__tests__/pausedRenderIntegration.test.ts`.
 - Entity layer tests live in `src/engine/entity/__tests__/entity.test.ts`.
 - The simulation runner owns its own suite (`src/engine/__tests__/simulationRunner.test.ts`) verifying
   real-time toggles, sub-step behaviour, and manual stepping.

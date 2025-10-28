@@ -84,7 +84,6 @@ export class Entity {
     if (detachErrors.length) {
       for (const { component, error } of detachErrors) {
         // Engine logger DI would be ideal; fall back to console for visibility.
-        // eslint-disable-next-line no-console
         console.error('Entity component detach error', { component }, error)
       }
     }

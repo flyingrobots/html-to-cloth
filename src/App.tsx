@@ -294,7 +294,7 @@ function DebugPalette({
               min={0.5}
               max={3}
               step={0.1}
-              onValueChange={(value) => onCameraZoomChange((value[0] ?? cameraZoom) as number)}
+              onValueChange={(value) => onCameraZoomChange(value[0] ?? cameraZoom)}
             />
           </div>
             <div className="space-y-2">
@@ -384,8 +384,11 @@ function Demo() {
         // Seed sleep thresholds default for new activations and current bodies.
         controller.setSleepConfig({ velocityThreshold: sleepVelocity, frameThreshold: sleepFrames })
         actionsRef.current.setSleepConfig(sleepVelocity, sleepFrames)
-      } catch {
-        // In tests or reduced-motion scenarios, controller internals may be absent; ignore.
+      } catch (err) {
+        // In tests or reduced-motion scenarios, controller internals may be absent.
+        if (import.meta?.env?.MODE !== 'test') {
+          console.warn('EngineActions init failed:', err)
+        }
       }
     })
 
@@ -397,7 +400,7 @@ function Demo() {
       }
       if (!realTimeRef.current && event.key === " ") {
         event.preventDefault()
-        controller.stepOnce()
+        actionsRef.current?.stepOnce() ?? controller.stepOnce()
       }
     }
     window.addEventListener("keydown", handler)
@@ -408,6 +411,7 @@ function Demo() {
       controllerRef.current = null
       actionsRef.current = null
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   useEffect(() => {
