@@ -9,6 +9,7 @@ import type {
 } from '../../lib/simWorld'
 import type { EngineWorld } from '../world'
 import type { EngineLogger, EngineSystem } from '../types'
+import { DEFAULT_LOGGER } from '../defaultLogger'
 
 export type SimulationSystemOptions = {
   simWorld: SimWorld
@@ -25,10 +26,6 @@ type BodyRecord = {
 export type RegisterBodyOptions = {
   warmStart?: SimWarmStartConfig
   sleep?: SimSleepConfig
-}
-
-const DEFAULT_LOGGER: EngineLogger = {
-  error: (...args: unknown[]) => console.error(...args),
 }
 
 function freezeSnapshot(snapshot: SimWorldSnapshot): Readonly<SimWorldSnapshot> {
@@ -65,7 +62,8 @@ export class SimulationSystem implements EngineSystem<EngineWorld> {
   }
 
   onAttach(world: EngineWorld) {
-    this.logger = world.getLogger()
+    // Guard in case a non-standard world omits getLogger; EngineWorld implements it.
+    this.logger = world.getLogger ? world.getLogger() : DEFAULT_LOGGER
   }
 
   onDetach() {
@@ -106,6 +104,17 @@ export class SimulationSystem implements EngineSystem<EngineWorld> {
     this.simWorld.removeBody(id)
   }
 
+  /**
+   * Destructive reset of the simulation system.
+   *
+   * This method mutates and clears the injected {@link SimWorld} and all internal state:
+   * - Calls `simWorld.clear()` to remove all registered bodies from the simulation world.
+   * - Clears the system’s internal body registry.
+   * - Resets the exposed snapshot to an empty, frozen structure.
+   *
+   * Prefer using engine lifecycle hooks (`onDetach`) or a non-destructive pause when possible.
+   * Only call `clear()` when callers intentionally opt into data loss and want a full reset.
+   */
   clear() {
     this.simWorld.clear()
     this.bodies.clear()

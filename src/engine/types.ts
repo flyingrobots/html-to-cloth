@@ -15,6 +15,7 @@ export interface EngineLogger {
 export interface EngineWorldLike {
   setPaused(value: boolean): void
   isPaused(): boolean
+  /** Optional engine logger accessor; concrete EngineWorld provides this. */
   getLogger?(): EngineLogger
 }
 
