@@ -286,7 +286,7 @@ function DebugPalette({
               min={0.5}
               max={3}
               step={0.1}
-              onValueChange={(value) => onCameraZoomChange(Number.parseFloat((value[0] ?? cameraZoom).toString()))}
+              onValueChange={(value) => onCameraZoomChange((value[0] ?? cameraZoom) as number)}
             />
           </div>
             <div className="space-y-2">

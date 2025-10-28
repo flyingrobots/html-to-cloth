@@ -88,9 +88,9 @@ describe('Entity + EntityManager', () => {
 
   it('rejects invalid entity ids', () => {
     const manager = new EntityManager()
-    expect(() => manager.createEntity({ id: '' })).toThrow('non-empty')
-    expect(() => manager.createEntity({ id: '   ' })).toThrow('non-empty')
-    expect(() => manager.createEntity({ id: 123 as unknown as string })).toThrow('non-empty')
+    expect(() => manager.createEntity({ id: '' })).toThrow('Entity id must be a non-empty string')
+    expect(() => manager.createEntity({ id: '   ' })).toThrow('Entity id must be a non-empty string')
+    expect(() => manager.createEntity({ id: 123 as unknown as string })).toThrow('Entity id must be a non-empty string')
   })
 
   it('skips used ids when generating new ones', () => {

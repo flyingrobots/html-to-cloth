@@ -5,6 +5,8 @@
   "out": "docs/api",
   "excludePrivate": true,
   "excludeInternal": true,
+  "excludeExternals": true,
+  "disableSources": true,
   "includeVersion": true,
   "gitRevision": "HEAD",
   "categorizeByGroup": false,

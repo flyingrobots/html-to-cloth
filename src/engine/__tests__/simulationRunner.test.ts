@@ -103,4 +103,24 @@ describe('SimulationRunner', () => {
     runner.stepOnce()
     expect(system.fixedUpdate).toHaveBeenCalledTimes(16)
   })
+
+  it('decouples substeps from catch-up max steps', () => {
+    const world = new EngineWorld()
+    const system = createSystem()
+    world.addSystem(system, { id: 'test' })
+
+    const runner = new SimulationRunner({ engine: world, fixedDelta: 1 / 60 })
+    runner.setSubsteps(8)
+    runner.setMaxCatchUpSteps(2)
+
+    system.fixedUpdate.mockClear()
+    // Large delta → loop should try to catch up, but capped at 2 fixed steps.
+    runner.update(0.2)
+
+    // Each fixed step runs 8 substeps.
+    expect(system.fixedUpdate).toHaveBeenCalledTimes(2 * 8)
+    const dts = new Set(system.fixedUpdate.mock.calls.map(([dt]) => dt))
+    expect(dts.size).toBe(1)
+    expect([...dts][0]).toBeCloseTo((1 / 60) / 8)
+  })
 })

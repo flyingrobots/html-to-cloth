@@ -18,13 +18,19 @@ Adopt the architecture patterns from the Caverns project so simulation and rende
 
 - [x] Port the caverns camera spring, updating math/constants to use canonical metres.
 - [ ] Expose camera configuration via world actions; keep render-only structures read-only mirrors.
-- [x] Write tests verifying the spring converges and respects damping.
+- [x] Spring tests with explicit acceptance criteria:
+  - Converges to within ±0.1 of target position after 120 steps at 1/60 s.
+  - Zoom converges to within ±0.1 after 120 steps at 1/60 s.
+  - With zero stiffness/damping, position and zoom remain unchanged; velocity=0 (tolerance 1e-6).
 
 ## 4. Convert `ClothSceneController` into a Render System
 
 - [x] Split render responsibilities into `WorldRenderer` (bridging engine world → DOMToWebGL) and UI adapters.
 - [ ] Ensure DOM capture meshes, pointer helpers, and overlays read the camera snapshot without mutating simulation state.
-- [ ] Update integration tests to assert render-only systems no longer tick simulation when paused.
+- [x] Paused-render invariant (acceptance test): when `SimulationRunner.setRealTime(false)` is active, assert:
+  - `EngineWorld.isPaused()` returns true
+  - Calling `engine.frame(dt)` triggers `WorldRendererSystem.frameUpdate` and view.render()
+  - No `fixedUpdate` occurs during the same interval
 
 Notes: The renderer runs during `engine.frame(dt)` and applies the camera snapshot each frame. Controller no longer calls `render()` directly.
 
@@ -33,7 +39,12 @@ Notes: The renderer runs during `engine.frame(dt)` and applies the camera snapsh
 - [x] Route debug drawer interactions through engine actions (runner, camera zoom, gravity, constraint iterations).
 - [ ] Expose sleep thresholds and warm-start passes via simulation actions; migrate remaining toggles.
 - [ ] Update presets to dispatch combined physics + camera actions via the world instead of touching controller internals.
-- [ ] Verify inspector metrics come from the engine snapshot (world velocities, camera state, etc.).
+- [ ] Inspector metrics from engine snapshot (world velocities, camera state, etc.).
+
+### Snapshot Immutability (acceptance test)
+- Attempt to mutate a camera snapshot (position/zoom) returned by `CameraSystem.getSnapshot()` and verify:
+  - Mutation is ignored (no side-effects on subsequent reads), or
+  - The method throws; either behaviour must be explicitly enforced to prevent state leaks.
 
 ## 6. Cleanup & Verification
 

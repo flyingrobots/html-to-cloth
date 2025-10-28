@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import React from 'react'
-import { render, screen, fireEvent } from '@testing-library/react'
+import { render, screen, fireEvent, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 
 // Minimal mock for ClothSceneController so App can run without WebGL/DOM plumbing.
@@ -52,12 +52,10 @@ describe('Debug UI → EngineActions integration (App)', () => {
     // Open the debug palette via keyboard shortcut
     fireEvent.keyDown(window, { key: 'j', ctrlKey: true })
 
-    // Find the Real-Time row and toggle the switch
+    // Find the Real-Time row and toggle the switch via role
     const realTimeLabel = await screen.findByText('Real-Time')
     const row = realTimeLabel.closest('div')?.parentElement as HTMLElement
-    const switchEl = row.querySelector('[data-slot="switch"]') as HTMLElement
-    expect(switchEl).toBeTruthy()
-
+    const switchEl = within(row).getByRole('switch')
     // Toggle off (calls setRealTime(false) through EngineActions)
     fireEvent.click(switchEl)
 
@@ -71,13 +69,10 @@ describe('Debug UI → EngineActions integration (App)', () => {
     fireEvent.keyDown(window, { key: 'j', ctrlKey: true })
 
     const zoomLabel = await screen.findByText('Camera Zoom')
-    const zoomRow = zoomLabel.closest('div')?.parentElement?.parentElement as HTMLElement
-    // Radix slider thumb has role=slider; we can click the track to trigger onValueChange
-    const slider = zoomRow.querySelector('[data-slot="slider"]') as HTMLElement
-    expect(slider).toBeTruthy()
-
-    // Fire a generic click; the component wires onValueChange so any event should cause a value update in tests.
-    fireEvent.click(slider)
+    const zoomRow = zoomLabel.closest('div')?.parentElement as HTMLElement
+    const thumb = within(zoomRow).getByRole('slider')
+    // Trigger value change via keyboard to simulate user interaction in jsdom
+    fireEvent.keyDown(thumb, { key: 'ArrowRight' })
 
     await Promise.resolve()
     expect(camera.setTargetZoom).toHaveBeenCalled()
@@ -90,16 +85,16 @@ describe('Debug UI → EngineActions integration (App)', () => {
     // Gravity
     const gravityLabel = await screen.findByText('Gravity')
     const gravityRow = gravityLabel.closest('div')?.parentElement as HTMLElement
-    const gravitySlider = gravityRow.querySelector('[data-slot="slider"]') as HTMLElement
-    fireEvent.click(gravitySlider)
+    const gravityThumb = within(gravityRow).getByRole('slider')
+    fireEvent.keyDown(gravityThumb, { key: 'ArrowRight' })
     await Promise.resolve()
     expect(simulation.broadcastGravity).toHaveBeenCalled()
 
     // Constraint iterations
     const iterationsLabel = await screen.findByText('Constraint Iterations')
     const iterationsRow = iterationsLabel.closest('div')?.parentElement as HTMLElement
-    const iterationsSlider = iterationsRow.querySelector('[data-slot="slider"]') as HTMLElement
-    fireEvent.click(iterationsSlider)
+    const iterationsThumb = within(iterationsRow).getByRole('slider')
+    fireEvent.keyDown(iterationsThumb, { key: 'ArrowRight' })
     await Promise.resolve()
     expect(simulation.broadcastConstraintIterations).toHaveBeenCalled()
   })
@@ -111,16 +106,16 @@ describe('Debug UI → EngineActions integration (App)', () => {
     // Sleep velocity threshold
     const sleepVelLabel = await screen.findByText('Sleep Velocity Threshold')
     const sleepVelRow = sleepVelLabel.closest('div')?.parentElement as HTMLElement
-    const sleepVelSlider = sleepVelRow.querySelector('[data-slot="slider"]') as HTMLElement
-    fireEvent.click(sleepVelSlider)
+    const sleepVelThumb = within(sleepVelRow).getByRole('slider')
+    fireEvent.keyDown(sleepVelThumb, { key: 'ArrowRight' })
     await Promise.resolve()
     expect(simulation.broadcastSleepConfiguration).toHaveBeenCalled()
 
     // Warm start passes
     const warmStartLabel = await screen.findByText('Warm Start Passes')
     const warmRow = warmStartLabel.closest('div')?.parentElement as HTMLElement
-    const warmSlider = warmRow.querySelector('[data-slot="slider"]') as HTMLElement
-    fireEvent.click(warmSlider)
+    const warmThumb = within(warmRow).getByRole('slider')
+    fireEvent.keyDown(warmThumb, { key: 'ArrowRight' })
     await Promise.resolve()
     // Click the Warm Start Now button to apply immediately
     const warmButton = await screen.findByText('Warm Start Now')

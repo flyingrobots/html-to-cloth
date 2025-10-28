@@ -351,6 +351,15 @@ export class ClothSceneController {
     this.pool = null
     // Pause, then detach; onDetach() will clear once.
     this.setRealTime(false)
+    // Remove registered systems to avoid leaking across re-initializations.
+    if (this.cameraSystem) {
+      this.engine.removeSystemInstance?.(this.cameraSystem)
+      this.cameraSystem = null
+    }
+    if (this.worldRenderer) {
+      this.engine.removeSystemInstance?.(this.worldRenderer)
+      this.worldRenderer = null
+    }
     this.engine.removeSystem(this.simulationSystem.id)
     this.elementIds.clear()
   }
@@ -611,7 +620,7 @@ export class ClothSceneController {
 
   /** Sets the desired cloth physics sub-step count and propagates it to the runner and live cloths. */
   setSubsteps(substeps: number) {
-    const clamped = Math.max(1, Math.round(substeps))
+    const clamped = Math.max(1, Math.min(16, Math.round(substeps)))
     this.debug.substeps = clamped
     this.simulationRunner.setSubsteps(clamped)
     for (const item of this.items.values()) {

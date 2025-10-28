@@ -71,4 +71,18 @@ describe('EngineWorld', () => {
     world.removeSystem(system.id ?? 'lifecycle')
     expect(onDetach).toHaveBeenCalledTimes(1)
   })
+
+  it('returns assigned id and supports removal by instance', () => {
+    const world = new EngineWorld()
+    const onAttach = vi.fn()
+    const onDetach = vi.fn()
+    const system = createSystem('instance-remove', { onAttach, onDetach })
+
+    const id = world.addSystem(system, { priority: 1 })
+    expect(typeof id).toBe('string')
+    expect(onAttach).toHaveBeenCalledWith(world)
+
+    world.removeSystemInstance(system)
+    expect(onDetach).toHaveBeenCalledTimes(1)
+  })
 })

@@ -45,7 +45,7 @@ let systemCounter = 0
  * and exposing immutable snapshots for read-only consumers.
  */
 export class SimulationSystem implements EngineSystem<EngineWorld> {
-  id: string
+  readonly id: string
   allowWhilePaused = false
 
   private readonly simWorld: SimWorld

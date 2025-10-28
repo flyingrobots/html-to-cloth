@@ -1,25 +1,28 @@
 import '@testing-library/jest-dom/vitest'
+import { vi } from 'vitest'
 
 // JSDOM polyfills
 if (typeof window !== 'undefined' && typeof (window as any).matchMedia !== 'function') {
-  // Minimal matchMedia stub for components that query prefers-reduced-motion, etc.
-  ;(window as any).matchMedia = (query: string) => ({
+  vi.stubGlobal('matchMedia', (query: string) => ({
     matches: false,
     media: query,
     onchange: null,
-    addEventListener: () => {},
-    removeEventListener: () => {},
-    addListener: () => {},
-    removeListener: () => {},
-    dispatchEvent: () => false,
-  })
+    addEventListener: (..._args: any[]) => {},
+    removeEventListener: (..._args: any[]) => {},
+    addListener: (..._args: any[]) => {},
+    removeListener: (..._args: any[]) => {},
+    dispatchEvent: (..._args: any[]) => false,
+  }))
 }
 
 // Radix UI uses ResizeObserver internally; provide a minimal stub for jsdom.
 if (typeof (globalThis as any).ResizeObserver === 'undefined') {
-  ;(globalThis as any).ResizeObserver = class {
-    observe() {}
-    unobserve() {}
-    disconnect() {}
-  }
+  vi.stubGlobal(
+    'ResizeObserver',
+    class {
+      observe(..._args: any[]) {}
+      unobserve(..._args: any[]) {}
+      disconnect(..._args: any[]) {}
+    }
+  )
 }
