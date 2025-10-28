@@ -194,6 +194,9 @@ export type ClothSceneControllerOptions = {
  * {@link SimulationRunner} and {@link SimulationSystem} instances.
  */
 export class ClothSceneController {
+  private static readonly SIM_SYSTEM_ID = 'sim-core'
+  private static readonly CAMERA_SYSTEM_ID = 'render-camera'
+  private static readonly RENDERER_SYSTEM_ID = 'world-renderer'
   private domToWebGL: DOMToWebGL | null = null
   private collisionSystem = new CollisionSystem()
   private items = new Map<HTMLElement, ClothItem>()
@@ -251,7 +254,7 @@ export class ClothSceneController {
     this.simulationSystem = options.simulationSystem ?? new SimulationSystem({ simWorld: this.simWorld })
 
     this.engine = options.engine ?? new EngineWorld()
-    this.engine.addSystem(this.simulationSystem, { priority: 100 })
+    this.engine.addSystem(this.simulationSystem, { id: ClothSceneController.SIM_SYSTEM_ID, priority: 100 })
 
     this.simulationRunner =
       options.simulationRunner ??
@@ -360,7 +363,10 @@ export class ClothSceneController {
       this.engine.removeSystemInstance?.(this.worldRenderer)
       this.worldRenderer = null
     }
-    this.engine.removeSystem(this.simulationSystem.id)
+    // Also remove by stable id as a fallback/cleanup.
+    this.engine.removeSystem(ClothSceneController.RENDERER_SYSTEM_ID)
+    this.engine.removeSystem(ClothSceneController.CAMERA_SYSTEM_ID)
+    this.engine.removeSystem(ClothSceneController.SIM_SYSTEM_ID)
     this.elementIds.clear()
   }
 
@@ -478,12 +484,21 @@ export class ClothSceneController {
 
   private installRenderPipeline() {
     if (!this.domToWebGL) return
+    if (this.cameraSystem || this.worldRenderer) return
     // Create a camera system and world renderer that reads snapshots each frame.
     this.cameraSystem = new CameraSystem()
     this.worldRenderer = new WorldRendererSystem({ view: this.domToWebGL, camera: this.cameraSystem })
     // Register with lower priority than simulation so render sees the latest snapshot.
-    this.engine.addSystem(this.cameraSystem, { priority: 50, allowWhilePaused: true })
-    this.engine.addSystem(this.worldRenderer, { priority: 10, allowWhilePaused: true })
+    this.engine.addSystem(this.cameraSystem, {
+      id: ClothSceneController.CAMERA_SYSTEM_ID,
+      priority: 50,
+      allowWhilePaused: true,
+    })
+    this.engine.addSystem(this.worldRenderer, {
+      id: ClothSceneController.RENDERER_SYSTEM_ID,
+      priority: 10,
+      allowWhilePaused: true,
+    })
   }
 
   /** Returns the underlying engine world for debug actions. */
