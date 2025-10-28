@@ -1,4 +1,5 @@
-import type { EngineSystem, EngineSystemId, EngineSystemOptions } from './types'
+import type { EngineLogger, EngineSystem, EngineSystemId, EngineSystemOptions } from './types'
+import { DEFAULT_LOGGER } from './defaultLogger'
 
 type RegisteredSystem = {
   id: EngineSystemId
@@ -11,19 +12,26 @@ export class EngineWorld {
   private systems: RegisteredSystem[] = []
   private paused = false
   private idCounter = 0
+  private readonly logger: EngineLogger
+
+  constructor(logger: EngineLogger = DEFAULT_LOGGER) {
+    this.logger = logger
+  }
 
   addSystem(system: EngineSystem, options: EngineSystemOptions = {}) {
     const id = this.resolveId(system, options)
+    if (this.systems.some((entry) => entry.id === id)) {
+      throw new Error(`Engine system id '${id}' already registered`)
+    }
+    if (this.systems.some((entry) => entry.system === system)) {
+      throw new Error('Engine system instance already registered')
+    }
     const entry: RegisteredSystem = {
       id,
       system,
       priority: options.priority ?? system.priority ?? 0,
       allowWhilePaused: options.allowWhilePaused ?? system.allowWhilePaused ?? false,
     }
-
-    system.id = id
-    system.priority = entry.priority
-    system.allowWhilePaused = entry.allowWhilePaused
 
     this.systems.push(entry)
     this.sortSystems()
@@ -47,16 +55,25 @@ export class EngineWorld {
   }
 
   step(dt: number) {
-    for (const entry of this.systems) {
-      if (this.paused && !entry.allowWhilePaused) continue
+    const paused = this.paused
+    const snapshot = this.systems.slice()
+    for (const entry of snapshot) {
+      if (paused && !entry.allowWhilePaused) continue
+      if (!this.systems.includes(entry)) continue
       entry.system.fixedUpdate?.(dt)
     }
   }
 
   frame(dt: number) {
-    for (const entry of this.systems) {
+    const snapshot = this.systems.slice()
+    for (const entry of snapshot) {
+      if (!this.systems.includes(entry)) continue
       entry.system.frameUpdate?.(dt)
     }
+  }
+
+  getLogger(): EngineLogger {
+    return this.logger
   }
 
   private resolveId(system: EngineSystem, options: EngineSystemOptions) {

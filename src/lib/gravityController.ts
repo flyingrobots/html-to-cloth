@@ -24,7 +24,7 @@ export class GravityController {
 
   runWithOverride(temp: THREE.Vector3, fn: () => void) {
     const previous = this.override
-    this.override = temp
+    this.override = temp.clone()
     try {
       fn()
     } finally {

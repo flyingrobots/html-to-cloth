@@ -194,6 +194,7 @@ export class ClothSceneController {
   private simulationSystem: SimulationSystem
   private simulationRunner: SimulationRunner
   private simWorld: SimWorld
+  private engine: EngineWorld
   private entities = new EntityManager()
   private elementIds = new Map<HTMLElement, string>()
   private onResize = () => this.handleResize()
@@ -237,13 +238,13 @@ export class ClothSceneController {
     this.simWorld = options.simWorld ?? new SimWorld()
     this.simulationSystem = options.simulationSystem ?? new SimulationSystem({ simWorld: this.simWorld })
 
-    const engine = options.engine ?? new EngineWorld()
-    engine.addSystem(this.simulationSystem, { priority: 100 })
+    this.engine = options.engine ?? new EngineWorld()
+    this.engine.addSystem(this.simulationSystem, { priority: 100 })
 
     this.simulationRunner =
       options.simulationRunner ??
       new SimulationRunner({
-        engine,
+        engine: this.engine,
         fixedDelta: options.fixedDelta,
         maxSubSteps: options.maxSubSteps ?? this.debug.substeps,
       })
@@ -333,9 +334,9 @@ export class ClothSceneController {
     this.items.clear()
     this.domToWebGL = null
     this.pool = null
-    this.simulationSystem.clear()
+    // Pause, then detach; onDetach() will clear once.
     this.setRealTime(false)
-    this.entities.clear()
+    this.engine.removeSystem(this.simulationSystem.id)
     this.elementIds.clear()
   }
 
@@ -390,7 +391,7 @@ export class ClothSceneController {
     })
 
     cloth.setConstraintIterations(this.debug.constraintIterations)
-    cloth.setSubsteps(1)
+    cloth.setSubsteps(this.debug.substeps)
     this.applyPinMode(cloth)
 
     const gravityVector = new THREE.Vector3(0, -this.debug.gravity, 0)
@@ -563,7 +564,6 @@ export class ClothSceneController {
   /** Toggles real-time simulation updates. The controller still honours manual steps while paused. */
   setRealTime(enabled: boolean) {
     this.debug.realTime = enabled
-    this.simulationRunner.getEngine().setPaused(!enabled)
     this.simulationRunner.setRealTime(enabled)
     if (enabled) {
       this.clock.getDelta()
@@ -576,7 +576,7 @@ export class ClothSceneController {
     this.debug.substeps = clamped
     this.simulationRunner.setSubsteps(clamped)
     for (const item of this.items.values()) {
-      item.cloth?.setSubsteps(1)
+      item.cloth?.setSubsteps(clamped)
     }
   }
 

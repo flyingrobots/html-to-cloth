@@ -24,25 +24,19 @@ const createSystem = (
 describe('EngineWorld', () => {
   it('ticks systems in priority order during each step', () => {
     const world = new EngineWorld()
-    const calls: string[] = []
-
-    const low = createSystem('low', {
-      fixedUpdate: (dt) => {
-        calls.push(`low:${dt.toFixed(3)}`)
-      },
-    })
-    const high = createSystem('high', {
-      fixedUpdate: (dt) => {
-        calls.push(`high:${dt.toFixed(3)}`)
-      },
-    })
+    const low = createSystem('low')
+    const high = createSystem('high')
 
     world.addSystem(low, { priority: -5 })
     world.addSystem(high, { priority: 10 })
 
     world.step(0.02)
 
-    expect(calls).toEqual(['high:0.020', 'low:0.020'])
+    expect(high.fixedUpdate).toHaveBeenCalledWith(0.02)
+    expect(low.fixedUpdate).toHaveBeenCalledWith(0.02)
+    expect(high.fixedUpdate.mock.invocationCallOrder[0]).toBeLessThan(
+      low.fixedUpdate.mock.invocationCallOrder[0]
+    )
   })
 
   it('skips non-unpauseable systems while paused', () => {

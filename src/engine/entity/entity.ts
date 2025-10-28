@@ -65,11 +65,18 @@ export class Entity {
   /** Destroys the entity and detaches all components. */
   destroy() {
     if (this.destroyed) return
-    for (const [key, component] of this.components.entries()) {
-      component.onDetach?.(this)
-      this.components.delete(key)
-    }
+    // Prevent re-entrancy if a component triggers destroy() again.
     this.destroyed = true
+    const entries = Array.from(this.components.entries())
+    for (const [key, component] of entries) {
+      if (!this.components.has(key)) continue
+      this.components.delete(key)
+      try {
+        component.onDetach?.(this)
+      } catch {
+        // Component teardown errors should not block destruction.
+      }
+    }
     this.manager.destroyEntity(this)
   }
 

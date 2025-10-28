@@ -67,7 +67,7 @@ export class SimWorld {
     this.updateSnapshot()
   }
 
-  hasBody(id: string) {
+  hasBody(id: string): boolean {
     return this.bodies.has(id)
   }
 
@@ -100,9 +100,7 @@ export class SimWorld {
 
   /** Removes every body and resets the internal snapshot. */
   clear() {
-    for (const id of this.bodies.keys()) {
-      this.scheduler.removeBody(id)
-    }
+    this.scheduler.clear()
     this.bodies.clear()
     this.previousCenters.clear()
     this.snapshot = { bodies: [] }

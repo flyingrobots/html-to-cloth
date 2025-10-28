@@ -138,9 +138,13 @@ describe('SimWorld', () => {
     expect(center.x).toBeCloseTo(1)
     expect(center.y).toBeCloseTo(2)
 
+    // Mutating the snapshot should not affect internal state.
     updated.bodies[0].center.x = 42
     const fresh = world.getSnapshot()
     expect(fresh.bodies[0].center.x).toBeCloseTo(1)
+    // Different objects, not just values.
+    expect(fresh.bodies[0]).not.toBe(updated.bodies[0])
+    expect(fresh.bodies[0].center).not.toBe(updated.bodies[0].center)
   })
 
   it('prevents duplicate ids and throws meaningful errors', () => {

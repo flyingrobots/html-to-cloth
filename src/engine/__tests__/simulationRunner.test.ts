@@ -35,7 +35,7 @@ describe('SimulationRunner', () => {
     runner.stepOnce()
 
     expect(system.fixedUpdate).toHaveBeenCalledTimes(3)
-    const durations = system.fixedUpdate?.mock.calls.map(([dt]) => dt)
+    const durations = system.fixedUpdate.mock.calls.map(([dt]) => dt)
     durations.forEach((dt) => expect(dt).toBeCloseTo(1 / 180))
   })
 

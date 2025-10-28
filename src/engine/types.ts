@@ -6,11 +6,24 @@ export type EngineSystemOptions = {
   allowWhilePaused?: boolean
 }
 
-export interface EngineSystem {
+export interface EngineLogger {
+  error(...args: unknown[]): void
+  warn?(...args: unknown[]): void
+  info?(...args: unknown[]): void
+}
+
+export interface EngineWorldLike {
+  setPaused(value: boolean): void
+  isPaused(): boolean
+  /** Optional engine logger accessor; concrete EngineWorld provides this. */
+  getLogger?(): EngineLogger
+}
+
+export interface EngineSystem<TWorld extends EngineWorldLike = EngineWorldLike> {
   id?: EngineSystemId
   priority?: number
   allowWhilePaused?: boolean
-  onAttach?(world: unknown): void
+  onAttach?(world: TWorld): void
   onDetach?(): void
   fixedUpdate?(dt: number): void
   frameUpdate?(dt: number): void

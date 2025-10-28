@@ -17,6 +17,9 @@ export class FixedStepLoop {
     this.step = options.step
   }
 
+  /**
+   * Consumes elapsed time when the loop is running; paused loops ignore accumulation entirely.
+   */
   update(elapsed: number) {
     if (this.paused) return
     if (!Number.isFinite(elapsed) || elapsed < 0) return

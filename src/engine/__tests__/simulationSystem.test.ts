@@ -91,12 +91,10 @@ describe('SimulationSystem', () => {
 
   it('returns the latest snapshot after stepping', () => {
     const simWorld = createSimWorld()
-    const snapshotA = { bodies: [{ id: 'a', center: new THREE.Vector2(1, 1), radius: 0.5, sleeping: false }] }
-    const snapshotB = { bodies: [{ id: 'a', center: new THREE.Vector2(2, 1), radius: 0.5, sleeping: false }] }
+    const snapshotA = { bodies: [{ id: 'a', center: { x: 1, y: 1 }, radius: 0.5, sleeping: false }] }
+    const snapshotB = { bodies: [{ id: 'a', center: { x: 2, y: 1 }, radius: 0.5, sleeping: false }] }
 
-    simWorld.getSnapshot
-      .mockReturnValueOnce(snapshotA)
-      .mockReturnValueOnce(snapshotB)
+    simWorld.getSnapshot.mockReturnValueOnce(snapshotA).mockReturnValueOnce(snapshotB)
 
     const system = new SimulationSystem({ simWorld })
     system.fixedUpdate!(FIXED_DT)
@@ -119,6 +117,7 @@ describe('SimulationSystem', () => {
 
     system.clear()
     expect(simWorld.clear).toHaveBeenCalled()
+    expect(system.getSnapshot()).toEqual({ bodies: [] })
   })
 
   it('removes registered bodies on request', () => {
@@ -130,6 +129,27 @@ describe('SimulationSystem', () => {
     system.removeBody(body.id)
 
     expect(simWorld.removeBody).toHaveBeenCalledWith(body.id)
+  })
+
+  it('rejects duplicate body registrations', () => {
+    const simWorld = createSimWorld()
+    simWorld.hasBody = vi.fn().mockReturnValue(false)
+    const body = createBody()
+    const system = new SimulationSystem({ simWorld })
+
+    system.addBody(body as any)
+    simWorld.hasBody = vi.fn().mockReturnValue(true)
+
+    expect(() => system.addBody(body as any)).toThrow(/already registered/)
+  })
+
+  it('ignores removal requests for unknown bodies', () => {
+    const simWorld = createSimWorld()
+    const system = new SimulationSystem({ simWorld })
+
+    system.removeBody('missing')
+
+    expect(simWorld.removeBody).not.toHaveBeenCalled()
   })
 
   it('handles engine lifecycle hooks', () => {

@@ -178,6 +178,8 @@ vi.mock('../../engine/simulationRunner', () => {
 
 vi.mock('../../engine/systems/simulationSystem', () => {
   class MockSimulationSystem {
+    public id = `simulation-mock-${simulationSystemMocks.instances.length + 1}`
+
     constructor() {
       simulationSystemMocks.instances.push(this)
     }
