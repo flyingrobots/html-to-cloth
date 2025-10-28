@@ -67,8 +67,7 @@ export class SimulationSystem implements EngineSystem<EngineWorld> {
   }
 
   onDetach() {
-    this.bodies.clear()
-    this.snapshot = freezeSnapshot({ bodies: [] })
+    this.clear()
   }
 
   fixedUpdate(dt: number) {
@@ -145,16 +144,16 @@ export class SimulationSystem implements EngineSystem<EngineWorld> {
   /** Broadcasts constraint iteration changes to any bodies exposing the optional hook. */
   broadcastConstraintIterations(iterations: number) {
     const count = Math.max(1, Math.round(iterations))
-    ;(this.simWorld as { forEachBody?: (fn: (b: SimBody) => void) => void }).forEachBody?.((body) =>
-      body.setConstraintIterations?.(count)
-    )
+    for (const record of this.bodies.values()) {
+      record.body.setConstraintIterations?.(count)
+    }
   }
 
   /** Broadcasts gravity changes to any bodies exposing the optional hook. */
   broadcastGravity(gravity: Vector3) {
-    ;(this.simWorld as { forEachBody?: (fn: (b: SimBody) => void) => void }).forEachBody?.((body) =>
-      body.setGlobalGravity?.(gravity)
-    )
+    for (const record of this.bodies.values()) {
+      record.body.setGlobalGravity?.(gravity)
+    }
   }
 
   /** Queues sleep configuration for all registered bodies to apply on next fixed update. */

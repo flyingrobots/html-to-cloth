@@ -94,4 +94,17 @@ describe('EngineActions', () => {
     actions.warmStartNow(2, 4)
     expect(simulation.broadcastWarmStart).toHaveBeenCalledWith({ passes: 2, constraintIterations: 4 })
   })
+
+  it('rounds/clamps warmStart and iterations before broadcasting', () => {
+    const world = new EngineWorld()
+    const runner = new SimulationRunner({ engine: world })
+    const simulation = { broadcastWarmStart: vi.fn(), broadcastConstraintIterations: vi.fn() } as unknown as SimulationSystem
+    const actions = new EngineActions({ runner, world, simulation })
+
+    actions.warmStartNow(-1.7, 0.2)
+    expect(simulation.broadcastWarmStart).toHaveBeenCalledWith({ passes: 0, constraintIterations: 1 })
+
+    actions.setConstraintIterations(6.8)
+    expect(simulation.broadcastConstraintIterations).toHaveBeenCalledWith(6.8)
+  })
 })

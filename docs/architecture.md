@@ -9,7 +9,11 @@ the component and data-flow diagrams with additional rationale and extension tip
 1. **UI/DOM Layer** – browser-facing code (`clothSceneController`, React components) that captures
    DOM elements, handles pointer input, and exposes debug actions.
 2. **Render Layer** – `WorldRendererSystem` copies a camera snapshot into `DOMToWebGL` and renders
-   each frame (`EngineWorld.frame(dt)`), running even while simulation is paused.
+   each frame (`EngineWorld.frame(dt)`). Contract: the Render Layer MUST continue to run and render
+   every frame even when the Simulation Layer is paused, and it MUST render only from immutable
+   snapshots (camera/UI) without mutating or depending on live simulation state. Optimizations that
+   skip or coalesce render frames while paused are forbidden; the layer is responsible for drawing
+   UI/overlays from the latest snapshot regardless of simulation state.
 3. **Simulation Layer** – `SimulationSystem`, `SimWorld`, `SimulationScheduler`, and physics modules
    (`ClothPhysics`, collision helpers). This layer is pure data/logic and exposes snapshots.
 4. **Engine Layer** – `EngineWorld`, `SimulationRunner`, fixed-step loop. Responsible for deterministic
