@@ -1,16 +1,11 @@
 import type { EngineLogger, EngineSystem, EngineSystemId, EngineSystemOptions } from './types'
+import { DEFAULT_LOGGER } from './defaultLogger'
 
 type RegisteredSystem = {
   id: EngineSystemId
   system: EngineSystem
   priority: number
   allowWhilePaused: boolean
-}
-
-const DEFAULT_LOGGER: EngineLogger = {
-  error: (...args: unknown[]) => console.error(...args),
-  warn: (...args: unknown[]) => console.warn(...args),
-  info: (...args: unknown[]) => console.info(...args),
 }
 
 export class EngineWorld {
