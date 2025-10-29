@@ -1,4 +1,4 @@
-# Cloth Web Demo
+# HTML-to-cloth
 
 <img src="https://github.com/user-attachments/assets/976ff0de-e55b-46d6-990b-bba48cbe741e" width="480" align="right" />
 
