@@ -6,9 +6,7 @@ import type { CameraSystem } from '../camera/CameraSystem'
 import type { SimulationSystem } from '../systems/simulationSystem'
 import { DebugOverlayState } from '../render/DebugOverlayState'
 import { RenderSettingsState } from '../render/RenderSettingsState'
-
-// Local copy of the controller's PinMode union to avoid cross-layer imports.
-export type PinMode = 'top' | 'bottom' | 'corners' | 'none'
+import type { PinMode } from '../../types/pinMode'
 
 export type EngineActionsOptions = {
   runner: SimulationRunner
