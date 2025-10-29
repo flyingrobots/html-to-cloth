@@ -380,6 +380,7 @@ function Demo() {
           overlay: controller.getOverlayState() ?? undefined,
           renderSettings: new RenderSettingsState(),
           setTessellation: (segments: number) => controller.setTessellationSegments(segments),
+          setPinMode: (mode) => controller.setPinMode(mode),
         })
         // Seed camera zoom so renderer starts from the UI's value.
         actionsRef.current.setCameraTargetZoom(cameraZoom)
@@ -470,7 +471,8 @@ function Demo() {
   }, [pointerColliderVisible])
 
   useEffect(() => {
-    controllerRef.current?.setPinMode(pinMode)
+    actionsRef.current?.setPinMode(pinMode)
+    if (!actionsRef.current) controllerRef.current?.setPinMode(pinMode)
   }, [pinMode])
 
   const modifierKey =

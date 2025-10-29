@@ -14,6 +14,7 @@ const simulation = {
 }
 
 vi.mock('../../lib/clothSceneController', () => {
+  const setPinMode = vi.fn()
   class MockClothSceneController {
     async init() {}
     dispose() {}
@@ -26,7 +27,7 @@ vi.mock('../../lib/clothSceneController', () => {
     setSubsteps() {}
     setTessellationSegments() { return Promise.resolve() }
     setPointerColliderVisible() {}
-    setPinMode() {}
+    setPinMode(mode: any) { setPinMode(mode) }
     stepOnce() {}
     setSleepConfig() {}
 
@@ -36,10 +37,12 @@ vi.mock('../../lib/clothSceneController', () => {
     getSimulationSystem() { return simulation as any }
     getOverlayState() { return { visible: false } as any }
   }
-  return { ClothSceneController: MockClothSceneController }
+  return { ClothSceneController: MockClothSceneController, __mocks: { setPinMode } }
 })
 
 import App from '../../App'
+// Access controller mocks exposed by the module factory
+import { __mocks as controllerMocks } from '../../lib/clothSceneController'
 
 beforeEach(() => {
   vi.clearAllMocks()
@@ -140,5 +143,22 @@ describe('Debug UI → EngineActions integration (App)', () => {
     expect(simulation.broadcastGravity).toHaveBeenCalled()
     expect(simulation.broadcastConstraintIterations).toHaveBeenCalled()
     expect(camera.setTargetZoom).toHaveBeenCalled()
+  })
+
+  it('routes Pin Mode changes via EngineActions', async () => {
+    render(<App />)
+    fireEvent.keyDown(window, { key: 'j', ctrlKey: true })
+
+    const user = userEvent.setup()
+    const pinLabel = await screen.findByText('Pin Mode')
+    const pinRow = pinLabel.closest('div')?.parentElement as HTMLElement
+    const trigger = within(pinRow).getByRole('button')
+    await user.click(trigger)
+
+    const corners = await screen.findByRole('menuitemradio', { name: 'Corners' })
+    await user.click(corners)
+
+    await Promise.resolve()
+    expect(controllerMocks.setPinMode).toHaveBeenCalledWith('corners')
   })
 })

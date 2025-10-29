@@ -7,6 +7,9 @@ import type { SimulationSystem } from '../systems/simulationSystem'
 import { DebugOverlayState } from '../render/DebugOverlayState'
 import { RenderSettingsState } from '../render/RenderSettingsState'
 
+// Local copy of the controller's PinMode union to avoid cross-layer imports.
+export type PinMode = 'top' | 'bottom' | 'corners' | 'none'
+
 export type EngineActionsOptions = {
   runner: SimulationRunner
   world: EngineWorld
@@ -15,6 +18,7 @@ export type EngineActionsOptions = {
   overlay?: DebugOverlayState | null
   renderSettings?: RenderSettingsState | null
   setTessellation?: (segments: number) => void | Promise<void>
+  setPinMode?: (mode: PinMode) => void
 }
 
 /**
@@ -31,6 +35,7 @@ export class EngineActions {
   private readonly overlay: DebugOverlayState | null
   private readonly renderSettings: RenderSettingsState | null
   private readonly setTessellationCb?: (segments: number) => void | Promise<void>
+  private readonly setPinModeCb?: (mode: PinMode) => void
 
   constructor(options: EngineActionsOptions) {
     this.runner = options.runner
@@ -40,6 +45,7 @@ export class EngineActions {
     this.overlay = options.overlay ?? null
     this.renderSettings = options.renderSettings ?? null
     this.setTessellationCb = options.setTessellation
+    this.setPinModeCb = options.setPinMode
   }
 
   /** Enables/disables real-time ticking. */
@@ -115,6 +121,11 @@ export class EngineActions {
   /** Requests tessellation change (rebuild inactive meshes via controller-provided callback). */
   async setTessellation(segments: number) {
     if (this.setTessellationCb) await this.setTessellationCb(segments)
+  }
+
+  /** Sets cloth pin mode via controller-provided callback. */
+  setPinMode(mode: PinMode) {
+    this.setPinModeCb?.(mode)
   }
 
   /** Exposes the attached world for advanced hooks (read-only usage suggested). */
