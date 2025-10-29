@@ -3,7 +3,7 @@ import * as THREE from 'three'
 
 import { CameraSpring, CAMERA_SPRING_MAX_DELTA, type MutableCameraSnapshot } from '../CameraSpring'
 import { CameraSystem } from '../CameraSystem'
-import type { EngineWorld } from '../../types'
+import type { EngineWorld } from '../../world'
 
 describe('CameraSpring', () => {
   it('converges towards the target position', () => {

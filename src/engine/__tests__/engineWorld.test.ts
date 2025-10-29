@@ -32,11 +32,11 @@ describe('EngineWorld', () => {
 
     world.step(0.02)
 
-    expect(high.fixedUpdate).toHaveBeenCalledWith(0.02)
-    expect(low.fixedUpdate).toHaveBeenCalledWith(0.02)
-    expect(high.fixedUpdate.mock.invocationCallOrder[0]).toBeLessThan(
-      low.fixedUpdate.mock.invocationCallOrder[0]
-    )
+    expect(high.fixedUpdate!).toHaveBeenCalledWith(0.02)
+    expect(low.fixedUpdate!).toHaveBeenCalledWith(0.02)
+    const highOrder = (high.fixedUpdate as any).mock.invocationCallOrder[0]
+    const lowOrder = (low.fixedUpdate as any).mock.invocationCallOrder[0]
+    expect(highOrder).toBeLessThan(lowOrder)
   })
 
   it('skips non-unpauseable systems while paused', () => {
