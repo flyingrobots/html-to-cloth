@@ -23,3 +23,9 @@
 - **Browser Matrix** – Validate behaviour in Chrome 129, Safari 18 (macOS/iOS), and Firefox 131.
 - **Network Throttle** – Test on “Slow 3G” to ensure html2canvas lazy load does not freeze the UI.
 - **Memory Cleanup** – Activate, scroll, and refresh multiple times while monitoring for leaked WebGL resources or detached DOM nodes.
+
+### Manual QA Runbook & Results
+
+For the latest cross‑browser manual runbook and results template, see:
+
+- docs/qa/manual-qa-2025-10-29.md
