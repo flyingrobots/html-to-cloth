@@ -287,20 +287,20 @@ function DebugPalette({
                 </Button>
               </div>
             </div>
-            <div className="space-y-2">
-              <div className="flex items-center justify-between text-sm font-medium">
-                <span>Camera Zoom</span>
-                <span className="text-muted-foreground">{cameraZoom.toFixed(2)}×</span>
-              </div>
-            <Slider
-              aria-label="Camera Zoom"
-              value={[cameraZoom]}
-              min={0.5}
-              max={3}
-              step={0.1}
-              onValueChange={(value) => onCameraZoomChange(value[0] ?? cameraZoom)}
-            />
-          </div>
+          <div className="space-y-2">
+            <div className="flex items-center justify-between text-sm font-medium">
+              <span>Camera Zoom</span>
+              <span className="text-muted-foreground">{cameraZoom.toFixed(2)}×</span>
+            </div>
+          <Slider
+            aria-label="Camera Zoom"
+            value={[cameraZoom]}
+            min={0.5}
+            max={3}
+            step={0.1}
+            onValueChange={(value) => onCameraZoomChange(value[0] ?? cameraZoom)}
+          />
+        </div>
             <div className="space-y-1">
               <div className="flex items-center justify-between text-sm font-medium">
                 <span>Camera Zoom (Actual)</span>
@@ -390,9 +390,15 @@ function Demo() {
           overlay: controller.getOverlayState() ?? undefined,
           renderSettings: new RenderSettingsState(),
           setTessellation: (segments: number) => controller.setTessellationSegments(segments),
+          setPinMode: (mode) => controller.setPinMode(mode),
         })
         // Seed camera zoom target; inspector will poll after changes.
         actionsRef.current.setCameraTargetZoom(cameraZoom)
+        // Seed inspector from snapshot if available.
+        const snap = actionsRef.current.getCameraSnapshot?.()
+        if (snap && typeof snap.zoom === 'number') {
+          setCameraZoomActual(snap.zoom)
+        }
         // Seed gravity and iterations to reflect UI defaults.
         actionsRef.current.setGravityScalar(gravity)
         actionsRef.current.setConstraintIterations(constraintIterations)
@@ -498,7 +504,8 @@ function Demo() {
   }, [pointerColliderVisible])
 
   useEffect(() => {
-    controllerRef.current?.setPinMode(pinMode)
+    actionsRef.current?.setPinMode(pinMode)
+    if (!actionsRef.current) controllerRef.current?.setPinMode(pinMode)
   }, [pinMode])
 
   const modifierKey =
