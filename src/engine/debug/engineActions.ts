@@ -2,7 +2,7 @@ import * as THREE from 'three'
 
 import type { SimulationRunner } from '../simulationRunner'
 import type { EngineWorld } from '../world'
-import type { CameraSystem } from '../camera/CameraSystem'
+import type { CameraSystem, CameraSnapshot } from '../camera/CameraSystem'
 import type { SimulationSystem } from '../systems/simulationSystem'
 import { DebugOverlayState } from '../render/DebugOverlayState'
 import { RenderSettingsState } from '../render/RenderSettingsState'
@@ -120,5 +120,15 @@ export class EngineActions {
   /** Exposes the attached world for advanced hooks (read-only usage suggested). */
   getWorld() {
     return this.world
+  }
+
+  /**
+   * Returns the latest camera snapshot when a camera system is attached.
+   * The shape mirrors CameraSystem.getSnapshot():
+   * - position, velocity, target (THREE.Vector3)
+   * - zoom, zoomVelocity, targetZoom (number)
+   */
+  getCameraSnapshot(): CameraSnapshot | undefined {
+    return this.camera?.getSnapshot()
   }
 }

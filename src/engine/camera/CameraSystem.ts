@@ -61,8 +61,8 @@ export class CameraSystem implements EngineSystem<EngineWorld> {
    *
    * @returns {CameraSnapshot}
    */
-  getSnapshot() {
-    return this.snapshot
+  getSnapshot(): CameraSnapshot {
+    return this.snapshot as CameraSnapshot
   }
 
   /**
