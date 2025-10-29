@@ -110,7 +110,8 @@ export class DOMToWebGL {
     })
 
     const mesh = new THREE.Mesh(geometry, material)
-    ;(mesh as any).userData = { ...(mesh as any).userData, isStatic: true, isCloth: false }
+    const obj = mesh as unknown as { userData?: Record<string, unknown> }
+    obj.userData = { ...(obj.userData || {}), isStatic: true, isCloth: false }
     mesh.frustumCulled = false
     mesh.position.set(...this.domPositionToWorld(rect))
 

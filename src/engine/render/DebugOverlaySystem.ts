@@ -34,10 +34,10 @@ export class DebugOverlaySystem implements EngineSystem {
     const visible = this.state.visible
     if (visible && !this.attached) {
       this.view.camera.updateProjectionMatrix() // no-op but ensures camera exists
-      ;(this.view as any).scene?.add?.(mesh)
+      this.view.scene?.add?.(mesh)
       this.attached = true
     } else if (!visible && this.attached) {
-      ;(this.view as any).scene?.remove?.(mesh)
+      this.view.scene?.remove?.(mesh)
       this.attached = false
     }
     mesh.visible = visible
@@ -56,4 +56,3 @@ export class DebugOverlaySystem implements EngineSystem {
     return this.pointer
   }
 }
-

@@ -450,8 +450,8 @@ export class ClothSceneController {
       this.debug
     )
     // Mark mesh as cloth for render settings system.
-    ;(record.mesh as any).userData.isCloth = true
-    ;(record.mesh as any).userData.isStatic = false
+    const meshObj = record.mesh as unknown as { userData?: Record<string, unknown> }
+    meshObj.userData = { ...(meshObj.userData || {}), isCloth: true, isStatic: false }
     this.simulationSystem.addBody(adapter, {
       warmStart: this.createWarmStartConfig(),
       sleep: this.sleepConfig,

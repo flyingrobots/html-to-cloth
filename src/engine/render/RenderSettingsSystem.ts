@@ -5,7 +5,7 @@ import type { RenderView } from './worldRendererSystem'
 import { RenderSettingsState } from './RenderSettingsState'
 
 export type RenderSettingsOptions = {
-  view: RenderView & { scene?: THREE.Scene }
+  view: RenderView
   state: RenderSettingsState
 }
 
@@ -41,10 +41,10 @@ export class RenderSettingsSystem implements EngineSystem {
       const mat = (mesh.material as THREE.Material | undefined) as THREE.MeshBasicMaterial | undefined
       if (!mat) return
       // We only toggle for cloth meshes flagged by the controller.
-      if ((mesh as any).userData?.isCloth) {
+      const flag = (mesh as unknown as { userData?: Record<string, unknown> }).userData?.['isCloth']
+      if (flag) {
         mat.wireframe = this.state.wireframe
       }
     })
   }
 }
-
