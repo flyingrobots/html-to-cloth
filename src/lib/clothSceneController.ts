@@ -500,7 +500,7 @@ export class ClothSceneController {
     this.worldRenderer = new WorldRendererSystem({ view: this.domToWebGL, camera: this.cameraSystem })
     // Debug overlay state/system for render-only gizmos (e.g., pointer collider)
     this.overlayState = new DebugOverlayState()
-    this.overlaySystem = new DebugOverlaySystem({ view: this.domToWebGL as any, state: this.overlayState })
+    this.overlaySystem = new DebugOverlaySystem({ view: this.domToWebGL, state: this.overlayState })
     // Register with lower priority than simulation so render sees the latest snapshot.
     this.engine.addSystem(this.cameraSystem, {
       id: ClothSceneController.CAMERA_SYSTEM_ID,
@@ -616,8 +616,8 @@ export class ClothSceneController {
     // Mark mesh as static again for render settings system.
     const mesh = item.record?.mesh
     if (mesh) {
-      ;(mesh as any).userData.isCloth = false
-      ;(mesh as any).userData.isStatic = true
+      const obj = mesh as unknown as { userData?: Record<string, unknown> }
+      obj.userData = { ...(obj.userData || {}), isCloth: false, isStatic: true }
     }
     this.pool.recycle(element)
     this.pool.resetGeometry(element)
