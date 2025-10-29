@@ -16,11 +16,11 @@ Non-goals for v0:
 
 ## Packaging Options
 
-1) Single package: `@html-to-cloth/engine`
+1. Single package: `@html-to-cloth/engine`
 - Pros: simplest publishing and versioning.
 - Cons: render systems introduce a `three` peer for consumers that only need core.
 
-2) Split packages (recommended decision):
+2. Split packages (recommended decision):
 - `@html-to-cloth/engine-core`: world/loop/runner/types/entity. No `three` dependency.
 - `@html-to-cloth/engine-sim`: `SimulationSystem` + sim-world interfaces (pure TS, no `three`).
 - `@html-to-cloth/engine-render`: camera + render-only systems that depend on `three`.
