@@ -274,6 +274,12 @@ export class ClothSceneController {
 
     this.domToWebGL = new DOMToWebGL(document.body)
     this.pool = new ElementPool(this.domToWebGL)
+    // Ensure the simulation system is attached (dispose may have removed it)
+    try {
+      this.engine.addSystem(this.simulationSystem, { id: ClothSceneController.SIM_SYSTEM_ID, priority: 100 })
+    } catch {
+      // Already attached; ignore.
+    }
     const viewport = this.domToWebGL.getViewportPixels()
     this.collisionSystem.setViewportDimensions(viewport.width, viewport.height)
 
@@ -485,7 +491,13 @@ export class ClothSceneController {
 
   private installRenderPipeline() {
     if (!this.domToWebGL) return
-    if (this.cameraSystem || this.worldRenderer) return
+    if (this.cameraSystem && this.worldRenderer) return
+    if ((this.cameraSystem && !this.worldRenderer) || (!this.cameraSystem && this.worldRenderer)) {
+      if (this.cameraSystem) this.engine.removeSystemInstance(this.cameraSystem)
+      if (this.worldRenderer) this.engine.removeSystemInstance(this.worldRenderer)
+      this.cameraSystem = null
+      this.worldRenderer = null
+    }
     // Create a camera system and world renderer that reads snapshots each frame.
     this.cameraSystem = new CameraSystem()
     this.worldRenderer = new WorldRendererSystem({ view: this.domToWebGL, camera: this.cameraSystem })

@@ -35,7 +35,7 @@ describe('EngineActions', () => {
     expect(ticks).toBe(1)
   })
 
-  it('clamps and forwards substep configuration to the runner', () => {
+  it('forwards substep configuration to the runner', () => {
     const world = new EngineWorld()
     const runner = new SimulationRunner({ engine: world })
     const actions = new EngineActions({ runner, world })
@@ -86,7 +86,10 @@ describe('EngineActions', () => {
     const actions = new EngineActions({ runner, world, simulation })
 
     actions.setGravityScalar(12)
-    expect(simulation.broadcastGravity).toHaveBeenCalled()
+    const arg = (simulation.broadcastGravity as any).mock.calls[0][0]
+    expect(arg.x).toBe(0)
+    expect(arg.y).toBe(-12)
+    expect(arg.z).toBe(0)
 
     actions.setConstraintIterations(6)
     expect(simulation.broadcastConstraintIterations).toHaveBeenCalledWith(6)

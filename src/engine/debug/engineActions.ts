@@ -23,7 +23,6 @@ export class EngineActions {
   private readonly world: EngineWorld
   private readonly camera: CameraSystem | null
   private readonly simulation: SimulationSystem | null
-  private readonly _tmpG = new THREE.Vector3()
 
   constructor(options: EngineActionsOptions) {
     this.runner = options.runner
@@ -69,8 +68,8 @@ export class EngineActions {
   /** Broadcasts gravity to all simulation bodies (if supported). */
   setGravityScalar(gravity: number) {
     if (!this.simulation) return
-    const g = this._tmpG.set(0, -gravity, 0)
-    this.simulation.broadcastGravity(g)
+    // Use a fresh vector to avoid accidental shared-reference mutation downstream.
+    this.simulation.broadcastGravity(new THREE.Vector3(0, -gravity, 0))
   }
 
   /** Broadcasts constraint iterations to all bodies (if supported). */

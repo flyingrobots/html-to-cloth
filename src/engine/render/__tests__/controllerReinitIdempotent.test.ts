@@ -56,7 +56,7 @@ describe('ClothSceneController re-init idempotency', () => {
     document.body.innerHTML = ''
   })
 
-  it('does not duplicate render systems after dispose + init with stable IDs', async () => {
+  it('does not duplicate render systems and simulation still runs after dispose + init', async () => {
     document.body.innerHTML = `<button id="cta" class="cloth-enabled">Go</button>`
     ;(document.getElementById('cta') as HTMLElement).getBoundingClientRect = () => ({
       left: 0, top: 0, right: 100, bottom: 50, width: 100, height: 50, x: 0, y: 0, toJSON() {}
@@ -71,8 +71,10 @@ describe('ClothSceneController re-init idempotency', () => {
     await controller.init()
     controller.dispose()
 
-    // Should not throw; stable IDs + idempotent install avoids duplication.
+    const stepSpy = vi.spyOn(simWorld, 'step')
     await controller.init()
+    runner.stepOnce()
+    expect(stepSpy).toHaveBeenCalled()
     controller.dispose()
   })
 })

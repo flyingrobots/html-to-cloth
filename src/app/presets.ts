@@ -38,8 +38,10 @@ const PRESET_LIST: ReadonlyArray<Readonly<DebugPreset>> = Object.freeze([
   },
 ])
 
-export const PRESETS: ReadonlyArray<Readonly<DebugPreset>> = PRESET_LIST
+// Deep-freeze each preset to prevent accidental runtime mutation, then freeze the array.
+const FROZEN_LIST = Object.freeze(PRESET_LIST.map((p) => Object.freeze({ ...p })))
+export const PRESETS: ReadonlyArray<Readonly<DebugPreset>> = FROZEN_LIST
 
 export function getPreset(name: string): Readonly<DebugPreset> | undefined {
-  return PRESET_LIST.find((p) => p.name === name)
+  return FROZEN_LIST.find((p) => p.name === name)
 }

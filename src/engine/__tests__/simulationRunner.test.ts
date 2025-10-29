@@ -121,6 +121,15 @@ describe('SimulationRunner', () => {
     expect(system.fixedUpdate!).toHaveBeenCalledTimes(2 * 8)
     const dts = new Set((system.fixedUpdate as any).mock.calls.map((args: [number]) => args[0]))
     expect(dts.size).toBe(1)
-    expect([...dts][0]).toBeCloseTo((1 / 60) / 8)
+    const dt = Array.from(dts)[0]
+    expect(dt).toBeCloseTo((1 / 60) / 8)
+
+    // Uncapped runner should perform more catch-up steps for the same delta.
+    ;(system.fixedUpdate as any).mockClear()
+    const uncapped = new SimulationRunner({ engine: world, fixedDelta: 1 / 60 })
+    uncapped.setSubsteps(8)
+    // No call to setMaxCatchUpSteps → default catch-up allows more than 2 steps
+    uncapped.update(0.2)
+    expect((system.fixedUpdate as any).mock.calls.length).toBeGreaterThan(2 * 8)
   })
 })

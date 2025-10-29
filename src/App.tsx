@@ -24,7 +24,7 @@ import { ChevronDown } from "lucide-react"
 
 import { ClothSceneController, type PinMode } from "./lib/clothSceneController"
 import { EngineActions } from "./engine/debug/engineActions"
-import { PRESETS } from "./app/presets"
+import { PRESETS, getPreset } from "./app/presets"
 
 function Kbd({ children }: { children: React.ReactNode }) {
   return (
@@ -275,6 +275,7 @@ function DebugPalette({
                 min={0}
                 max={6}
                 step={1}
+                aria-label="Warm Start Passes"
                 onValueChange={(value) => onWarmStartPassesChange(Math.round(value[0] ?? warmStartPasses))}
               />
               <div>
@@ -518,7 +519,7 @@ function Demo() {
         onCameraZoomChange={setCameraZoom}
         onWarmStartNow={() => actionsRef.current?.warmStartNow(warmStartPasses, constraintIterations)}
         onPresetSelect={(name: string) => {
-          const p = PRESETS.find((x) => x.name === name)
+          const p = getPreset(name)
           if (!p) return
           setGravity(p.gravity)
           setConstraintIterations(p.iterations)
