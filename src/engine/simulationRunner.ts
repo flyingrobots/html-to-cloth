@@ -74,6 +74,12 @@ export class SimulationRunner {
     if (!Number.isFinite(substeps)) return
     const clamped = Math.max(1, Math.min(MAX_SUBSTEPS, Math.round(substeps)))
     this.substeps = clamped
+  }
+
+  /** Sets the maximum number of fixed timesteps to catch up per update when the accumulator backs up. */
+  setMaxCatchUpSteps(steps: number) {
+    if (!Number.isFinite(steps)) return
+    const clamped = Math.max(1, Math.min(MAX_SUBSTEPS, Math.round(steps)))
     this.loop.setMaxSubSteps(clamped)
   }
 

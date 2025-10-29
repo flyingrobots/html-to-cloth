@@ -79,8 +79,8 @@ export class EngineActions {
   /** Broadcasts gravity to all simulation bodies (if supported). */
   setGravityScalar(gravity: number) {
     if (!this.simulation) return
-    const g = new THREE.Vector3(0, -gravity, 0)
-    this.simulation.broadcastGravity(g)
+    // Use a fresh vector to avoid accidental shared-reference mutation downstream.
+    this.simulation.broadcastGravity(new THREE.Vector3(0, -gravity, 0))
   }
 
   /** Broadcasts constraint iterations to all bodies (if supported). */

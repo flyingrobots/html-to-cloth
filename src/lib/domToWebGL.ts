@@ -24,6 +24,7 @@ export class DOMToWebGL {
   public scene: THREE.Scene
   public camera: THREE.OrthographicCamera
   public renderer: THREE.WebGLRenderer
+  private rootGroup: THREE.Group
 
   private container: HTMLElement
   private html2canvasRef: typeof import('html2canvas')['default'] | null = null

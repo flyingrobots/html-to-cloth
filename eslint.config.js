@@ -3,10 +3,9 @@ import globals from 'globals'
 import reactHooks from 'eslint-plugin-react-hooks'
 import reactRefresh from 'eslint-plugin-react-refresh'
 import tseslint from 'typescript-eslint'
-import { defineConfig, globalIgnores } from 'eslint/config'
 
-export default defineConfig([
-  globalIgnores(['dist']),
+export default tseslint.config(
+  { ignores: ['dist'] },
   {
     files: ['**/*.{ts,tsx}'],
     extends: [
@@ -20,7 +19,8 @@ export default defineConfig([
       globals: globals.browser,
     },
     rules: {
-      // This rule is noisy for our component setup; not needed in CI.
+      // Disabled because our component patterns (factory exports and memoized wrappers)
+      // trigger false positives in react-refresh/only-export-components.
       'react-refresh/only-export-components': 'off',
     },
   },
@@ -30,21 +30,14 @@ export default defineConfig([
     languageOptions: {
       globals: {
         ...globals.browser,
-        vi: true,
-        describe: true,
-        it: true,
-        expect: true,
-        beforeEach: true,
-        afterEach: true,
-        beforeAll: true,
-        afterAll: true,
+        ...globals.vitest,
       },
     },
     rules: {
+      // Allow explicit any in tests only for convenience.
       '@typescript-eslint/no-explicit-any': 'off',
-      '@typescript-eslint/no-unused-vars': 'off',
-      'react-refresh/only-export-components': 'off',
-      'prefer-const': 'off',
+      // Ignore unused args prefixed with _ in tests (mocks, stubs).
+      '@typescript-eslint/no-unused-vars': ['error', { argsIgnorePattern: '^_' }],
     },
   },
   // Setup files
@@ -52,6 +45,7 @@ export default defineConfig([
     files: ['vitest.setup.ts'],
     rules: {
       '@typescript-eslint/no-explicit-any': 'off',
+      '@typescript-eslint/no-unused-vars': ['error', { argsIgnorePattern: '^_' }],
     },
   },
-])
+)

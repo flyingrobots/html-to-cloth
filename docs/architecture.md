@@ -10,8 +10,12 @@ the component and data-flow diagrams with additional rationale and extension tip
    DOM elements, handles pointer input, and exposes debug actions. Render-only gizmos (e.g., pointer
    collider) are handled by a dedicated overlay system rather than the controller.
 2. **Render Layer** – `WorldRendererSystem` copies a camera snapshot into `DOMToWebGL` and renders
-   each frame (`EngineWorld.frame(dt)`), running even while simulation is paused.
-   A `DebugOverlaySystem` also runs here to draw developer gizmos using `DebugOverlayState`.
+   each frame (`EngineWorld.frame(dt)`). Contract: the Render Layer MUST continue to run and render
+   every frame even when the Simulation Layer is paused, and it MUST render only from immutable
+   snapshots (camera/UI) without mutating or depending on live simulation state. Optimizations that
+   skip or coalesce render frames while paused are forbidden; the layer is responsible for drawing
+   UI/overlays from the latest snapshot regardless of simulation state. A `DebugOverlaySystem` also
+   runs here to draw developer gizmos using `DebugOverlayState`.
 3. **Simulation Layer** – `SimulationSystem`, `SimWorld`, `SimulationScheduler`, and physics modules
    (`ClothPhysics`, collision helpers). This layer is pure data/logic and exposes snapshots.
 4. **Engine Layer** – `EngineWorld`, `SimulationRunner`, fixed-step loop. Responsible for deterministic
@@ -53,7 +57,8 @@ in `typedoc.json` and includes version and git revision metadata for traceabilit
 
 - `ClothSceneController` is exercised via DOM integration tests; targeted unit tests can be added by
   injecting mocked `SimulationRunner`/`SimulationSystem` instances. App tests validate that the debug
-  palette routes actions into `EngineActions`.
+  palette routes actions into `EngineActions`. The paused-render invariant is covered by
+  `src/engine/render/__tests__/pausedRenderIntegration.test.ts`.
 - Entity layer tests live in `src/engine/entity/__tests__/entity.test.ts`.
 - The simulation runner owns its own suite (`src/engine/__tests__/simulationRunner.test.ts`) verifying
   real-time toggles, sub-step behaviour, and manual stepping.

@@ -121,9 +121,12 @@ export class SimWorld {
     }
   }
 
-  /** Iterates over all registered bodies (debug/maintenance helpers). */
+  /** Iterates over all registered bodies (debug/maintenance helpers).
+   * Uses a snapshot so callbacks can add/remove bodies safely during iteration.
+   */
   forEachBody(fn: (body: SimBody) => void) {
-    for (const body of this.bodies.values()) fn(body)
+    const snapshot = Array.from(this.bodies.values())
+    for (const body of snapshot) fn(body)
   }
 
   private updateSnapshot() {

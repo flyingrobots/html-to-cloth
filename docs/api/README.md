@@ -16,17 +16,20 @@ layer can import and compose any engine pieces it needs.
 
 ### Entities & Components
 
+
 - `EntityManager`, `Entity`, and `Component` provide a minimalist ECS.
 - Entities store components; systems (e.g., `SimulationSystem`) operate on pre-filtered entities
   without fishing for component data manually.
 
 ### Engine World & Loops
 
+
 - `EngineWorld` holds registered systems, handles priority ordering, and lets the loop pause/resume.
 - `FixedStepLoop` consumes elapsed time in fixed quanta while avoiding spiral-of-death scenarios.
 - `SimulationRunner` couples the loop with the world, supporting real-time ticking and manual steps.
 
 ### Simulation Systems
+
 
 - `SimulationSystem` adapts the engine loop to `SimWorld`, queueing warm starts and sleep configs
   for each cloth body.

@@ -27,7 +27,7 @@ class MockBody implements SimBody {
     return { center: this.position.clone(), radius: this.radius }
   }
 
-  update(dt: number) {
+  update(_dt: number) {
     this.updates += 1
   }
 

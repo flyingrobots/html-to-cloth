@@ -33,8 +33,10 @@
 1. The app calls `engine.frame(delta)` every RAF.
 2. `WorldRendererSystem.frameUpdate(delta)` reads the pooled camera snapshot from `CameraSystem`, copies it to
    the orthographic camera owned by `DOMToWebGL`, updates the projection matrix, and calls `render()`.
-3. `DebugOverlaySystem.frameUpdate(delta)` reads `DebugOverlayState` (pointer, visibility) and draws gizmos.
-4. Render runs while the engine is paused; it never mutates simulation state.
+3. Rendering MUST run while the engine is paused and MUST NOT mutate any simulation state under any
+   circumstances. Any attempt to modify world/simulation state during render is a protocol violation
+   and results in undefined behaviour.
+4. `DebugOverlaySystem.frameUpdate(delta)` reads `DebugOverlayState` (pointer, visibility) and draws gizmos.
 
 ## 5. Pointer Interaction Flow
 
@@ -63,6 +65,7 @@
 
 ## 9. Debug Actions
 
-- UI constructs `EngineActions` using getters from `ClothSceneController` (runner, world, camera, simulation).
-- Actions include real-time toggling, manual stepping, substep adjustments, camera zoom/target, and broadcast
-  changes for gravity and constraint iterations via `SimulationSystem`.
+- UI constructs `EngineActions` by calling getters on `ClothSceneController` to obtain the `runner`,
+  `world`, `camera`, and `simulation` references, and then packages controls into that object.
+- Actions include real-time toggling, manual stepping, substep adjustments, camera zoom/target, and
+  broadcasted changes for gravity/constraint iterations via `SimulationSystem`.

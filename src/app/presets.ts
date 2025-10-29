@@ -8,7 +8,7 @@ export type DebugPreset = {
   warmStartPasses: number
 }
 
-export const PRESETS: DebugPreset[] = [
+const PRESET_LIST: ReadonlyArray<Readonly<DebugPreset>> = Object.freeze([
   {
     name: 'Floaty',
     gravity: 6.0,
@@ -36,9 +36,12 @@ export const PRESETS: DebugPreset[] = [
     cameraZoom: 0.9,
     warmStartPasses: 1,
   },
-]
+])
 
-export function getPreset(name: string) {
-  return PRESETS.find((p) => p.name === name)
+// Deep-freeze each preset to prevent accidental runtime mutation, then freeze the array.
+const FROZEN_LIST = Object.freeze(PRESET_LIST.map((p) => Object.freeze({ ...p })))
+export const PRESETS: ReadonlyArray<Readonly<DebugPreset>> = FROZEN_LIST
+
+export function getPreset(name: string): Readonly<DebugPreset> | undefined {
+  return FROZEN_LIST.find((p) => p.name === name)
 }
-

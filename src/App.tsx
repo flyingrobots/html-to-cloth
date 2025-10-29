@@ -24,7 +24,7 @@ import { ChevronDown } from "lucide-react"
 
 import { ClothSceneController, type PinMode } from "./lib/clothSceneController"
 import { EngineActions } from "./engine/debug/engineActions"
-import { PRESETS } from "./app/presets"
+import { PRESETS, getPreset } from "./app/presets"
 
 function Kbd({ children }: { children: React.ReactNode }) {
   return (
@@ -149,21 +149,21 @@ function DebugPalette({
                 <p className="font-semibold leading-none">Wireframe</p>
                 <p className="text-sm text-muted-foreground">Toggle mesh rendering as wireframe</p>
               </div>
-              <Switch checked={wireframe} onCheckedChange={onWireframeChange} />
+              <Switch aria-label="Wireframe" checked={wireframe} onCheckedChange={onWireframeChange} />
             </div>
             <div className="flex items-center justify-between gap-4">
               <div>
                 <p className="font-semibold leading-none">Real-Time</p>
                 <p className="text-sm text-muted-foreground">Pause simulation to step manually</p>
               </div>
-              <Switch checked={realTime} onCheckedChange={onRealTimeChange} />
+              <Switch aria-label="Real-Time" checked={realTime} onCheckedChange={onRealTimeChange} />
             </div>
             <div className="flex items-center justify-between gap-4">
               <div>
                 <p className="font-semibold leading-none">Pointer Collider</p>
                 <p className="text-sm text-muted-foreground">Visualize the pointer collision sphere</p>
               </div>
-              <Switch checked={pointerColliderVisible} onCheckedChange={onPointerColliderVisibleChange} />
+              <Switch aria-label="Pointer Collider" checked={pointerColliderVisible} onCheckedChange={onPointerColliderVisibleChange} />
             </div>
             <div className="space-y-2">
               <div className="flex items-center justify-between text-sm font-medium">
@@ -171,6 +171,7 @@ function DebugPalette({
                 <span className="text-muted-foreground">{gravity.toFixed(2)} m/s²</span>
               </div>
               <Slider
+                aria-label="Gravity"
                 value={[gravity]}
                 min={0}
                 max={30}
@@ -184,6 +185,7 @@ function DebugPalette({
                 <span className="text-muted-foreground">{impulseMultiplier.toFixed(2)}</span>
               </div>
               <Slider
+                aria-label="Impulse Multiplier"
                 value={[impulseMultiplier]}
                 min={0.1}
                 max={3}
@@ -199,6 +201,7 @@ function DebugPalette({
                 </span>
               </div>
               <Slider
+                aria-label="Tessellation"
                 value={[tessellationSegments]}
                 min={1}
                 max={32}
@@ -212,6 +215,7 @@ function DebugPalette({
                 <span className="text-muted-foreground">{constraintIterations}</span>
               </div>
               <Slider
+                aria-label="Constraint Iterations"
                 value={[constraintIterations]}
                 min={1}
                 max={12}
@@ -225,6 +229,7 @@ function DebugPalette({
                 <span className="text-muted-foreground">{substeps}</span>
               </div>
               <Slider
+                aria-label="Substeps"
                 value={[substeps]}
                 min={1}
                 max={8}
@@ -238,6 +243,7 @@ function DebugPalette({
                 <span className="text-muted-foreground">{sleepVelocity.toExponential(2)}</span>
               </div>
               <Slider
+                aria-label="Sleep Velocity Threshold"
                 value={[sleepVelocity]}
                 min={0}
                 max={0.01}
@@ -251,6 +257,7 @@ function DebugPalette({
                 <span className="text-muted-foreground">{sleepFrames}f</span>
               </div>
               <Slider
+                aria-label="Sleep Frame Threshold"
                 value={[sleepFrames]}
                 min={10}
                 max={240}
@@ -268,6 +275,7 @@ function DebugPalette({
                 min={0}
                 max={6}
                 step={1}
+                aria-label="Warm Start Passes"
                 onValueChange={(value) => onWarmStartPassesChange(Math.round(value[0] ?? warmStartPasses))}
               />
               <div>
@@ -282,11 +290,12 @@ function DebugPalette({
                 <span className="text-muted-foreground">{cameraZoom.toFixed(2)}×</span>
               </div>
             <Slider
+              aria-label="Camera Zoom"
               value={[cameraZoom]}
               min={0.5}
               max={3}
               step={0.1}
-              onValueChange={(value) => onCameraZoomChange(Number.parseFloat((value[0] ?? cameraZoom).toString()))}
+              onValueChange={(value) => onCameraZoomChange(value[0] ?? cameraZoom)}
             />
           </div>
             <div className="space-y-2">
@@ -380,8 +389,11 @@ function Demo() {
         // Seed sleep thresholds default for new activations and current bodies.
         controller.setSleepConfig({ velocityThreshold: sleepVelocity, frameThreshold: sleepFrames })
         actionsRef.current.setSleepConfig(sleepVelocity, sleepFrames)
-      } catch {
-        // In tests or reduced-motion scenarios, controller internals may be absent; ignore.
+      } catch (err) {
+        // In tests or reduced-motion scenarios, controller internals may be absent.
+        if (import.meta?.env?.MODE !== 'test') {
+          console.warn('EngineActions init failed:', err)
+        }
       }
     })
 
@@ -393,7 +405,11 @@ function Demo() {
       }
       if (!realTimeRef.current && event.key === " ") {
         event.preventDefault()
-        controller.stepOnce()
+        if (actionsRef.current) {
+          actionsRef.current.stepOnce()
+        } else {
+          controller.stepOnce()
+        }
       }
     }
     window.addEventListener("keydown", handler)
@@ -404,7 +420,7 @@ function Demo() {
       controllerRef.current = null
       actionsRef.current = null
     }
-  }, [])
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     actionsRef.current?.setWireframe(wireframe)
@@ -434,7 +450,6 @@ function Demo() {
     // Update default + broadcast when sleep thresholds change
     controllerRef.current?.setSleepConfig({ velocityThreshold: sleepVelocity, frameThreshold: sleepFrames })
     actionsRef.current?.setSleepConfig(sleepVelocity, sleepFrames)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sleepVelocity, sleepFrames])
 
   useEffect(() => {
@@ -506,7 +521,7 @@ function Demo() {
         onCameraZoomChange={setCameraZoom}
         onWarmStartNow={() => actionsRef.current?.warmStartNow(warmStartPasses, constraintIterations)}
         onPresetSelect={(name: string) => {
-          const p = PRESETS.find((x) => x.name === name)
+          const p = getPreset(name)
           if (!p) return
           setGravity(p.gravity)
           setConstraintIterations(p.iterations)
