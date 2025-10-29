@@ -37,6 +37,8 @@ export default defineConfig([
     rules: {
       // Allow explicit any in tests only for convenience.
       '@typescript-eslint/no-explicit-any': 'off',
+      // Ignore unused args prefixed with _ in tests (mocks, stubs).
+      '@typescript-eslint/no-unused-vars': ['error', { argsIgnorePattern: '^_' }],
     },
   },
   // Setup files
@@ -44,6 +46,7 @@ export default defineConfig([
     files: ['vitest.setup.ts'],
     rules: {
       '@typescript-eslint/no-explicit-any': 'off',
+      '@typescript-eslint/no-unused-vars': ['error', { argsIgnorePattern: '^_' }],
     },
   },
 ])

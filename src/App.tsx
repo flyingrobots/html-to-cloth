@@ -400,7 +400,11 @@ function Demo() {
       }
       if (!realTimeRef.current && event.key === " ") {
         event.preventDefault()
-        actionsRef.current?.stepOnce() ?? controller.stepOnce()
+        if (actionsRef.current) {
+          actionsRef.current.stepOnce()
+        } else {
+          controller.stepOnce()
+        }
       }
     }
     window.addEventListener("keydown", handler)
@@ -411,8 +415,7 @@ function Demo() {
       controllerRef.current = null
       actionsRef.current = null
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     controllerRef.current?.setWireframe(wireframe)
@@ -442,7 +445,6 @@ function Demo() {
     // Update default + broadcast when sleep thresholds change
     controllerRef.current?.setSleepConfig({ velocityThreshold: sleepVelocity, frameThreshold: sleepFrames })
     actionsRef.current?.setSleepConfig(sleepVelocity, sleepFrames)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sleepVelocity, sleepFrames])
 
   useEffect(() => {

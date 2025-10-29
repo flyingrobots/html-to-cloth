@@ -112,9 +112,9 @@ describe('EngineActions', () => {
     const world = new EngineWorld()
     const runner = new SimulationRunner({ engine: world })
     const actions = new EngineActions({ runner, world, camera: null, simulation: null as any })
-    expect(() => actions.setCameraTarget(new (require('three').Vector3)(1, 2, 3))).not.toThrow()
+    expect(() => actions.setCameraTarget(new THREE.Vector3(1, 2, 3))).not.toThrow()
     expect(() => actions.setCameraTargetZoom(2)).not.toThrow()
-    expect(() => actions.jumpCamera(new (require('three').Vector3)(0, 0, 0), 1)).not.toThrow()
+    expect(() => actions.jumpCamera(new THREE.Vector3(0, 0, 0), 1)).not.toThrow()
   })
 
   it('simulation methods are safe no-ops when simulation is absent', () => {

@@ -103,14 +103,7 @@ vi.mock('three', () => {
 })
 
 import { DOMToWebGL } from '../domToWebGL'
-import {
-  CANONICAL_HEIGHT_METERS,
-  CANONICAL_WIDTH_METERS,
-  toCanonicalHeightMeters,
-  toCanonicalWidthMeters,
-  toCanonicalX,
-  toCanonicalY,
-} from '../units'
+import { toCanonicalHeightMeters, toCanonicalWidthMeters, toCanonicalX, toCanonicalY } from '../units'
 
 const defaultRect = (left: number, top: number, width: number, height: number): DOMRect => ({
   left,
@@ -137,7 +130,7 @@ describe('DOMToWebGL canonical mapping', () => {
   it('positions meshes using canonical coordinates derived from DOM rects', () => {
     const dom = new DOMToWebGL(document.body)
     const element = document.createElement('div')
-    let rect = defaultRect(100, 200, 120, 60)
+    const rect = defaultRect(100, 200, 120, 60)
     element.getBoundingClientRect = () => rect
     const texture = { dispose: vi.fn() } as any
 

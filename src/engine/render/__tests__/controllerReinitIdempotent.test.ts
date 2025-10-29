@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
+import { describe, it, vi, beforeEach, afterEach } from 'vitest'
 import * as THREE from 'three'
 
 import { EngineWorld } from '../../world'
@@ -76,4 +76,3 @@ describe('ClothSceneController re-init idempotency', () => {
     controller.dispose()
   })
 })
-
