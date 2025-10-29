@@ -5,7 +5,17 @@ import userEvent from '@testing-library/user-event'
 
 // Minimal mock for ClothSceneController so App can run without WebGL/DOM plumbing.
 const runner = { setRealTime: vi.fn(), stepOnce: vi.fn(), setSubsteps: vi.fn() }
-const camera = { setTargetZoom: vi.fn() }
+const camera = {
+  setTargetZoom: vi.fn(),
+  getSnapshot: vi.fn(() => ({
+    position: { x: 0, y: 0, z: 0, copy() {} },
+    velocity: { x: 0, y: 0, z: 0, copy() {} },
+    target: { x: 0, y: 0, z: 0, copy() {} },
+    zoom: 1,
+    zoomVelocity: 0,
+    targetZoom: 1,
+  })),
+}
 const simulation = {
   broadcastGravity: vi.fn(),
   broadcastConstraintIterations: vi.fn(),
@@ -14,6 +24,7 @@ const simulation = {
 }
 
 vi.mock('../../lib/clothSceneController', () => {
+  const setPinMode = vi.fn()
   class MockClothSceneController {
     async init() {}
     dispose() {}
@@ -26,7 +37,7 @@ vi.mock('../../lib/clothSceneController', () => {
     setSubsteps() {}
     setTessellationSegments() { return Promise.resolve() }
     setPointerColliderVisible() {}
-    setPinMode() {}
+    setPinMode(mode: any) { setPinMode(mode) }
     stepOnce() {}
     setSleepConfig() {}
 
@@ -36,10 +47,12 @@ vi.mock('../../lib/clothSceneController', () => {
     getSimulationSystem() { return simulation as any }
     getOverlayState() { return { visible: false } as any }
   }
-  return { ClothSceneController: MockClothSceneController }
+  return { ClothSceneController: MockClothSceneController, __mocks: { setPinMode } }
 })
 
 import App from '../../App'
+// Access controller mocks exposed by the module factory
+import { __mocks as controllerMocks } from '../../lib/clothSceneController'
 
 beforeEach(() => {
   vi.clearAllMocks()
@@ -77,6 +90,9 @@ describe('Debug UI → EngineActions integration (App)', () => {
 
     await Promise.resolve()
     expect(camera.setTargetZoom).toHaveBeenCalled()
+    // Inspector shows snapshot-derived value
+    expect(await screen.findByText('Camera Zoom (Actual)')).toBeInTheDocument()
+    expect(screen.getByText(/1\.00×/)).toBeInTheDocument()
   })
 
   it('broadcasts gravity and constraint iterations via EngineActions when sliders change', async () => {
@@ -140,5 +156,22 @@ describe('Debug UI → EngineActions integration (App)', () => {
     expect(simulation.broadcastGravity).toHaveBeenCalled()
     expect(simulation.broadcastConstraintIterations).toHaveBeenCalled()
     expect(camera.setTargetZoom).toHaveBeenCalled()
+  })
+
+  it('routes Pin Mode changes via EngineActions', async () => {
+    render(<App />)
+    fireEvent.keyDown(window, { key: 'j', ctrlKey: true })
+
+    const user = userEvent.setup()
+    const pinLabel = await screen.findByText('Pin Mode')
+    const pinRow = pinLabel.closest('div')?.parentElement as HTMLElement
+    const trigger = within(pinRow).getByRole('button')
+    await user.click(trigger)
+
+    const corners = await screen.findByRole('menuitemradio', { name: 'Corners' })
+    await user.click(corners)
+
+    await Promise.resolve()
+    expect(controllerMocks.setPinMode).toHaveBeenCalledWith('corners')
   })
 })
