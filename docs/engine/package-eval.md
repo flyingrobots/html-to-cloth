@@ -20,7 +20,7 @@ Non-goals for v0:
 - Pros: simplest publishing and versioning.
 - Cons: render systems introduce a `three` peer for consumers that only need core.
 
-2) Split packages (recommended):
+2) Split packages (recommended decision):
 - `@html-to-cloth/engine-core`: world/loop/runner/types/entity. No `three` dependency.
 - `@html-to-cloth/engine-sim`: `SimulationSystem` + sim-world interfaces (pure TS, no `three`).
 - `@html-to-cloth/engine-render`: camera + render-only systems that depend on `three`.
@@ -80,21 +80,26 @@ Example `exports` (engine-core):
 - Add `publish:dry-run` to CI for tags; gate real publish to manual workflow.
 - Typedoc stays in monorepo; per-package README with quickstart.
 
-## Migration Plan
+## Migration Plan (1–2 weeks realistic)
 
 1. Create `/packages/engine-core`, `/packages/engine-sim`, `/packages/engine-render` in a workspace.
 2. Move files and update import paths (no API changes initially).
 3. Wire `tsup` builds + `exports`.
 4. Update app to consume workspace packages; ensure unit tests still pass.
-5. Publish `0.1.0` pre-release to npm with `next` tag.
+5. Add CI matrix to build each package, run unit tests against both package builds and monorepo sources.
+6. Publish `0.1.0` pre-release to npm with `next` tag (end of week 2), after consumers validate.
 
-## Risks & Mitigations
+## Risks & Mitigations (and CI controls)
 
 - Import path churn: mitigate with codemods and incremental moves.
-- Version drift between packages: start with lockstep versions until usage patterns stabilize.
+- Version drift between packages: enforce lockstep versions via changesets/release script; CI check that `packages/*/package.json` versions match. Add a job that builds each package and runs the app against the built artifacts to ensure cross-package compatibility.
 - Peer dep mismatch for `three`: document required major version; rely on semver peer.
 
 ## Recommendation
 
-Proceed with split packages under an npm workspace. Start with `engine-core` + `engine-render`; evaluate whether `engine-sim` needs to be separate or folded into core after initial consumers. Keep public API narrow and documented; aim for a 0.1.0 preview within ~1–2 days of focused work.
+Proceed with split packages under an npm workspace. Rationale tied to our use cases:
+- App-only consumers often need world/loop/entity without `three` → clean `engine-core` peer surface.
+- Rendering consumers want camera/render-only systems with `three` as a peer → `engine-render` isolates that.
+- Simulation consumers may embed their own physics world; keeping `engine-sim` separate avoids pulling render types.
 
+Timeline: 1–2 weeks including workspace setup, code moves, type surface audit, CI matrix, and publish of a `0.1.0` preview. Hidden coupling and test gaps will stretch effort; CI jobs above are designed to catch these early.
