@@ -59,6 +59,7 @@ function DebugPalette({
   onWarmStartPassesChange,
   cameraZoom,
   onCameraZoomChange,
+  cameraZoomActual,
   onWarmStartNow,
   onPresetSelect,
   pointerColliderVisible,
@@ -92,6 +93,7 @@ function DebugPalette({
   onWarmStartPassesChange: (value: number) => void
   cameraZoom: number
   onCameraZoomChange: (value: number) => void
+  cameraZoomActual: number
   onWarmStartNow?: () => void
   onPresetSelect?: (name: string) => void
   pointerColliderVisible: boolean
@@ -284,20 +286,26 @@ function DebugPalette({
                 </Button>
               </div>
             </div>
-            <div className="space-y-2">
+          <div className="space-y-2">
+            <div className="flex items-center justify-between text-sm font-medium">
+              <span>Camera Zoom</span>
+              <span className="text-muted-foreground">{cameraZoom.toFixed(2)}×</span>
+            </div>
+          <Slider
+            aria-label="Camera Zoom"
+            value={[cameraZoom]}
+            min={0.5}
+            max={3}
+            step={0.1}
+            onValueChange={(value) => onCameraZoomChange(value[0] ?? cameraZoom)}
+          />
+        </div>
+            <div className="space-y-1">
               <div className="flex items-center justify-between text-sm font-medium">
-                <span>Camera Zoom</span>
-                <span className="text-muted-foreground">{cameraZoom.toFixed(2)}×</span>
+                <span>Camera Zoom (Actual)</span>
+                <span className="text-muted-foreground">{cameraZoomActual.toFixed(2)}×</span>
               </div>
-            <Slider
-              aria-label="Camera Zoom"
-              value={[cameraZoom]}
-              min={0.5}
-              max={3}
-              step={0.1}
-              onValueChange={(value) => onCameraZoomChange(value[0] ?? cameraZoom)}
-            />
-          </div>
+            </div>
             <div className="space-y-2">
               <div className="flex items-center justify-between text-sm font-medium">
                 <span>Pin Mode</span>
@@ -359,6 +367,7 @@ function Demo() {
   const [sleepFrames, setSleepFrames] = useState(60)
   const [warmStartPasses, setWarmStartPasses] = useState(2)
   const [cameraZoom, setCameraZoom] = useState(1)
+  const [cameraZoomActual, setCameraZoomActual] = useState(1)
   const [pointerColliderVisible, setPointerColliderVisible] = useState(false)
   const [pinMode, setPinMode] = useState<PinMode>("top")
 
@@ -380,9 +389,15 @@ function Demo() {
           overlay: controller.getOverlayState() ?? undefined,
           renderSettings: new RenderSettingsState(),
           setTessellation: (segments: number) => controller.setTessellationSegments(segments),
+          setPinMode: (mode) => controller.setPinMode(mode),
         })
         // Seed camera zoom so renderer starts from the UI's value.
         actionsRef.current.setCameraTargetZoom(cameraZoom)
+        // Seed inspector from snapshot if available.
+        const snap = actionsRef.current.getCameraSnapshot?.()
+        if (snap && typeof snap.zoom === 'number') {
+          setCameraZoomActual(snap.zoom)
+        }
         // Seed gravity and iterations to reflect UI defaults.
         actionsRef.current.setGravityScalar(gravity)
         actionsRef.current.setConstraintIterations(constraintIterations)
@@ -459,6 +474,11 @@ function Demo() {
 
   useEffect(() => {
     actionsRef.current?.setCameraTargetZoom(cameraZoom)
+    // Sample snapshot shortly after updating target zoom for inspector display.
+    Promise.resolve().then(() => {
+      const snap = actionsRef.current?.getCameraSnapshot?.()
+      if (snap && typeof snap.zoom === 'number') setCameraZoomActual(snap.zoom)
+    })
   }, [cameraZoom])
 
   useEffect(() => {
@@ -470,7 +490,8 @@ function Demo() {
   }, [pointerColliderVisible])
 
   useEffect(() => {
-    controllerRef.current?.setPinMode(pinMode)
+    actionsRef.current?.setPinMode(pinMode)
+    if (!actionsRef.current) controllerRef.current?.setPinMode(pinMode)
   }, [pinMode])
 
   const modifierKey =
@@ -519,6 +540,7 @@ function Demo() {
         onWarmStartPassesChange={setWarmStartPasses}
         cameraZoom={cameraZoom}
         onCameraZoomChange={setCameraZoom}
+        cameraZoomActual={cameraZoomActual}
         onWarmStartNow={() => actionsRef.current?.warmStartNow(warmStartPasses, constraintIterations)}
         onPresetSelect={(name: string) => {
           const p = getPreset(name)
