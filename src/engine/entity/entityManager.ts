@@ -14,11 +14,11 @@ export class EntityManager {
     let id: string
     if (rawId !== undefined) {
       if (typeof rawId !== 'string') {
-        throw new Error('Entity id must be a non-empty string')
+        throw new Error(`Entity id must be a string (got ${typeof rawId})`)
       }
       const trimmed = rawId.trim()
       if (trimmed.length === 0) {
-        throw new Error('Entity id must be a non-empty string')
+        throw new Error('Entity id must be non-empty after trimming')
       }
       id = trimmed
     } else {

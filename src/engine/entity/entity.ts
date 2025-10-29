@@ -68,16 +68,25 @@ export class Entity {
     // Prevent re-entrancy if a component triggers destroy() again.
     this.destroyed = true
     const entries = Array.from(this.components.entries())
+    const detachErrors: Array<{ component: Component; error: unknown }> = []
     for (const [key, component] of entries) {
+      // Skip if removed by a previous onDetach callback.
       if (!this.components.has(key)) continue
       this.components.delete(key)
       try {
         component.onDetach?.(this)
-      } catch {
-        // Component teardown errors should not block destruction.
+      } catch (error) {
+        // Collect errors so teardown continues; report after loop.
+        detachErrors.push({ component, error })
       }
     }
     this.manager.destroyEntity(this)
+    if (detachErrors.length) {
+      for (const { component, error } of detachErrors) {
+        // Engine logger DI would be ideal; fall back to console for visibility.
+        console.error('Entity component detach error', { component }, error)
+      }
+    }
   }
 
   /** @internal */

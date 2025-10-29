@@ -9,6 +9,8 @@ import { EngineWorld } from '../engine/world'
 import { SimulationSystem } from '../engine/systems/simulationSystem'
 import { SimulationRunner } from '../engine/simulationRunner'
 import { EntityManager } from '../engine/entity/entityManager'
+import { CameraSystem } from '../engine/camera/CameraSystem'
+import { WorldRendererSystem } from '../engine/render/worldRendererSystem'
 import type { Entity } from '../engine/entity/entity'
 import type { Component } from '../engine/entity/component'
 import { SimWorld, type SimBody, type SimWarmStartConfig, type SimSleepConfig } from './simWorld'
@@ -124,6 +126,14 @@ class ClothBodyAdapter implements SimBody, Component {
     cloth.setSleepThresholds(config.velocityThreshold, config.frameThreshold)
   }
 
+  setConstraintIterations(iterations: number) {
+    this.item.cloth?.setConstraintIterations(iterations)
+  }
+
+  setGlobalGravity(gravity: THREE.Vector3) {
+    this.item.cloth?.setGravity(gravity)
+  }
+
   handleOffscreen() {
     this.offscreenCallback()
   }
@@ -184,6 +194,9 @@ export type ClothSceneControllerOptions = {
  * {@link SimulationRunner} and {@link SimulationSystem} instances.
  */
 export class ClothSceneController {
+  private static readonly SIM_SYSTEM_ID = 'sim-core'
+  private static readonly CAMERA_SYSTEM_ID = 'render-camera'
+  private static readonly RENDERER_SYSTEM_ID = 'world-renderer'
   private domToWebGL: DOMToWebGL | null = null
   private collisionSystem = new CollisionSystem()
   private items = new Map<HTMLElement, ClothItem>()
@@ -196,6 +209,8 @@ export class ClothSceneController {
   private simWorld: SimWorld
   private engine: EngineWorld
   private entities = new EntityManager()
+  private cameraSystem: CameraSystem | null = null
+  private worldRenderer: WorldRendererSystem | null = null
   private elementIds = new Map<HTMLElement, string>()
   private onResize = () => this.handleResize()
   private onScroll = () => {
@@ -239,7 +254,7 @@ export class ClothSceneController {
     this.simulationSystem = options.simulationSystem ?? new SimulationSystem({ simWorld: this.simWorld })
 
     this.engine = options.engine ?? new EngineWorld()
-    this.engine.addSystem(this.simulationSystem, { priority: 100 })
+    this.engine.addSystem(this.simulationSystem, { id: ClothSceneController.SIM_SYSTEM_ID, priority: 100 })
 
     this.simulationRunner =
       options.simulationRunner ??
@@ -259,6 +274,12 @@ export class ClothSceneController {
 
     this.domToWebGL = new DOMToWebGL(document.body)
     this.pool = new ElementPool(this.domToWebGL)
+    // Ensure the simulation system is attached (dispose may have removed it)
+    try {
+      this.engine.addSystem(this.simulationSystem, { id: ClothSceneController.SIM_SYSTEM_ID, priority: 100 })
+    } catch {
+      // Already attached; ignore.
+    }
     const viewport = this.domToWebGL.getViewportPixels()
     this.collisionSystem.setViewportDimensions(viewport.width, viewport.height)
 
@@ -276,6 +297,9 @@ export class ClothSceneController {
     window.addEventListener('pointerup', this.onPointerLeave, { passive: true })
     window.addEventListener('pointerleave', this.onPointerLeave, { passive: true })
     window.addEventListener('pointercancel', this.onPointerLeave, { passive: true })
+
+    // Register camera + render systems once the DOM/WebGL view exists.
+    this.installRenderPipeline()
 
     this.clock.start()
     this.animate()
@@ -334,9 +358,22 @@ export class ClothSceneController {
     this.items.clear()
     this.domToWebGL = null
     this.pool = null
-    // Pause, then detach; onDetach() will clear once.
+    // Pause, clear simulation state, then detach systems.
     this.setRealTime(false)
-    this.engine.removeSystem(this.simulationSystem.id)
+    this.simulationSystem.clear()
+    // Remove registered systems to avoid leaking across re-initializations.
+    if (this.cameraSystem) {
+      this.engine.removeSystemInstance(this.cameraSystem)
+      this.cameraSystem = null
+    }
+    if (this.worldRenderer) {
+      this.engine.removeSystemInstance(this.worldRenderer)
+      this.worldRenderer = null
+    }
+    // Also remove by stable id as a fallback/cleanup.
+    this.engine.removeSystem(ClothSceneController.RENDERER_SYSTEM_ID)
+    this.engine.removeSystem(ClothSceneController.CAMERA_SYSTEM_ID)
+    this.engine.removeSystem(ClothSceneController.SIM_SYSTEM_ID)
     this.elementIds.clear()
   }
 
@@ -441,7 +478,6 @@ export class ClothSceneController {
 
     this.decayPointerImpulse()
     this.updatePointerHelper()
-    this.domToWebGL.render()
   }
 
   private handleResize() {
@@ -451,6 +487,46 @@ export class ClothSceneController {
     this.collisionSystem.setViewportDimensions(viewport.width, viewport.height)
     this.collisionSystem.refresh()
     this.syncStaticMeshes()
+  }
+
+  private installRenderPipeline() {
+    if (!this.domToWebGL) return
+    if (this.cameraSystem && this.worldRenderer) return
+    if ((this.cameraSystem && !this.worldRenderer) || (!this.cameraSystem && this.worldRenderer)) {
+      if (this.cameraSystem) this.engine.removeSystemInstance(this.cameraSystem)
+      if (this.worldRenderer) this.engine.removeSystemInstance(this.worldRenderer)
+      this.cameraSystem = null
+      this.worldRenderer = null
+    }
+    // Create a camera system and world renderer that reads snapshots each frame.
+    this.cameraSystem = new CameraSystem()
+    this.worldRenderer = new WorldRendererSystem({ view: this.domToWebGL, camera: this.cameraSystem })
+    // Register with lower priority than simulation so render sees the latest snapshot.
+    this.engine.addSystem(this.cameraSystem, {
+      id: ClothSceneController.CAMERA_SYSTEM_ID,
+      priority: 50,
+      allowWhilePaused: true,
+    })
+    this.engine.addSystem(this.worldRenderer, {
+      id: ClothSceneController.RENDERER_SYSTEM_ID,
+      priority: 10,
+      allowWhilePaused: true,
+    })
+  }
+
+  /** Returns the underlying engine world for debug actions. */
+  getEngine() {
+    return this.engine
+  }
+
+  /** Returns the simulation runner for debug actions. */
+  getRunner() {
+    return this.simulationRunner
+  }
+
+  /** Returns the camera system if installed; otherwise null. */
+  getCameraSystem() {
+    return this.cameraSystem
   }
 
   private syncStaticMeshes() {
@@ -572,7 +648,7 @@ export class ClothSceneController {
 
   /** Sets the desired cloth physics sub-step count and propagates it to the runner and live cloths. */
   setSubsteps(substeps: number) {
-    const clamped = Math.max(1, Math.round(substeps))
+    const clamped = Math.max(1, Math.min(16, Math.round(substeps)))
     this.debug.substeps = clamped
     this.simulationRunner.setSubsteps(clamped)
     for (const item of this.items.values()) {
@@ -587,6 +663,12 @@ export class ClothSceneController {
     for (const item of this.items.values()) {
       item.cloth?.setConstraintIterations(clamped)
     }
+  }
+
+  /** Updates default sleep thresholds used for future activations and broadcasts to current bodies. */
+  setSleepConfig(config: SimSleepConfig) {
+    this.sleepConfig = { ...config }
+    this.simulationSystem.broadcastSleepConfiguration(this.sleepConfig)
   }
 
   setPinMode(mode: PinMode) {
@@ -713,5 +795,10 @@ export class ClothSceneController {
       passes: WARM_START_PASSES,
       constraintIterations: this.debug.constraintIterations,
     }
+  }
+
+  /** Returns the simulation system for debug actions. */
+  getSimulationSystem() {
+    return this.simulationSystem
   }
 }

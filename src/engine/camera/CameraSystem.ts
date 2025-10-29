@@ -1,6 +1,7 @@
 import * as THREE from 'three'
 
-import type { EngineWorld, EngineSystem } from '../types'
+import type { EngineSystem } from '../types'
+import type { EngineWorld } from '../world'
 import { CameraSpring, type CameraSpringOptions, type MutableCameraSnapshot } from './CameraSpring'
 
 export type CameraSnapshot = Readonly<MutableCameraSnapshot>
@@ -8,7 +9,7 @@ export type CameraSnapshot = Readonly<MutableCameraSnapshot>
 /**
  * Engine system facade that owns a spring-driven camera and exposes read-only snapshots.
  */
-export class CameraSystem implements EngineSystem {
+export class CameraSystem implements EngineSystem<EngineWorld> {
   id?: string
   priority?: number
   allowWhilePaused = true

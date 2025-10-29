@@ -11,4 +11,4 @@ export interface Component {
 }
 
 /** Utility type describing the constructor signature required for registering components. */
-export type ComponentType<T extends Component> = new (...args: any[]) => T
+export type ComponentType<T extends Component> = new (...args: unknown[]) => T

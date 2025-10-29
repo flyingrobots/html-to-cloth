@@ -18,7 +18,7 @@ export class EngineWorld {
     this.logger = logger
   }
 
-  addSystem(system: EngineSystem, options: EngineSystemOptions = {}) {
+  addSystem(system: EngineSystem, options: EngineSystemOptions = {}): EngineSystemId {
     const id = this.resolveId(system, options)
     if (this.systems.some((entry) => entry.id === id)) {
       throw new Error(`Engine system id '${id}' already registered`)
@@ -36,12 +36,21 @@ export class EngineWorld {
     this.systems.push(entry)
     this.sortSystems()
     system.onAttach?.(this)
+    return id
   }
 
   removeSystem(id: EngineSystemId) {
     const index = this.systems.findIndex((entry) => entry.id === id)
     if (index === -1) return
 
+    const [entry] = this.systems.splice(index, 1)
+    entry.system.onDetach?.()
+  }
+
+  /** Convenience: remove a system by instance. */
+  removeSystemInstance(system: EngineSystem) {
+    const index = this.systems.findIndex((entry) => entry.system === system)
+    if (index === -1) return
     const [entry] = this.systems.splice(index, 1)
     entry.system.onDetach?.()
   }
@@ -57,17 +66,19 @@ export class EngineWorld {
   step(dt: number) {
     const paused = this.paused
     const snapshot = this.systems.slice()
+    const current = new Set(this.systems)
     for (const entry of snapshot) {
       if (paused && !entry.allowWhilePaused) continue
-      if (!this.systems.includes(entry)) continue
+      if (!current.has(entry)) continue
       entry.system.fixedUpdate?.(dt)
     }
   }
 
   frame(dt: number) {
     const snapshot = this.systems.slice()
+    const current = new Set(this.systems)
     for (const entry of snapshot) {
-      if (!this.systems.includes(entry)) continue
+      if (!current.has(entry)) continue
       entry.system.frameUpdate?.(dt)
     }
   }

@@ -1,4 +1,4 @@
-import type { Vector2 } from 'three'
+import type { Vector2, Vector3 } from 'three'
 
 import type {
   SimWorld,
@@ -45,7 +45,7 @@ let systemCounter = 0
  * and exposing immutable snapshots for read-only consumers.
  */
 export class SimulationSystem implements EngineSystem<EngineWorld> {
-  id: string
+  readonly id: string
   allowWhilePaused = false
 
   private readonly simWorld: SimWorld
@@ -67,8 +67,7 @@ export class SimulationSystem implements EngineSystem<EngineWorld> {
   }
 
   onDetach() {
-    this.bodies.clear()
-    this.snapshot = freezeSnapshot({ bodies: [] })
+    this.clear()
   }
 
   fixedUpdate(dt: number) {
@@ -140,6 +139,37 @@ export class SimulationSystem implements EngineSystem<EngineWorld> {
   /** Returns the most recent snapshot captured after the last fixed update. */
   getSnapshot(): Readonly<SimWorldSnapshot> {
     return this.snapshot
+  }
+
+  /** Broadcasts constraint iteration changes to any bodies exposing the optional hook. */
+  broadcastConstraintIterations(iterations: number) {
+    const count = Math.max(1, Math.round(iterations))
+    for (const record of this.bodies.values()) {
+      record.body.setConstraintIterations?.(count)
+    }
+  }
+
+  /** Broadcasts gravity changes to any bodies exposing the optional hook. */
+  broadcastGravity(gravity: Vector3) {
+    for (const record of this.bodies.values()) {
+      record.body.setGlobalGravity?.(gravity)
+    }
+  }
+
+  /** Queues sleep configuration for all registered bodies to apply on next fixed update. */
+  broadcastSleepConfiguration(config: SimSleepConfig) {
+    for (const record of this.bodies.values()) {
+      record.sleep = config
+      record.pendingSleep = true
+    }
+  }
+
+  /** Queues warm-start for all registered bodies to apply on next fixed update. */
+  broadcastWarmStart(config: SimWarmStartConfig) {
+    for (const record of this.bodies.values()) {
+      record.warmStart = config
+      record.pendingWarmStart = true
+    }
   }
 
   private flushPendingConfiguration() {

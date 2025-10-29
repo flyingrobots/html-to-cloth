@@ -1,0 +1,98 @@
+import * as THREE from 'three'
+
+import type { SimulationRunner } from '../simulationRunner'
+import type { EngineWorld } from '../world'
+import type { CameraSystem } from '../camera/CameraSystem'
+import type { SimulationSystem } from '../systems/simulationSystem'
+
+export type EngineActionsOptions = {
+  runner: SimulationRunner
+  world: EngineWorld
+  camera?: CameraSystem | null
+  simulation?: SimulationSystem | null
+}
+
+/**
+ * Small facade that routes debug UI interactions into the engine layer.
+ *
+ * Intentionally narrow: we start with engine-safe actions that do not require
+ * per-body mutation (those will be added as dedicated SimulationSystem APIs later).
+ */
+export class EngineActions {
+  private readonly runner: SimulationRunner
+  private readonly world: EngineWorld
+  private readonly camera: CameraSystem | null
+  private readonly simulation: SimulationSystem | null
+
+  constructor(options: EngineActionsOptions) {
+    this.runner = options.runner
+    this.world = options.world
+    this.camera = options.camera ?? null
+    this.simulation = options.simulation ?? null
+  }
+
+  /** Enables/disables real-time ticking. */
+  setRealTime(enabled: boolean) {
+    this.runner.setRealTime(enabled)
+  }
+
+  /** Performs exactly one fixed step on the runner. */
+  stepOnce() {
+    this.runner.stepOnce()
+  }
+
+  /** Adjusts the number of substeps per fixed tick. */
+  setSubsteps(substeps: number) {
+    this.runner.setSubsteps(substeps)
+  }
+
+  /**
+   * Camera controls (no-ops when no camera system is provided).
+   */
+  setCameraTarget(position: THREE.Vector3) {
+    this.camera?.setTarget(position)
+  }
+
+  setCameraTargetZoom(zoom: number) {
+    this.camera?.setTargetZoom(zoom)
+  }
+
+  jumpCamera(position: THREE.Vector3, zoom?: number) {
+    this.camera?.jumpTo(position, zoom)
+  }
+
+  configureCamera(options: Parameters<CameraSystem['configure']>[0]) {
+    this.camera?.configure(options)
+  }
+
+  /** Broadcasts gravity to all simulation bodies (if supported). */
+  setGravityScalar(gravity: number) {
+    if (!this.simulation) return
+    // Use a fresh vector to avoid accidental shared-reference mutation downstream.
+    this.simulation.broadcastGravity(new THREE.Vector3(0, -gravity, 0))
+  }
+
+  /** Broadcasts constraint iterations to all bodies (if supported). */
+  setConstraintIterations(iterations: number) {
+    this.simulation?.broadcastConstraintIterations(iterations)
+  }
+
+  /** Updates sleep thresholds for all bodies and future activations (UI should also update controller defaults). */
+  setSleepConfig(velocityThreshold: number, frameThreshold: number) {
+    if (!this.simulation) return
+    this.simulation.broadcastSleepConfiguration({ velocityThreshold, frameThreshold })
+  }
+
+  /** Queues warm-start passes for all bodies using current or provided iterations. */
+  warmStartNow(passes: number, constraintIterations: number) {
+    if (!this.simulation) return
+    const p = Math.max(0, Math.round(passes))
+    const it = Math.max(1, Math.round(constraintIterations))
+    this.simulation.broadcastWarmStart({ passes: p, constraintIterations: it })
+  }
+
+  /** Exposes the attached world for advanced hooks (read-only usage suggested). */
+  getWorld() {
+    return this.world
+  }
+}

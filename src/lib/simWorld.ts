@@ -10,6 +10,9 @@ export interface SimBody extends SleepableBody {
   getBoundingSphere: () => BoundingSphere
   warmStart?: (config: SimWarmStartConfig) => void
   configureSleep?: (config: SimSleepConfig) => void
+  /** Optional debug hooks for broadcast configuration. */
+  setConstraintIterations?: (iterations: number) => void
+  setGlobalGravity?: (gravity: THREE.Vector3) => void
 }
 
 export type SimWarmStartConfig = {
@@ -116,6 +119,14 @@ export class SimWorld {
         sleeping: entry.sleeping,
       })),
     }
+  }
+
+  /** Iterates over all registered bodies (debug/maintenance helpers).
+   * Uses a snapshot so callbacks can add/remove bodies safely during iteration.
+   */
+  forEachBody(fn: (body: SimBody) => void) {
+    const snapshot = Array.from(this.bodies.values())
+    for (const body of snapshot) fn(body)
   }
 
   private updateSnapshot() {
