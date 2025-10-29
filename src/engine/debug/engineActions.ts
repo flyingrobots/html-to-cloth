@@ -132,4 +132,9 @@ export class EngineActions {
   getWorld() {
     return this.world
   }
+
+  /** Returns the latest camera snapshot, if a camera system is present. */
+  getCameraSnapshot() {
+    return this.camera?.getSnapshot?.()
+  }
 }
