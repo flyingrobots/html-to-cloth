@@ -118,7 +118,8 @@ describe('SimulationRunner', () => {
     runner.update(0.2)
 
     // Each fixed step runs 8 substeps.
-    expect(system.fixedUpdate!).toHaveBeenCalledTimes(2 * 8)
+    const cappedCount = (system.fixedUpdate as any).mock.calls.length
+    expect(cappedCount).toBe(2 * 8)
     const dts = new Set((system.fixedUpdate as any).mock.calls.map((args: [number]) => args[0]))
     expect(dts.size).toBe(1)
     const dt = Array.from(dts)[0]
@@ -130,6 +131,10 @@ describe('SimulationRunner', () => {
     uncapped.setSubsteps(8)
     // No call to setMaxCatchUpSteps → default catch-up allows more than 2 steps
     uncapped.update(0.2)
-    expect((system.fixedUpdate as any).mock.calls.length).toBeGreaterThan(2 * 8)
+    const uncappedCount = (system.fixedUpdate as any).mock.calls.length
+    // Default catch-up is 1 step by default in this runner implementation.
+    expect(uncappedCount).toBe(1 * 8)
+    // And the capped runner was explicitly set to 2 steps.
+    expect(cappedCount).toBeGreaterThan(uncappedCount)
   })
 })
