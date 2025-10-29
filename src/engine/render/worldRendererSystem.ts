@@ -6,6 +6,7 @@ import type { CameraSystem } from '../camera/CameraSystem'
 export type RenderView = {
   camera: THREE.OrthographicCamera
   render: () => void
+  scene?: THREE.Scene
 }
 
 export type WorldRendererOptions = {
@@ -46,4 +47,3 @@ export class WorldRendererSystem implements EngineSystem {
     this.view.render()
   }
 }
-

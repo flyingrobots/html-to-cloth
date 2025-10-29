@@ -36,6 +36,7 @@
 3. Rendering MUST run while the engine is paused and MUST NOT mutate any simulation state under any
    circumstances. Any attempt to modify world/simulation state during render is a protocol violation
    and results in undefined behaviour.
+4. `DebugOverlaySystem.frameUpdate(delta)` reads `DebugOverlayState` (pointer, visibility) and draws gizmos.
 
 ## 5. Pointer Interaction Flow
 

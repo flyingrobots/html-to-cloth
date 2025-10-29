@@ -615,18 +615,22 @@ describe('ClothSceneController DOM integration', () => {
     webgl.dispose()
   })
 
-  it('toggles pointer collider visualization in the scene', async () => {
+  it('updates overlay pointer state on pointer move and resets on leave', async () => {
     const webgl = new ClothSceneController()
     await webgl.init()
 
-    domMocks.sceneAdd.mockClear()
-    domMocks.sceneRemove.mockClear()
+    const state = (webgl as any).getOverlayState?.()
+    expect(state).toBeTruthy()
+    expect(state.pointer.x).toBe(0)
+    expect(state.pointer.y).toBe(0)
 
-    ;(webgl as any).setPointerColliderVisible(true)
-    expect(domMocks.sceneAdd).toHaveBeenCalledTimes(1)
+    window.dispatchEvent(new PointerEvent('pointermove', { clientX: 200, clientY: 150 }))
+    expect(state.pointer.x).not.toBe(0)
+    expect(state.pointer.y).not.toBe(0)
 
-    ;(webgl as any).setPointerColliderVisible(false)
-    expect(domMocks.sceneRemove).toHaveBeenCalledTimes(1)
+    window.dispatchEvent(new Event('pointerleave'))
+    expect(state.pointer.x).toBe(0)
+    expect(state.pointer.y).toBe(0)
 
     webgl.dispose()
   })

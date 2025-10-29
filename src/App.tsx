@@ -369,13 +369,17 @@ function Demo() {
 
     const controller = new ClothSceneController()
     controllerRef.current = controller
-    void controller.init().then(() => {
+    void controller.init().then(async () => {
       try {
+        const { RenderSettingsState } = await import('./engine/render/RenderSettingsState')
         actionsRef.current = new EngineActions({
           runner: controller.getRunner(),
           world: controller.getEngine(),
           camera: controller.getCameraSystem() ?? undefined,
           simulation: controller.getSimulationSystem() ?? undefined,
+          overlay: controller.getOverlayState() ?? undefined,
+          renderSettings: new RenderSettingsState(),
+          setTessellation: (segments: number) => controller.setTessellationSegments(segments),
         })
         // Seed camera zoom so renderer starts from the UI's value.
         actionsRef.current.setCameraTargetZoom(cameraZoom)
@@ -419,7 +423,7 @@ function Demo() {
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
-    controllerRef.current?.setWireframe(wireframe)
+    actionsRef.current?.setWireframe(wireframe)
   }, [wireframe])
 
   useEffect(() => {
@@ -458,13 +462,11 @@ function Demo() {
   }, [cameraZoom])
 
   useEffect(() => {
-    const controller = controllerRef.current
-    if (!controller) return
-    void controller.setTessellationSegments(tessellationSegments)
+    void actionsRef.current?.setTessellation(tessellationSegments)
   }, [tessellationSegments])
 
   useEffect(() => {
-    controllerRef.current?.setPointerColliderVisible(pointerColliderVisible)
+    actionsRef.current?.setPointerOverlayVisible(pointerColliderVisible)
   }, [pointerColliderVisible])
 
   useEffect(() => {

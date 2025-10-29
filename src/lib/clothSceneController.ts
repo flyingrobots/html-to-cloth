@@ -11,6 +11,8 @@ import { SimulationRunner } from '../engine/simulationRunner'
 import { EntityManager } from '../engine/entity/entityManager'
 import { CameraSystem } from '../engine/camera/CameraSystem'
 import { WorldRendererSystem } from '../engine/render/worldRendererSystem'
+import { DebugOverlaySystem } from '../engine/render/DebugOverlaySystem'
+import { DebugOverlayState } from '../engine/render/DebugOverlayState'
 import type { Entity } from '../engine/entity/entity'
 import type { Component } from '../engine/entity/component'
 import { SimWorld, type SimBody, type SimWarmStartConfig, type SimSleepConfig } from './simWorld'
@@ -197,6 +199,7 @@ export class ClothSceneController {
   private static readonly SIM_SYSTEM_ID = 'sim-core'
   private static readonly CAMERA_SYSTEM_ID = 'render-camera'
   private static readonly RENDERER_SYSTEM_ID = 'world-renderer'
+  private static readonly OVERLAY_SYSTEM_ID = 'debug-overlay'
   private domToWebGL: DOMToWebGL | null = null
   private collisionSystem = new CollisionSystem()
   private items = new Map<HTMLElement, ClothItem>()
@@ -211,6 +214,8 @@ export class ClothSceneController {
   private entities = new EntityManager()
   private cameraSystem: CameraSystem | null = null
   private worldRenderer: WorldRendererSystem | null = null
+  private overlaySystem: DebugOverlaySystem | null = null
+  private overlayState: DebugOverlayState | null = null
   private elementIds = new Map<HTMLElement, string>()
   private onResize = () => this.handleResize()
   private onScroll = () => {
@@ -224,9 +229,6 @@ export class ClothSceneController {
     active: false,
     needsImpulse: false,
   }
-  private pointerHelper: THREE.Mesh | null = null
-  private pointerHelperAttached = false
-  private pointerColliderVisible = false
   private sleepConfig: SimSleepConfig = {
     velocityThreshold: 0.001,
     frameThreshold: 60,
@@ -304,9 +306,7 @@ export class ClothSceneController {
     this.clock.start()
     this.animate()
 
-    if (this.pointerColliderVisible) {
-      this.setPointerColliderVisible(true)
-    }
+    // Debug overlay handles pointer gizmos; nothing to toggle here.
   }
 
   /**
@@ -319,16 +319,7 @@ export class ClothSceneController {
       cancelAnimationFrame(this.rafId)
     }
 
-    if (this.pointerHelper) {
-      if (this.domToWebGL) {
-        this.domToWebGL.scene.remove(this.pointerHelper)
-      }
-      this.pointerHelper.geometry.dispose()
-      const material = this.pointerHelper.material as THREE.Material
-      material.dispose()
-      this.pointerHelper = null
-      this.pointerHelperAttached = false
-    }
+    // Pointer helper removed; overlay system manages gizmos.
 
     window.removeEventListener('resize', this.onResize)
     window.removeEventListener('scroll', this.onScroll)
@@ -362,18 +353,20 @@ export class ClothSceneController {
     this.setRealTime(false)
     this.simulationSystem.clear()
     // Remove registered systems to avoid leaking across re-initializations.
-    if (this.cameraSystem) {
-      this.engine.removeSystemInstance(this.cameraSystem)
-      this.cameraSystem = null
+    if (this.overlaySystem) {
+      this.engine.removeSystemInstance(this.overlaySystem)
+      this.overlaySystem = null
     }
     if (this.worldRenderer) {
       this.engine.removeSystemInstance(this.worldRenderer)
       this.worldRenderer = null
     }
-    // Also remove by stable id as a fallback/cleanup.
-    this.engine.removeSystem(ClothSceneController.RENDERER_SYSTEM_ID)
-    this.engine.removeSystem(ClothSceneController.CAMERA_SYSTEM_ID)
-    this.engine.removeSystem(ClothSceneController.SIM_SYSTEM_ID)
+    if (this.cameraSystem) {
+      this.engine.removeSystemInstance(this.cameraSystem)
+      this.cameraSystem = null
+    }
+    // Finally remove the simulation core system itself.
+    this.engine.removeSystemInstance(this.simulationSystem)
     this.elementIds.clear()
   }
 
@@ -456,6 +449,9 @@ export class ClothSceneController {
       record,
       this.debug
     )
+    // Mark mesh as cloth for render settings system.
+    const meshObj = record.mesh as unknown as { userData?: Record<string, unknown> }
+    meshObj.userData = { ...(meshObj.userData || {}), isCloth: true, isStatic: false }
     this.simulationSystem.addBody(adapter, {
       warmStart: this.createWarmStartConfig(),
       sleep: this.sleepConfig,
@@ -477,7 +473,6 @@ export class ClothSceneController {
     this.simulationRunner.getEngine().frame(delta)
 
     this.decayPointerImpulse()
-    this.updatePointerHelper()
   }
 
   private handleResize() {
@@ -491,16 +486,21 @@ export class ClothSceneController {
 
   private installRenderPipeline() {
     if (!this.domToWebGL) return
-    if (this.cameraSystem && this.worldRenderer) return
-    if ((this.cameraSystem && !this.worldRenderer) || (!this.cameraSystem && this.worldRenderer)) {
+    if (this.cameraSystem && this.worldRenderer && this.overlaySystem) return
+    if (this.cameraSystem || this.worldRenderer || this.overlaySystem) {
       if (this.cameraSystem) this.engine.removeSystemInstance(this.cameraSystem)
       if (this.worldRenderer) this.engine.removeSystemInstance(this.worldRenderer)
+      if (this.overlaySystem) this.engine.removeSystemInstance(this.overlaySystem)
       this.cameraSystem = null
       this.worldRenderer = null
+      this.overlaySystem = null
     }
     // Create a camera system and world renderer that reads snapshots each frame.
     this.cameraSystem = new CameraSystem()
     this.worldRenderer = new WorldRendererSystem({ view: this.domToWebGL, camera: this.cameraSystem })
+    // Debug overlay state/system for render-only gizmos (e.g., pointer collider)
+    this.overlayState = new DebugOverlayState()
+    this.overlaySystem = new DebugOverlaySystem({ view: this.domToWebGL, state: this.overlayState })
     // Register with lower priority than simulation so render sees the latest snapshot.
     this.engine.addSystem(this.cameraSystem, {
       id: ClothSceneController.CAMERA_SYSTEM_ID,
@@ -510,6 +510,11 @@ export class ClothSceneController {
     this.engine.addSystem(this.worldRenderer, {
       id: ClothSceneController.RENDERER_SYSTEM_ID,
       priority: 10,
+      allowWhilePaused: true,
+    })
+    this.engine.addSystem(this.overlaySystem, {
+      id: ClothSceneController.OVERLAY_SYSTEM_ID,
+      priority: 5,
       allowWhilePaused: true,
     })
   }
@@ -527,6 +532,11 @@ export class ClothSceneController {
   /** Returns the camera system if installed; otherwise null. */
   getCameraSystem() {
     return this.cameraSystem
+  }
+
+  /** Returns the overlay state for EngineActions. */
+  getOverlayState() {
+    return this.overlayState
   }
 
   private syncStaticMeshes() {
@@ -549,12 +559,12 @@ export class ClothSceneController {
 
     this.pointer.previous.copy(this.pointer.position)
     this.pointer.position.set(x, y)
+    this.overlayState?.pointer.set(x, y)
 
     if (!this.pointer.active) {
       this.pointer.active = true
       this.pointer.previous.copy(this.pointer.position)
       this.simulationSystem.notifyPointer(this.pointer.position)
-      this.updatePointerHelper()
       return
     }
 
@@ -566,14 +576,15 @@ export class ClothSceneController {
     }
 
     this.simulationSystem.notifyPointer(this.pointer.position)
-    this.updatePointerHelper()
+    // overlay pointer updated elsewhere
   }
 
   private resetPointer() {
     this.pointer.active = false
     this.pointer.needsImpulse = false
     this.pointer.velocity.set(0, 0)
-    this.updatePointerHelper()
+    this.overlayState?.pointer.set(0, 0)
+    // overlay pointer updated elsewhere
   }
 
   private getBodyId(element: HTMLElement) {
@@ -602,6 +613,12 @@ export class ClothSceneController {
       item.entity = undefined
     }
 
+    // Mark mesh as static again for render settings system.
+    const mesh = item.record?.mesh
+    if (mesh) {
+      const obj = mesh as unknown as { userData?: Record<string, unknown> }
+      obj.userData = { ...(obj.userData || {}), isCloth: false, isStatic: true }
+    }
     this.pool.recycle(element)
     this.pool.resetGeometry(element)
     this.pool.mount(element)
@@ -615,13 +632,8 @@ export class ClothSceneController {
 
   /** Enables or disables wireframe rendering for every captured cloth mesh. */
   setWireframe(enabled: boolean) {
+    // Deprecated: wireframe toggled via RenderSettingsSystem
     this.debug.wireframe = enabled
-    for (const item of this.items.values()) {
-      const material = item.record?.mesh.material as THREE.MeshBasicMaterial | undefined
-      if (material) {
-        material.wireframe = enabled
-      }
-    }
   }
 
   /** Applies a new gravity scalar to every active cloth body. */
@@ -717,33 +729,11 @@ export class ClothSceneController {
     this.collisionSystem.refresh()
   }
 
-  setPointerColliderVisible(enabled: boolean) {
-    this.debug.pointerCollider = enabled
-    this.pointerColliderVisible = enabled
-    if (!this.domToWebGL) return
-
-    const helper = this.ensurePointerHelper()
-
-    if (enabled) {
-      if (!this.pointerHelperAttached) {
-        this.domToWebGL.scene.add(helper)
-        this.pointerHelperAttached = true
-      }
-      helper.visible = true
-      this.updatePointerHelper()
-    } else {
-      helper.visible = false
-      if (this.pointerHelperAttached) {
-        this.domToWebGL.scene.remove(helper)
-        this.pointerHelperAttached = false
-      }
-    }
-  }
+  // setPointerColliderVisible removed in favour of DebugOverlaySystem
 
   stepOnce() {
     this.simulationRunner.stepOnce()
     this.decayPointerImpulse()
-    this.updatePointerHelper()
   }
 
   private decayPointerImpulse() {
@@ -756,22 +746,7 @@ export class ClothSceneController {
     }
   }
 
-  private updatePointerHelper() {
-    if (!this.pointerHelper) return
-    this.pointerHelper.visible = this.pointerColliderVisible
-    if (!this.pointerColliderVisible) return
-    this.pointerHelper.position.set(this.pointer.position.x, this.pointer.position.y, 0.2)
-  }
-
-  private ensurePointerHelper() {
-    if (!this.pointerHelper) {
-      const geometry = new THREE.SphereGeometry(0.12, 16, 16)
-      const material = new THREE.MeshBasicMaterial({ color: 0xff6699, wireframe: true })
-      this.pointerHelper = new THREE.Mesh(geometry, material)
-      this.pointerHelper.visible = false
-    }
-    return this.pointerHelper
-  }
+  // Pointer helper removed; overlay system renders gizmos
 
   private applyPinMode(cloth: ClothPhysics) {
     switch (this.debug.pinMode) {
