@@ -9,6 +9,7 @@ import {
   toCanonicalY,
 } from './units'
 import { WorldBody } from './WorldBody'
+import { ensureHtml2CanvasInterception, restoreHtml2CanvasInterception } from './h2cInterception'
 
 export type DOMMeshRecord = {
   mesh: THREE.Mesh<THREE.PlaneGeometry, THREE.MeshBasicMaterial>
@@ -22,6 +23,10 @@ export type DOMMeshRecord = {
   worldBody: WorldBody
 }
 
+export type DOMToWebGLOptions = {
+  interceptHtml2CanvasWrites?: 'on' | 'off' | 'auto'
+}
+
 export class DOMToWebGL {
   public scene: THREE.Scene
   public camera: THREE.OrthographicCamera
@@ -32,9 +37,12 @@ export class DOMToWebGL {
   private html2canvasRef: typeof import('html2canvas')['default'] | null = null
   private viewportWidth: number
   private viewportHeight: number
+  private interceptMode: 'on' | 'off' | 'auto' = 'on'
 
-  constructor(container: HTMLElement) {
+  constructor(container: HTMLElement, options: DOMToWebGLOptions = {}) {
     this.container = container
+    const envMode = (typeof import.meta !== 'undefined' && (import.meta as any).env?.VITE_H2C_INTERCEPT) || undefined
+    this.interceptMode = (options.interceptHtml2CanvasWrites as any) || envMode || 'on'
     this.scene = new THREE.Scene()
     this.camera = new THREE.OrthographicCamera()
     this.renderer = new THREE.WebGLRenderer({ alpha: true, antialias: true })
@@ -69,6 +77,8 @@ export class DOMToWebGL {
     if (this.renderer.domElement.parentElement) {
       this.renderer.domElement.parentElement.removeChild(this.renderer.domElement)
     }
+    // Restore global monkey patches to be a good citizen during hot reloads/tests.
+    try { restoreHtml2CanvasInterception() } catch {}
   }
 
   resize() {
@@ -83,6 +93,9 @@ export class DOMToWebGL {
 
   async captureElement(element: HTMLElement) {
     const html2canvas = await this.ensureHtml2Canvas()
+    if (this.interceptMode !== 'off') {
+      try { ensureHtml2CanvasInterception() } catch {}
+    }
 
     // Ensure the element is visible during capture to avoid transparent textures
     const prev = {
@@ -95,10 +108,10 @@ export class DOMToWebGL {
     try {
       canvas = await html2canvas(element, {
         backgroundColor: null,
-        scale: window.devicePixelRatio,
-        logging: false,
-        useCORS: true,
-      })
+      scale: window.devicePixelRatio,
+      logging: false,
+      useCORS: true,
+    })
     } finally {
       element.style.visibility = prev.visibility
       element.style.opacity = prev.opacity
