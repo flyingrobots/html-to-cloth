@@ -414,13 +414,20 @@ export class ClothSceneController {
   }
 
   private async prepareElements(elements: HTMLElement[]) {
-    if (!this.domToWebGL || !this.pool) return
+    // Capture current references; the controller may get disposed while
+    // awaiting pool work during rapid navigations or hot reload.
+    const bridge = this.domToWebGL
+    const pool = this.pool
+    if (!bridge || !pool) return
 
     for (const element of elements) {
-      await this.pool.prepare(element, this.debug.tessellationSegments)
-      this.pool.mount(element)
+      // Bail early if controller was disposed or pool swapped out.
+      if (this.disposed || this.pool !== pool || this.domToWebGL !== bridge) return
+      await pool.prepare(element, this.debug.tessellationSegments)
+      if (this.disposed || this.pool !== pool || this.domToWebGL !== bridge) return
+      pool.mount(element)
 
-      const record = this.pool.getRecord(element)
+      const record = pool.getRecord(element)
 
       const originalOpacity = element.style.opacity
       element.style.opacity = '0'
