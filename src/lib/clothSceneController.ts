@@ -152,7 +152,15 @@ class ClothBodyAdapter implements SimBody, Component {
   }
 
   setGlobalGravity(gravity: THREE.Vector3) {
-    this.item.cloth?.setGravity(gravity)
+    const worldBody = this.record.worldBody
+    if (!worldBody) {
+      this.item.cloth?.setGravity(gravity)
+      return
+    }
+    // Convert world gravity vector into the cloth's local/model space
+    const local = this._tmpWorldV3.copy(gravity)
+    worldBody.worldToLocalVector(local, this._tmpLocalV3)
+    this.item.cloth?.setGravity(this._tmpLocalV3)
   }
 
   handleOffscreen() {
@@ -500,7 +508,8 @@ export class ClothSceneController {
     item.record = record
     const material = record.mesh.material as THREE.MeshBasicMaterial | undefined
     if (material) {
-      material.wireframe = this.debug.wireframe
+      const wire = this.renderSettingsState ? this.renderSettingsState.wireframe : this.debug.wireframe
+      material.wireframe = wire
     }
     const adapterId = this.getBodyId(element)
     const adapter = new ClothBodyAdapter(

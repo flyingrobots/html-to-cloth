@@ -111,7 +111,16 @@ function DebugPalette(props: DebugProps) {
   }
 
   return (
-    <Drawer opened={open} onClose={() => onOpenChange(false)} position="right" size={380} withCloseButton zIndex={2100}>
+    <Drawer
+      opened={open}
+      onClose={() => onOpenChange(false)}
+      position="right"
+      size={380}
+      withCloseButton
+      // Keep dropdowns and overlay content inside the drawer layer
+      withinPortal
+      zIndex={2100}
+    >
       <Card withBorder shadow="sm">
         <Stack gap="md">
           <Stack gap={0}
