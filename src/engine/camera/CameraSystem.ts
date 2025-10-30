@@ -57,12 +57,30 @@ export class CameraSystem implements EngineSystem<EngineWorld> {
   }
 
   /**
-   * Returns the latest pooled snapshot. Treat as read-only.
+   * Returns an immutable deep copy of the latest camera snapshot.
    *
-   * @returns {CameraSnapshot}
+   * Note: The system maintains a pooled, mutable snapshot internally for
+   * performance. This method defensively clones all vector fields and copies
+   * primitive fields, then freezes the result so callers cannot mutate pooled
+   * state by accident.
+   *
+   * @returns {CameraSnapshot} A frozen copy safe for external use.
    */
   getSnapshot(): CameraSnapshot {
-    return this.snapshot as CameraSnapshot
+    const src = this.snapshot
+    const copy = {
+      position: src.position.clone(),
+      velocity: src.velocity.clone(),
+      target: src.target.clone(),
+      zoom: src.zoom,
+      zoomVelocity: src.zoomVelocity,
+      targetZoom: src.targetZoom,
+    } as const
+    // Freeze vector objects and the container to prevent mutation.
+    Object.freeze(copy.position)
+    Object.freeze(copy.velocity)
+    Object.freeze(copy.target)
+    return Object.freeze(copy) as unknown as CameraSnapshot
   }
 
   /**

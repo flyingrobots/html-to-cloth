@@ -134,10 +134,8 @@ export class EngineActions {
   }
 
   /**
-   * Returns the latest camera snapshot when a camera system is attached.
-   * The shape mirrors CameraSystem.getSnapshot():
-   * - position, velocity, target (THREE.Vector3)
-   * - zoom, zoomVelocity, targetZoom (number)
+   * Returns an immutable deep copy of the latest camera snapshot when a
+   * camera system is attached. See CameraSystem.getSnapshot() for details.
    */
   getCameraSnapshot(): CameraSnapshot | undefined {
     return this.camera?.getSnapshot()
