@@ -317,6 +317,11 @@ function Demo() {
   const [pinMode, setPinMode] = useState<PinMode>('top')
 
   useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const mql = window.matchMedia('(prefers-reduced-motion: reduce)')
+      if (mql.matches) return
+    }
+
     const controller = new ClothSceneController()
     controllerRef.current = controller
     controller.init().then(() => {
@@ -488,8 +493,8 @@ function Demo() {
           <Button className="cloth-enabled" size="lg">Peel Back</Button>
         </Stack>
       </Group>
-      <Affix position={{ bottom: 24, left: '50%' as any }}>
-        <Paper radius="xl" px="md" py={8} withBorder>
+      <Affix position={{ bottom: 24, left: 0, right: 0 }}>
+        <Paper radius="xl" px="md" py={8} withBorder style={{ marginInline: 'auto', width: 'max-content' }}>
           <Group gap={6} align="center">
             <Text size="sm">Press</Text>
             <Kbd>{modifierKey}</Kbd>

@@ -58,7 +58,8 @@ export class DOMToWebGL {
     this.renderer.domElement.style.pointerEvents = 'none'
     this.renderer.domElement.style.width = '100vw'
     this.renderer.domElement.style.height = '100vh'
-    // Keep WebGL overlay above page DOM but below debug UI drawers/modals
+    // Layering: keep the WebGL overlay above page DOM but below the debug Drawer.
+    // The Drawer in App uses zIndex=2100, so 1000 keeps this safely underneath.
     this.renderer.domElement.style.zIndex = '1000'
 
     this.rootGroup = new THREE.Group()
