@@ -192,10 +192,12 @@ export class DOMToWebGL {
     // to pure viewport mapping if three is partially mocked in tests.
     const ndcX = (clientX / this.viewportWidth) * 2 - 1
     const ndcY = -(clientY / this.viewportHeight) * 2 + 1
-    const vec = new THREE.Vector3(ndcX, ndcY, 0) as any
-    if (typeof vec.unproject === 'function') {
-      vec.unproject(this.camera)
-      return { x: vec.x as number, y: vec.y as number }
+    const vecUnknown = new THREE.Vector3(ndcX, ndcY, 0) as unknown
+    const maybeUnproject = (vecUnknown as { unproject?: (cam: THREE.Camera) => void }).unproject
+    if (typeof maybeUnproject === 'function') {
+      maybeUnproject.call(vecUnknown as THREE.Vector3, this.camera)
+      const v = vecUnknown as THREE.Vector3
+      return { x: v.x, y: v.y }
     }
     // Fallback: original viewport→canonical mapping
     return fromPointerToCanonical(clientX, clientY, this.viewportWidth, this.viewportHeight)

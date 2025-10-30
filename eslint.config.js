@@ -19,6 +19,7 @@ export default tseslint.config(
       globals: globals.browser,
     },
     rules: {
+      '@typescript-eslint/no-explicit-any': 'error',
       // Disabled because our component patterns (factory exports and memoized wrappers)
       // trigger false positives in react-refresh/only-export-components.
       'react-refresh/only-export-components': 'off',

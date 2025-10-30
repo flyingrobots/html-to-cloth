@@ -56,23 +56,41 @@ export class WorldBody {
   /** Applies current transform to the attached mesh (if any). */
   applyToMesh() {
     if (!this.mesh) return
-    if ((this.mesh.position as any)?.copy) {
-      ;(this.mesh.position as THREE.Vector3).copy(this.position)
-    } else if ((this.mesh.position as any)?.set) {
-      ;(this.mesh.position as any).set(this.position.x, this.position.y, this.position.z)
+    const posUnknown = (this.mesh as THREE.Object3D).position as unknown
+    if (typeof (posUnknown as { copy?: unknown }).copy === 'function') {
+      ;(posUnknown as { copy: (v: THREE.Vector3) => void }).copy(this.position)
+    } else if (typeof (posUnknown as { set?: unknown }).set === 'function') {
+      ;(posUnknown as { set: (x: number, y: number, z: number) => void }).set(
+        this.position.x,
+        this.position.y,
+        this.position.z,
+      )
     }
-    if (this.rotation && (this.mesh as any).quaternion && (this.mesh as any).quaternion.copy) {
-      ;(this.mesh as any).quaternion.copy(this.rotation)
-    } else if ((this.mesh as any).rotation?.setFromQuaternion) {
-      if (this.rotation) (this.mesh as any).rotation.setFromQuaternion(this.rotation)
+
+    const meshQuatRot = this.mesh as unknown as {
+      quaternion?: { copy?: (q: THREE.Quaternion) => void }
+      rotation?: { setFromQuaternion?: (q: THREE.Quaternion) => void }
     }
-    if ((this.mesh.scale as any)?.copy) {
-      ;(this.mesh.scale as THREE.Vector3).copy(this.scale)
-    } else if ((this.mesh.scale as any)?.set) {
-      ;(this.mesh.scale as any).set(this.scale.x, this.scale.y, this.scale.z)
+    if (this.rotation && typeof meshQuatRot.quaternion?.copy === 'function') {
+      meshQuatRot.quaternion!.copy(this.rotation)
+    } else if (this.rotation && typeof meshQuatRot.rotation?.setFromQuaternion === 'function') {
+      meshQuatRot.rotation!.setFromQuaternion(this.rotation)
     }
-    ;(this.mesh as any).updateMatrix?.()
-    ;(this.mesh as any).updateMatrixWorld?.(true)
+
+    const scaleUnknown = (this.mesh as THREE.Object3D).scale as unknown
+    if (typeof (scaleUnknown as { copy?: unknown }).copy === 'function') {
+      ;(scaleUnknown as { copy: (v: THREE.Vector3) => void }).copy(this.scale)
+    } else if (typeof (scaleUnknown as { set?: unknown }).set === 'function') {
+      ;(scaleUnknown as { set: (x: number, y: number, z: number) => void }).set(
+        this.scale.x,
+        this.scale.y,
+        this.scale.z,
+      )
+    }
+
+    const updatable = this.mesh as unknown as { updateMatrix?: () => void; updateMatrixWorld?: (force?: boolean) => void }
+    updatable.updateMatrix?.()
+    updatable.updateMatrixWorld?.(true)
   }
 
   /** Converts a point from local/model space to world space. */
