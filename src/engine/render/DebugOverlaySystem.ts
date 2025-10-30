@@ -47,16 +47,10 @@ export class DebugOverlaySystem implements EngineSystem {
     if (visible) {
       mesh.position.set(this.state.pointer.x, this.state.pointer.y, 0.2)
     }
-
-    // Only render debug gizmos when explicitly visible
-    if (visible) {
-      this.drawAABBs(!!this.state.drawAABBs)
-      this.drawSimCircles(!!this.state.drawSleep)
-    } else {
-      this.drawAABBs(false)
-      this.drawSimCircles(false)
-      this.drawPins(false)
-    }
+    // Render other gizmos independently of pointer visibility
+    this.drawAABBs(!!this.state.drawAABBs)
+    this.drawSimCircles(!!this.state.drawSleep)
+    this.drawPins(!!this.state.drawPins)
   }
 
   private ensurePointer() {

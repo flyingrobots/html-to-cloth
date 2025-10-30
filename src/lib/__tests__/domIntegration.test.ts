@@ -220,6 +220,7 @@ vi.mock('../clothPhysics', () => {
     public relaxConstraints = vi.fn()
     public setSleepThresholds = vi.fn()
     public isSleeping = vi.fn(() => false)
+    public getPinnedVertexPositions = vi.fn(() => [])
 
     constructor(public mesh: THREE.Mesh) {
       clothMocks.instances.push(this)

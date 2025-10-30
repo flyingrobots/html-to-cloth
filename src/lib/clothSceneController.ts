@@ -560,6 +560,8 @@ export class ClothSceneController {
     item.adapter = adapter
     item.entity = entity
     element.removeEventListener('click', item.clickHandler)
+    // Refresh debug overlay data (pins, snapshot) immediately after activation
+    this.updateOverlayDebug()
   }
 
   private animate() {
