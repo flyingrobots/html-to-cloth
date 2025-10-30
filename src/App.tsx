@@ -362,7 +362,7 @@ function Demo() {
   const [debugOpen, setDebugOpen] = useState(false)
   const [wireframe, setWireframe] = useState(false)
   const [realTime, setRealTime] = useState(true)
-  const [gravity, setGravity] = useState(9.81)
+  const [gravity, setGravity] = useState(2.5)
   const [impulseMultiplier, setImpulseMultiplier] = useState(1)
   const [tessellationSegments, setTessellationSegments] = useState(24)
   const [constraintIterations, setConstraintIterations] = useState(4)

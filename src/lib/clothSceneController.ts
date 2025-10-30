@@ -477,7 +477,11 @@ export class ClothSceneController {
     const gravityVector = new THREE.Vector3(0, -this.debug.gravity, 0)
     cloth.setGravity(gravityVector)
 
-    cloth.addTurbulence(0.06)
+    // Seed a small, size-relative perturbation to avoid perfectly rigid start.
+    // Using a fixed 0.06 meters overwhelmed tiny meshes on some viewports.
+    const sizeHint = Math.max(0.0005, Math.min(record.widthMeters, record.heightMeters))
+    const jitter = Math.min(0.02, sizeHint * 0.2)
+    cloth.addTurbulence(jitter)
     item.releasePinsTimeout = window.setTimeout(() => {
       cloth.releaseAllPins()
       delete item.releasePinsTimeout
