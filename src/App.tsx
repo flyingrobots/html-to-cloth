@@ -1,26 +1,21 @@
 import { useEffect, useRef, useState } from "react"
-import { ThemeProvider } from "@/components/theme-provider"
-import { ModeToggle } from "@/components/mode-toggle"
-import { Button } from "@/components/ui/button"
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog"
 import {
+  MantineProvider,
+  Button,
+  Modal,
   Card,
-  CardContent,
-  CardDescription,
-  CardFooter,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card"
-import { Switch } from "@/components/ui/switch"
-import { Slider } from "@/components/ui/slider"
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuRadioGroup,
-  DropdownMenuRadioItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
-import { ChevronDown } from "lucide-react"
+  Text,
+  Group,
+  Stack,
+  Switch,
+  Slider,
+  Menu,
+  Paper,
+  Affix,
+  Title,
+  Divider,
+} from "@mantine/core"
+import { IconChevronDown } from "@tabler/icons-react"
 
 import { ClothSceneController, type PinMode } from "./lib/clothSceneController"
 import { EngineActions } from "./engine/debug/engineActions"
@@ -29,47 +24,13 @@ import { PRESETS, getPreset } from "./app/presets"
 
 function Kbd({ children }: { children: React.ReactNode }) {
   return (
-    <span className="inline-flex items-center justify-center rounded-md border bg-muted px-2 py-1 font-mono text-xs font-semibold text-muted-foreground">
+    <Paper withBorder radius="sm" px={6} py={2} component="span" style={{ fontFamily: 'monospace', fontSize: 12 }}>
       {children}
-    </span>
+    </Paper>
   )
 }
 
-function DebugPalette({
-  open,
-  onOpenChange,
-  wireframe,
-  onWireframeChange,
-  realTime,
-  onRealTimeChange,
-  gravity,
-  onGravityChange,
-  impulseMultiplier,
-  onImpulseMultiplierChange,
-  tessellationSegments,
-  onTessellationChange,
-  constraintIterations,
-  onConstraintIterationsChange,
-  substeps,
-  onSubstepsChange,
-  sleepVelocity,
-  onSleepVelocityChange,
-  sleepFrames,
-  onSleepFramesChange,
-  warmStartPasses,
-  onWarmStartPassesChange,
-  cameraZoom,
-  onCameraZoomChange,
-  cameraZoomActual,
-  onWarmStartNow,
-  onPresetSelect,
-  pointerColliderVisible,
-  onPointerColliderVisibleChange,
-  pinMode,
-  onPinModeChange,
-  onStep,
-  onReset,
-}: {
+type DebugProps = {
   open: boolean
   onOpenChange: (open: boolean) => void
   wireframe: boolean
@@ -103,7 +64,45 @@ function DebugPalette({
   onPinModeChange: (value: PinMode) => void
   onStep: () => void
   onReset: () => void
-}) {
+}
+
+function DebugPalette(props: DebugProps) {
+  const {
+    open,
+    onOpenChange,
+    wireframe,
+    onWireframeChange,
+    realTime,
+    onRealTimeChange,
+    gravity,
+    onGravityChange,
+    impulseMultiplier,
+    onImpulseMultiplierChange,
+    tessellationSegments,
+    onTessellationChange,
+    constraintIterations,
+    onConstraintIterationsChange,
+    substeps,
+    onSubstepsChange,
+    sleepVelocity,
+    onSleepVelocityChange,
+    sleepFrames,
+    onSleepFramesChange,
+    warmStartPasses,
+    onWarmStartPassesChange,
+    cameraZoom,
+    onCameraZoomChange,
+    cameraZoomActual,
+    onWarmStartNow,
+    onPresetSelect,
+    pointerColliderVisible,
+    onPointerColliderVisibleChange,
+    pinMode,
+    onPinModeChange,
+    onStep,
+    onReset,
+  } = props
+
   const pinModeLabels: Record<PinMode, string> = {
     top: "Top Edge",
     bottom: "Bottom Edge",
@@ -112,246 +111,146 @@ function DebugPalette({
   }
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent
-        className="max-w-sm md:max-w-md border-none bg-background p-0 max-h-[85vh] overflow-y-auto"
-        aria-describedby="debug-desc"
-      >
-        <DialogHeader className="sr-only">
-          <DialogTitle>Debug Settings</DialogTitle>
-          <DialogDescription id="debug-desc">Simulation and render controls</DialogDescription>
-        </DialogHeader>
-        <Card>
-          <CardHeader>
-            <CardTitle>Debug Settings</CardTitle>
-            <CardDescription>Control simulation parameters</CardDescription>
-          </CardHeader>
-          <CardContent className="grid gap-6">
-            <div className="space-y-2">
-              <div className="flex items-center justify-between text-sm font-medium">
-                <span>Preset</span>
-                <span className="text-muted-foreground">Quick configuration</span>
-              </div>
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button variant="outline" className="w-full justify-between">
-                    Choose Preset
-                    <ChevronDown className="size-4 opacity-70" />
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="start" className="w-48">
-                  <DropdownMenuRadioGroup value="" onValueChange={(value) => onPresetSelect?.(value)}>
-                    {PRESETS.map((p) => (
-                      <DropdownMenuRadioItem key={p.name} value={p.name}>
-                        {p.name}
-                      </DropdownMenuRadioItem>
-                    ))}
-                  </DropdownMenuRadioGroup>
-                </DropdownMenuContent>
-              </DropdownMenu>
-            </div>
-            <div className="flex items-center justify-between gap-4">
+    <Modal opened={open} onClose={() => onOpenChange(false)} withCloseButton={false} size="md" yOffset="5vh">
+      <Card withBorder>
+        <Stack gap="md">
+          <div>
+            <Title order={3}>Debug Settings</Title>
+            <Text c="dimmed" size="sm">Control simulation parameters</Text>
+          </div>
+          <Stack gap="md">
+            <Group justify="space-between" align="flex-start">
               <div>
-                <p className="font-semibold leading-none">Wireframe</p>
-                <p className="text-sm text-muted-foreground">Toggle mesh rendering as wireframe</p>
+                <Text fw={600}>Presets</Text>
+                <Text size="sm" c="dimmed">Quick configuration</Text>
               </div>
-              <Switch aria-label="Wireframe" checked={wireframe} onCheckedChange={onWireframeChange} />
-            </div>
-            <div className="flex items-center justify-between gap-4">
+              <Menu withinPortal>
+                <Menu.Target>
+                  <Button variant="default" rightSection={<IconChevronDown size={16} />}>Choose Preset</Button>
+                </Menu.Target>
+                <Menu.Dropdown>
+                  {PRESETS.map((p) => (
+                    <Menu.Item key={p.name} onClick={() => onPresetSelect?.(p.name)}>{p.name}</Menu.Item>
+                  ))}
+                </Menu.Dropdown>
+              </Menu>
+            </Group>
+            <Group justify="space-between">
               <div>
-                <p className="font-semibold leading-none">Real-Time</p>
-                <p className="text-sm text-muted-foreground">Pause simulation to step manually</p>
+                <Text fw={600}>Wireframe</Text>
+                <Text size="sm" c="dimmed">Toggle mesh rendering as wireframe</Text>
               </div>
-              <Switch aria-label="Real-Time" checked={realTime} onCheckedChange={onRealTimeChange} />
-            </div>
-            <div className="flex items-center justify-between gap-4">
+              <Switch aria-label="Wireframe" checked={wireframe} onChange={(e) => onWireframeChange(e.currentTarget.checked)} />
+            </Group>
+            <Group justify="space-between">
               <div>
-                <p className="font-semibold leading-none">Pointer Collider</p>
-                <p className="text-sm text-muted-foreground">Visualize the pointer collision sphere</p>
+                <Text fw={600}>Real-Time</Text>
+                <Text size="sm" c="dimmed">Pause simulation to step manually</Text>
               </div>
-              <Switch aria-label="Pointer Collider" checked={pointerColliderVisible} onCheckedChange={onPointerColliderVisibleChange} />
-            </div>
-            <div className="space-y-2">
-              <div className="flex items-center justify-between text-sm font-medium">
-                <span>Gravity</span>
-                <span className="text-muted-foreground">{gravity.toFixed(2)} m/s²</span>
-              </div>
-              <Slider
-                aria-label="Gravity"
-                value={[gravity]}
-                min={0}
-                max={30}
-                step={0.5}
-                onValueChange={(value) => onGravityChange(value[0] ?? gravity)}
-              />
-            </div>
-            <div className="space-y-2">
-              <div className="flex items-center justify-between text-sm font-medium">
-                <span>Impulse Multiplier</span>
-                <span className="text-muted-foreground">{impulseMultiplier.toFixed(2)}</span>
-              </div>
-              <Slider
-                aria-label="Impulse Multiplier"
-                value={[impulseMultiplier]}
-                min={0.1}
-                max={3}
-                step={0.1}
-                onValueChange={(value) => onImpulseMultiplierChange(value[0] ?? impulseMultiplier)}
-              />
-            </div>
-            <div className="space-y-2">
-              <div className="flex items-center justify-between text-sm font-medium">
-                <span>Tessellation</span>
-                <span className="text-muted-foreground">
-                  {tessellationSegments} × {tessellationSegments}
-                </span>
-              </div>
-              <Slider
-                aria-label="Tessellation"
-                value={[tessellationSegments]}
-                min={1}
-                max={32}
-                step={1}
-                onValueChange={(value) => onTessellationChange(Math.round(value[0] ?? tessellationSegments))}
-              />
-            </div>
-            <div className="space-y-2">
-              <div className="flex items-center justify-between text-sm font-medium">
-                <span>Constraint Iterations</span>
-                <span className="text-muted-foreground">{constraintIterations}</span>
-              </div>
-              <Slider
-                aria-label="Constraint Iterations"
-                value={[constraintIterations]}
-                min={1}
-                max={12}
-                step={1}
-                onValueChange={(value) => onConstraintIterationsChange(Math.round(value[0] ?? constraintIterations))}
-              />
-            </div>
-            <div className="space-y-2">
-              <div className="flex items-center justify-between text-sm font-medium">
-                <span>Substeps</span>
-                <span className="text-muted-foreground">{substeps}</span>
-              </div>
-              <Slider
-                aria-label="Substeps"
-                value={[substeps]}
-                min={1}
-                max={8}
-                step={1}
-                onValueChange={(value) => onSubstepsChange(Math.round(value[0] ?? substeps))}
-              />
-            </div>
-            <div className="space-y-2">
-              <div className="flex items-center justify-between text-sm font-medium">
-                <span>Sleep Velocity Threshold</span>
-                <span className="text-muted-foreground">{sleepVelocity.toExponential(2)}</span>
-              </div>
-              <Slider
-                aria-label="Sleep Velocity Threshold"
-                value={[sleepVelocity]}
-                min={0}
-                max={0.01}
-                step={0.0005}
-                onValueChange={(value) => onSleepVelocityChange(Number(value[0] ?? sleepVelocity))}
-              />
-            </div>
-            <div className="space-y-2">
-              <div className="flex items-center justify-between text-sm font-medium">
-                <span>Sleep Frame Threshold</span>
-                <span className="text-muted-foreground">{sleepFrames}f</span>
-              </div>
-              <Slider
-                aria-label="Sleep Frame Threshold"
-                value={[sleepFrames]}
-                min={10}
-                max={240}
-                step={10}
-                onValueChange={(value) => onSleepFramesChange(Math.round(value[0] ?? sleepFrames))}
-              />
-            </div>
-            <div className="space-y-2">
-              <div className="flex items-center justify-between text-sm font-medium">
-                <span>Warm Start Passes</span>
-                <span className="text-muted-foreground">{warmStartPasses}</span>
-              </div>
-              <Slider
-                value={[warmStartPasses]}
-                min={0}
-                max={6}
-                step={1}
-                aria-label="Warm Start Passes"
-                onValueChange={(value) => onWarmStartPassesChange(Math.round(value[0] ?? warmStartPasses))}
-              />
+              <Switch aria-label="Real-Time" checked={realTime} onChange={(e) => onRealTimeChange(e.currentTarget.checked)} />
+            </Group>
+            <Group justify="space-between">
               <div>
-                <Button variant="secondary" onClick={() => onWarmStartNow?.()} className="justify-self-start">
-                  Warm Start Now
-                </Button>
+                <Text fw={600}>Pointer Collider</Text>
+                <Text size="sm" c="dimmed">Visualize the pointer collision sphere</Text>
               </div>
+              <Switch aria-label="Pointer Collider" checked={pointerColliderVisible} onChange={(e) => onPointerColliderVisibleChange(e.currentTarget.checked)} />
+            </Group>
+            <div>
+              <Group justify="space-between">
+                <Text fw={500}>Gravity</Text>
+                <Text c="dimmed">{gravity.toFixed(2)} m/s²</Text>
+              </Group>
+              <Slider aria-label="Gravity" value={gravity} min={0} max={30} step={0.5} onChange={onGravityChange} />
             </div>
-          <div className="space-y-2">
-            <div className="flex items-center justify-between text-sm font-medium">
-              <span>Camera Zoom</span>
-              <span className="text-muted-foreground">{cameraZoom.toFixed(2)}×</span>
+            <div>
+              <Group justify="space-between">
+                <Text fw={500}>Impulse Multiplier</Text>
+                <Text c="dimmed">{impulseMultiplier.toFixed(2)}</Text>
+              </Group>
+              <Slider aria-label="Impulse Multiplier" value={impulseMultiplier} min={0.1} max={3} step={0.1} onChange={onImpulseMultiplierChange} />
             </div>
-          <Slider
-            aria-label="Camera Zoom"
-            value={[cameraZoom]}
-            min={0.5}
-            max={3}
-            step={0.1}
-            onValueChange={(value) => onCameraZoomChange(value[0] ?? cameraZoom)}
-          />
-        </div>
-            <div className="space-y-1">
-              <div className="flex items-center justify-between text-sm font-medium">
-                <span>Camera Zoom (Actual)</span>
-                <span className="text-muted-foreground">{cameraZoomActual.toFixed(2)}×</span>
-              </div>
+            <div>
+              <Group justify="space-between">
+                <Text fw={500}>Tessellation</Text>
+                <Text c="dimmed">{tessellationSegments} × {tessellationSegments}</Text>
+              </Group>
+              <Slider aria-label="Tessellation" value={tessellationSegments} min={1} max={32} step={1} onChange={(v) => onTessellationChange(Math.round(v))} />
             </div>
-            <div className="space-y-2">
-              <div className="flex items-center justify-between text-sm font-medium">
-                <span>Pin Mode</span>
-                <span className="text-muted-foreground">{pinModeLabels[pinMode]}</span>
-              </div>
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button variant="outline" className="w-full justify-between">
-                    {pinModeLabels[pinMode]}
-                    <ChevronDown className="size-4 opacity-70" />
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="start" className="w-48">
-                  <DropdownMenuRadioGroup
-                    value={pinMode}
-                    onValueChange={(value) => onPinModeChange(value as PinMode)}
-                  >
-                    <DropdownMenuRadioItem value="top">Top Edge</DropdownMenuRadioItem>
-                    <DropdownMenuRadioItem value="bottom">Bottom Edge</DropdownMenuRadioItem>
-                    <DropdownMenuRadioItem value="corners">Corners</DropdownMenuRadioItem>
-                    <DropdownMenuRadioItem value="none">None</DropdownMenuRadioItem>
-                  </DropdownMenuRadioGroup>
-                </DropdownMenuContent>
-              </DropdownMenu>
+            <div>
+              <Group justify="space-between">
+                <Text fw={500}>Constraint Iterations</Text>
+                <Text c="dimmed">{constraintIterations}</Text>
+              </Group>
+              <Slider aria-label="Constraint Iterations" value={constraintIterations} min={1} max={12} step={1} onChange={(v) => onConstraintIterationsChange(Math.round(v))} />
             </div>
-            {!realTime ? (
-              <Button variant="secondary" onClick={onStep} className="justify-self-start">
-                Step (Space)
-              </Button>
-            ) : null}
-          </CardContent>
-          <CardFooter className="flex justify-end gap-2">
-            <Button variant="ghost" onClick={() => onOpenChange(false)}>
-              Close
-            </Button>
-            <Button variant="outline" onClick={onReset}>
-              Reset
-            </Button>
-          </CardFooter>
-        </Card>
-      </DialogContent>
-    </Dialog>
+            <div>
+              <Group justify="space-between">
+                <Text fw={500}>Substeps</Text>
+                <Text c="dimmed">{substeps}</Text>
+              </Group>
+              <Slider aria-label="Substeps" value={substeps} min={1} max={8} step={1} onChange={(v) => onSubstepsChange(Math.round(v))} />
+            </div>
+            <div>
+              <Group justify="space-between">
+                <Text fw={500}>Sleep Velocity Threshold</Text>
+                <Text c="dimmed">{sleepVelocity.toExponential(2)}</Text>
+              </Group>
+              <Slider aria-label="Sleep Velocity Threshold" value={sleepVelocity} min={0} max={0.01} step={0.0005} onChange={(v) => onSleepVelocityChange(Number(v))} />
+            </div>
+            <div>
+              <Group justify="space-between">
+                <Text fw={500}>Sleep Frame Threshold</Text>
+                <Text c="dimmed">{sleepFrames}f</Text>
+              </Group>
+              <Slider aria-label="Sleep Frame Threshold" value={sleepFrames} min={10} max={240} step={10} onChange={(v) => onSleepFramesChange(Math.round(v))} />
+            </div>
+            <div>
+              <Group justify="space-between">
+                <Text fw={500}>Warm Start Passes</Text>
+                <Text c="dimmed">{warmStartPasses}</Text>
+              </Group>
+              <Slider aria-label="Warm Start Passes" value={warmStartPasses} min={0} max={6} step={1} onChange={(v) => onWarmStartPassesChange(Math.round(v))} />
+              <Button variant="default" onClick={() => onWarmStartNow?.()}>Warm Start Now</Button>
+            </div>
+            <div>
+              <Group justify="space-between">
+                <Text fw={500}>Camera Zoom</Text>
+                <Text c="dimmed">{cameraZoom.toFixed(2)}×</Text>
+              </Group>
+              <Slider aria-label="Camera Zoom" value={cameraZoom} min={0.5} max={3} step={0.1} onChange={onCameraZoomChange} />
+            </div>
+            <Group justify="space-between">
+              <Text fw={500}>Camera Zoom (Actual)</Text>
+              <Text c="dimmed">{cameraZoomActual.toFixed(2)}×</Text>
+            </Group>
+            <div>
+              <Group justify="space-between">
+                <Text fw={500}>Pin Mode</Text>
+                <Text c="dimmed">{pinModeLabels[pinMode]}</Text>
+              </Group>
+              <Menu withinPortal>
+                <Menu.Target>
+                  <Button variant="default" rightSection={<IconChevronDown size={16} />}>{pinModeLabels[pinMode]}</Button>
+                </Menu.Target>
+                <Menu.Dropdown>
+                  <Menu.Item onClick={() => onPinModeChange('top')}>Top Edge</Menu.Item>
+                  <Menu.Item onClick={() => onPinModeChange('bottom')}>Bottom Edge</Menu.Item>
+                  <Menu.Item onClick={() => onPinModeChange('corners')}>Corners</Menu.Item>
+                  <Menu.Item onClick={() => onPinModeChange('none')}>None</Menu.Item>
+                </Menu.Dropdown>
+              </Menu>
+            </div>
+            {!realTime ? <Button variant="default" onClick={onStep}>Step (Space)</Button> : null}
+          </Stack>
+          <Divider />
+          <Group justify="flex-end">
+            <Button variant="default" onClick={() => onOpenChange(false)}>Close</Button>
+            <Button variant="outline" onClick={onReset}>Reset</Button>
+          </Group>
+        </Stack>
+      </Card>
+    </Modal>
   )
 }
 
@@ -373,43 +272,34 @@ function Demo() {
   const [cameraZoom, setCameraZoom] = useState(1)
   const [cameraZoomActual, setCameraZoomActual] = useState(1)
   const [pointerColliderVisible, setPointerColliderVisible] = useState(false)
-  const [pinMode, setPinMode] = useState<PinMode>("top")
+  const [pinMode, setPinMode] = useState<PinMode>('top')
 
   useEffect(() => {
-    if (typeof window === "undefined") return
-    const prefersReducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)")
-    if (prefersReducedMotion.matches) return
-
     const controller = new ClothSceneController()
     controllerRef.current = controller
-    void controller.init().then(async () => {
+    controller.init().then(() => {
       try {
-        const { RenderSettingsState } = await import('./engine/render/RenderSettingsState')
-        actionsRef.current = new EngineActions({
+        const actions = new EngineActions({
           runner: controller.getRunner(),
           world: controller.getEngine(),
           camera: controller.getCameraSystem() ?? undefined,
           simulation: controller.getSimulationSystem() ?? undefined,
           overlay: controller.getOverlayState() ?? undefined,
-          renderSettings: new RenderSettingsState(),
+          renderSettings: undefined,
           setTessellation: (segments: number) => controller.setTessellationSegments(segments),
           setPinMode: (mode) => controller.setPinMode(mode),
         })
-        // Seed camera zoom target; inspector will poll after changes.
+        actionsRef.current = actions
         actionsRef.current.setCameraTargetZoom(cameraZoom)
-        // Seed inspector from snapshot if available.
         const snap = actionsRef.current.getCameraSnapshot?.()
         if (snap && typeof snap.zoom === 'number') {
           setCameraZoomActual(snap.zoom)
         }
-        // Seed gravity and iterations to reflect UI defaults.
         actionsRef.current.setGravityScalar(gravity)
         actionsRef.current.setConstraintIterations(constraintIterations)
-        // Seed sleep thresholds default for new activations and current bodies.
         controller.setSleepConfig({ velocityThreshold: sleepVelocity, frameThreshold: sleepFrames })
         actionsRef.current.setSleepConfig(sleepVelocity, sleepFrames)
       } catch (err) {
-        // In tests or reduced-motion scenarios, controller internals may be absent.
         if (import.meta?.env?.MODE !== 'test') {
           console.warn('EngineActions init failed:', err)
         }
@@ -451,12 +341,9 @@ function Demo() {
     if (!actionsRef.current) controllerRef.current?.setRealTime(realTime)
   }, [realTime])
 
-  // Keep the feel from the earlier xforms work: when the debug drawer is open,
-  // pause the simulation (remembering prior real-time state) and hide the pointer gizmo.
   useEffect(() => {
     const actions = actionsRef.current
     if (!actions) return
-    // Track whether we forced a pause so we can restore it on close
     let forcedPause = false
     if (debugOpen) {
       if (realTimeRef.current) {
@@ -470,7 +357,6 @@ function Demo() {
       actions.setPointerOverlayVisible(pointerColliderVisible)
     }
     return () => {
-      // If we forced a pause due to opening the drawer within this effect run, restore it when closing/unmounting.
       if (forcedPause) {
         actions.setRealTime(true)
         realTimeRef.current = true
@@ -494,7 +380,6 @@ function Demo() {
   }, [constraintIterations])
 
   useEffect(() => {
-    // Update default + broadcast when sleep thresholds change
     controllerRef.current?.setSleepConfig({ velocityThreshold: sleepVelocity, frameThreshold: sleepFrames })
     actionsRef.current?.setSleepConfig(sleepVelocity, sleepFrames)
   }, [sleepVelocity, sleepFrames])
@@ -539,27 +424,30 @@ function Demo() {
     if (!actionsRef.current) controllerRef.current?.setPinMode(pinMode)
   }, [pinMode])
 
-  const modifierKey =
-    typeof navigator !== "undefined" && navigator?.platform?.toLowerCase().includes("mac") ? "⌘" : "Ctrl"
+  const modifierKey = typeof navigator !== "undefined" && navigator?.platform?.toLowerCase().includes("mac") ? "⌘" : "Ctrl"
 
   return (
     <>
-      <div className="fixed right-6 top-6 z-40">
-        <ModeToggle />
-      </div>
-      <main className="flex min-h-screen flex-col items-center justify-center gap-6 bg-[radial-gradient(circle_at_top,#eef2ff_0%,#f8fafc_100%)] px-6 py-12 text-center text-slate-900 dark:bg-[radial-gradient(circle_at_top,#0f172a_0%,#1e293b_100%)] dark:text-slate-100">
-        <h1 className="text-4xl font-bold md:text-5xl">Cloth Playground</h1>
-        <p className="max-w-xl text-sm text-slate-600 dark:text-slate-300 md:text-base">
-          This minimal scene keeps the DOM simple while we tune the cloth overlay. Click the button below to peel it
-          away.
-        </p>
-        <Button className="cloth-enabled px-8 py-6 text-base font-semibold shadow-lg" size="lg">
-          Peel Back
-        </Button>
-      </main>
-      <div className="fixed bottom-6 left-1/2 z-40 -translate-x-1/2 rounded-full bg-slate-900/85 px-4 py-2 text-sm text-slate-100 shadow-lg backdrop-blur">
-        Press <Kbd>{modifierKey}</Kbd> + <Kbd>J</Kbd> to open the debug palette
-      </div>
+      <Group justify="center" style={{ minHeight: '100vh' }}>
+        <Stack align="center" gap="md">
+          <Title order={1}>Cloth Playground</Title>
+          <Text size="sm" maw={560} ta="center">
+            This minimal scene keeps the DOM simple while we tune the cloth overlay. Click the button below to peel it away.
+          </Text>
+          <Button className="cloth-enabled" size="lg">Peel Back</Button>
+        </Stack>
+      </Group>
+      <Affix position={{ bottom: 24, left: '50%' as any }}>
+        <Paper radius="xl" px="md" py={8} withBorder>
+          <Group gap={6} align="center">
+            <Text size="sm">Press</Text>
+            <Kbd>{modifierKey}</Kbd>
+            <Text size="sm">+</Text>
+            <Kbd>J</Kbd>
+            <Text size="sm">to open the debug palette</Text>
+          </Group>
+        </Paper>
+      </Affix>
       <DebugPalette
         open={debugOpen}
         onOpenChange={setDebugOpen}
@@ -613,7 +501,6 @@ function Demo() {
           setCameraZoom(1)
           setPointerColliderVisible(false)
           setPinMode("top")
-          // Apply seeded defaults
           controllerRef.current?.setSleepConfig({ velocityThreshold: 0.001, frameThreshold: 60 })
           actionsRef.current?.setSleepConfig(0.001, 60)
         }}
@@ -624,9 +511,9 @@ function Demo() {
 
 function App() {
   return (
-    <ThemeProvider defaultTheme="dark" storageKey="vite-ui-theme">
+    <MantineProvider defaultColorScheme="dark">
       <Demo />
-    </ThemeProvider>
+    </MantineProvider>
   )
 }
 

@@ -71,7 +71,7 @@ describe('Debug UI → EngineActions integration (App)', () => {
     // Open the debug palette via keyboard shortcut
     fireEvent.keyDown(window, { key: 'j', ctrlKey: true })
 
-    // Find the Real-Time row and toggle the switch via role
+    // Find the Real-Time row and toggle (Mantine Switch input role is "switch")
     const realTimeLabel = await screen.findByText('Real-Time')
     const row = realTimeLabel.closest('div')?.parentElement as HTMLElement
     const switchEl = within(row).getByRole('switch')
@@ -172,7 +172,8 @@ describe('Debug UI → EngineActions integration (App)', () => {
     const trigger = within(pinRow).getByRole('button')
     await user.click(trigger)
 
-    const corners = await screen.findByRole('menuitemradio', { name: 'Corners' })
+    // Mantine Menu uses generic menu items; select by text
+    const corners = await screen.findByText('Corners')
     await user.click(corners)
 
     await Promise.resolve()

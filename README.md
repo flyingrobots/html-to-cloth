@@ -8,7 +8,7 @@ A portfolio playground that hides a WebGL cloth simulation beneath an accessible
 
 | Layer | Responsibilities | Source |
 | ----- | ---------------- | ------ |
-| UI / DOM | captures elements, handles pointer input, debug UI | `src/lib/clothSceneController.ts` + React components |
+| UI / DOM | captures elements, handles pointer input, debug UI | `src/lib/clothSceneController.ts` + React components (Mantine) |
 | Render | applies camera snapshot to DOMToWebGL and renders each frame | `src/engine/render/worldRendererSystem.ts`, `src/lib/domToWebGL.ts` |
 | Camera | spring camera with read-only snapshots | `src/engine/camera/CameraSystem.ts`, `src/engine/camera/CameraSpring.ts` |
 | Simulation | cloth physics, collision clamps, sleep/wake, scheduler | `src/lib/clothPhysics.ts`, `src/lib/simWorld.ts`, `src/lib/collisionSystem.ts` |
@@ -34,7 +34,7 @@ npm run docs:api   # generate Markdown API reference via TypeDoc
 
 Key entry points:
 
-- `src/App.tsx` – React shell + debug drawer wiring.
+- `src/App.tsx` – React shell + debug drawer wiring (Mantine components, zero custom CSS).
 - `src/lib/clothSceneController.ts` – DOM orchestration + simulation delegation (rendering handled by a system).
 - `src/engine/render/worldRendererSystem.ts` – applies the camera snapshot and calls DOMToWebGL render.
 - `src/engine/camera/CameraSystem.ts` – spring-based camera that exposes read-only snapshots.
@@ -47,6 +47,10 @@ Key entry points:
 - Integration suite (`src/lib/__tests__/domIntegration.test.ts`) verifies DOM capture, activation lifecycle, pointer wakeups, offscreen recycling, and debug controls.
 - App UI tests (`src/app/__tests__/debugActions.test.tsx`) assert that the debug palette routes actions into the engine (real-time, substeps, camera zoom, gravity, iterations).
 - Render-while-paused integration (`src/engine/render/__tests__/pausedRenderIntegration.test.ts`) verifies the render system still runs during `engine.frame(dt)` when real-time is disabled.
+
+## UI Library
+
+The app uses Mantine (no Tailwind, no shadcn/ui). We avoid custom CSS entirely and compose the debug UI purely from Mantine components and props. Global styles come from `@mantine/core/styles.css` imported in `src/main.tsx`.
 
 ## Debug Presets
 
