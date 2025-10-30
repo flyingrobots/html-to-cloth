@@ -448,6 +448,34 @@ function Demo() {
     if (!actionsRef.current) controllerRef.current?.setRealTime(realTime)
   }, [realTime])
 
+  // Keep the feel from the earlier xforms work: when the debug drawer is open,
+  // pause the simulation (remembering prior real-time state) and hide the pointer gizmo.
+  useEffect(() => {
+    const actions = actionsRef.current
+    if (!actions) return
+    // Track whether we forced a pause so we can restore it on close
+    let forcedPause = false
+    if (debugOpen) {
+      if (realTimeRef.current) {
+        actions.setRealTime(false)
+        realTimeRef.current = false
+        forcedPause = true
+        setRealTime(false)
+      }
+      actions.setPointerOverlayVisible(false)
+    } else {
+      actions.setPointerOverlayVisible(pointerColliderVisible)
+    }
+    return () => {
+      // If we forced a pause due to opening the drawer within this effect run, restore it when closing/unmounting.
+      if (forcedPause) {
+        actions.setRealTime(true)
+        realTimeRef.current = true
+        setRealTime(true)
+      }
+    }
+  }, [debugOpen, pointerColliderVisible])
+
   useEffect(() => {
     actionsRef.current?.setGravityScalar(gravity)
     if (!actionsRef.current) controllerRef.current?.setGravity(gravity)

@@ -82,12 +82,25 @@ export class DOMToWebGL {
   async captureElement(element: HTMLElement) {
     const html2canvas = await this.ensureHtml2Canvas()
 
-    const canvas = await html2canvas(element, {
-      backgroundColor: null,
-      scale: window.devicePixelRatio,
-      logging: false,
-      useCORS: true,
-    })
+    // Ensure the element is visible during capture to avoid transparent textures
+    const prev = {
+      visibility: element.style.visibility,
+      opacity: element.style.opacity,
+    }
+    element.style.visibility = element.style.visibility || 'visible'
+    element.style.opacity = element.style.opacity || '1'
+    let canvas: HTMLCanvasElement
+    try {
+      canvas = await html2canvas(element, {
+        backgroundColor: null,
+        scale: window.devicePixelRatio,
+        logging: false,
+        useCORS: true,
+      })
+    } finally {
+      element.style.visibility = prev.visibility
+      element.style.opacity = prev.opacity
+    }
 
     const texture = new THREE.CanvasTexture(canvas)
     texture.needsUpdate = true
