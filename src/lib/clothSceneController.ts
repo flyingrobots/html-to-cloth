@@ -566,7 +566,12 @@ export class ClothSceneController {
     const record = this.pool.getRecord(element)
     if (!record) return
 
+    // Defensive: recycle static mount before switching the mesh into "cloth" mode to avoid any
+    // possibility of a duplicate staying behind due to external mounts.
+    try { this.pool.recycle(element) } catch {}
     this.pool.resetGeometry(element)
+    // Re-attach the same mesh explicitly so the scene contains exactly one instance.
+    try { this.domToWebGL.addMesh(record.mesh) } catch {}
 
     const cloth = new ClothPhysics(record.mesh, {
       damping: 0.985,
