@@ -74,6 +74,11 @@ class ClothBodyAdapter implements SimBody, Component {
   private _tmpLocalV3B = new THREE.Vector3()
   private _tmpLocalV2 = new THREE.Vector2()
   private _tmpLocalV2B = new THREE.Vector2()
+  // World-space sleep tracking (prevents premature sleep on scaled meshes)
+  private _lastWorldCenter = new THREE.Vector2()
+  private _worldStillFrames = 0
+  private _worldSleepVelThreshold = 0.001
+  private _worldSleepFrameThreshold = 60
 
   constructor(
     id: string,
@@ -91,6 +96,8 @@ class ClothBodyAdapter implements SimBody, Component {
     this.offscreenCallback = handleOffscreen
     this.record = record
     this.debug = debug
+    // Initialize world sleep thresholds from controller defaults
+    this._worldSleepVelThreshold = (window as any).__clothWorldSleepVel ?? 0.001
   }
 
   update(dt: number) {
@@ -118,6 +125,38 @@ class ClothBodyAdapter implements SimBody, Component {
       worldBody.worldToLocalPoint(this._tmpWorldV3, this._tmpLocalV3)
       boundary = this._tmpLocalV3.y
     }
+    // World-space sleep guard: keep cloth awake until it remains still in world space
+    if (typeof (cloth as any).getBoundingSphere === 'function') {
+      const localCenter = (cloth as any).getBoundingSphere().center as { x: number; y: number }
+      let worldCenter = this._tmpLocalV2
+      if (worldBody) {
+        const w = worldBody.localToWorldPoint(
+          this._tmpLocalV3.set(localCenter.x, localCenter.y, 0),
+          this._tmpWorldV3
+        )
+        worldCenter = this._tmpLocalV2.set(w.x, w.y)
+      } else {
+        // Fallback: treat local as world when no transform is present
+        worldCenter = this._tmpLocalV2.set(localCenter.x, localCenter.y)
+      }
+      const dx = worldCenter.x - this._lastWorldCenter.x
+      const dy = worldCenter.y - this._lastWorldCenter.y
+      const deltaSq = dx * dx + dy * dy
+      // scale threshold by dt to approximate velocity threshold per frame
+      const v = this._worldSleepVelThreshold * Math.max(1e-6, dt)
+      if (deltaSq >= v * v) {
+        this._worldStillFrames = 0
+        cloth.wake()
+      } else {
+        this._worldStillFrames += 1
+        // Guard: keep cloth awake until world-still for N frames
+        if (this._worldStillFrames < this._worldSleepFrameThreshold) {
+          cloth.wake()
+        }
+      }
+      this._lastWorldCenter.copy(worldCenter)
+    }
+
     if (cloth.isOffscreen(boundary)) {
       this.offscreenCallback()
     }
@@ -145,6 +184,9 @@ class ClothBodyAdapter implements SimBody, Component {
     const cloth = this.item.cloth
     if (!cloth) return
     cloth.setSleepThresholds(config.velocityThreshold, config.frameThreshold)
+    // Keep adapter thresholds in sync for world-space sleep guarding
+    this._worldSleepVelThreshold = config.velocityThreshold
+    this._worldSleepFrameThreshold = config.frameThreshold
   }
 
   setConstraintIterations(iterations: number) {
