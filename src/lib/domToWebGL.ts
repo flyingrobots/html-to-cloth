@@ -58,7 +58,8 @@ export class DOMToWebGL {
     this.renderer.domElement.style.pointerEvents = 'none'
     this.renderer.domElement.style.width = '100vw'
     this.renderer.domElement.style.height = '100vh'
-    this.renderer.domElement.style.zIndex = '9999'
+    // Keep WebGL overlay above page DOM but below debug UI drawers/modals
+    this.renderer.domElement.style.zIndex = '1000'
 
     this.rootGroup = new THREE.Group()
     this.scene.add(this.rootGroup)

@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react"
 import {
   MantineProvider,
   Button,
-  Modal,
+  Drawer,
   Card,
   Text,
   Group,
@@ -111,8 +111,8 @@ function DebugPalette(props: DebugProps) {
   }
 
   return (
-    <Modal opened={open} onClose={() => onOpenChange(false)} withCloseButton={false} size="md" yOffset="5vh">
-      <Card withBorder>
+    <Drawer opened={open} onClose={() => onOpenChange(false)} position="right" size={380} withCloseButton zIndex={2100}>
+      <Card withBorder shadow="sm">
         <Stack gap="md">
           <Stack gap={0}
           >
@@ -265,7 +265,7 @@ function DebugPalette(props: DebugProps) {
           </Group>
         </Stack>
       </Card>
-    </Modal>
+    </Drawer>
   )
 }
 
