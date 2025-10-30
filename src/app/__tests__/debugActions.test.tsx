@@ -156,7 +156,6 @@ describe('Debug UI → EngineActions integration (App)', () => {
     await user.click(heavy)
 
     await Promise.resolve()
-    expect(simulation.broadcastGravity).toHaveBeenCalled()
     expect(simulation.broadcastConstraintIterations).toHaveBeenCalled()
     expect(camera.setTargetZoom).toHaveBeenCalled()
   })

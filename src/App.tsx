@@ -529,7 +529,6 @@ function Demo() {
         onPresetSelect={(name: string) => {
           const p = getPreset(name)
           if (!p) return
-          setGravity(p.gravity)
           setConstraintIterations(p.iterations)
           setSleepVelocity(p.sleepVelocity)
           setSleepFrames(p.sleepFrames)
