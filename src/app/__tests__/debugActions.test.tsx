@@ -150,10 +150,9 @@ describe('Debug UI → EngineActions integration (App)', () => {
     fireEvent.keyDown(window, { key: 'j', ctrlKey: true })
 
     const user = userEvent.setup()
-    const presetBtn = await screen.findByText('Choose Preset')
-    await user.click(presetBtn)
-    // Try text first, then role fallback
-    const heavy = (await screen.findAllByText('Heavy'))[0]
+    const select = await screen.findByPlaceholderText('Choose preset')
+    await user.click(select)
+    const heavy = await screen.findByRole('option', { name: 'Heavy' })
     await user.click(heavy)
 
     await Promise.resolve()

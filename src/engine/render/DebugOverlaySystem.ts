@@ -49,8 +49,8 @@ export class DebugOverlaySystem implements EngineSystem {
 
     // Only render debug gizmos when explicitly visible
     if (visible) {
-      this.drawAABBs(true)
-      this.drawSimCircles(true)
+      this.drawAABBs(!!this.state.drawAABBs)
+      this.drawSimCircles(!!this.state.drawSleep)
     } else {
       this.drawAABBs(false)
       this.drawSimCircles(false)

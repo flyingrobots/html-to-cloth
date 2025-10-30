@@ -9,13 +9,12 @@ import {
   Stack,
   Switch,
   Slider,
-  Menu,
   Paper,
   Affix,
   Title,
   Divider,
+  Select,
 } from "@mantine/core"
-import { IconChevronDown } from "@tabler/icons-react"
 
 import { ClothSceneController, type PinMode } from "./lib/clothSceneController"
 import { EngineActions } from "./engine/debug/engineActions"
@@ -60,6 +59,10 @@ type DebugProps = {
   onPresetSelect?: (name: string) => void
   pointerColliderVisible: boolean
   onPointerColliderVisibleChange: (value: boolean) => void
+  drawAABBs: boolean
+  onDrawAABBsChange: (value: boolean) => void
+  drawSleep: boolean
+  onDrawSleepChange: (value: boolean) => void
   pinMode: PinMode
   onPinModeChange: (value: PinMode) => void
   onStep: () => void
@@ -103,12 +106,7 @@ function DebugPalette(props: DebugProps) {
     onReset,
   } = props
 
-  const pinModeLabels: Record<PinMode, string> = {
-    top: "Top Edge",
-    bottom: "Bottom Edge",
-    corners: "Corners",
-    none: "None",
-  }
+  // (labels kept close to Select entries)
 
   return (
     <Drawer
@@ -129,23 +127,16 @@ function DebugPalette(props: DebugProps) {
             <Text c="dimmed" size="sm">Control simulation parameters</Text>
           </Stack>
           <Stack gap="md">
-            <Group justify="space-between" align="flex-start">
-              <Stack gap={0}
-              >
-                <Text fw={600}>Presets</Text>
-                <Text size="sm" c="dimmed">Quick configuration</Text>
-              </Stack>
-              <Menu withinPortal>
-                <Menu.Target>
-                  <Button variant="default" rightSection={<IconChevronDown size={16} />}>Choose Preset</Button>
-                </Menu.Target>
-                <Menu.Dropdown>
-                  {PRESETS.map((p) => (
-                    <Menu.Item key={p.name} onClick={() => onPresetSelect?.(p.name)}>{p.name}</Menu.Item>
-                  ))}
-                </Menu.Dropdown>
-              </Menu>
-            </Group>
+            <Stack gap={6}>
+              <Text fw={600}>Presets</Text>
+              <Select
+                aria-label="Presets"
+                placeholder="Choose preset"
+                data={PRESETS.map((p) => ({ value: p.name, label: p.name }))}
+                comboboxProps={{ withinPortal: true, zIndex: 2300 }}
+                onChange={(v) => v && onPresetSelect?.(v)}
+              />
+            </Stack>
             <Group justify="space-between">
               <Stack gap={0}
               >
@@ -169,6 +160,22 @@ function DebugPalette(props: DebugProps) {
                 <Text size="sm" c="dimmed">Visualize the pointer collision sphere</Text>
               </Stack>
               <Switch aria-label="Pointer Collider" checked={pointerColliderVisible} onChange={(e) => onPointerColliderVisibleChange(e.currentTarget.checked)} />
+            </Group>
+            <Group justify="space-between">
+              <Stack gap={0}
+              >
+                <Text fw={600}>Debug AABBs</Text>
+                <Text size="sm" c="dimmed">Draw static collision bounds</Text>
+              </Stack>
+              <Switch aria-label="Debug AABBs" checked={props.drawAABBs} onChange={(e) => props.onDrawAABBsChange(e.currentTarget.checked)} />
+            </Group>
+            <Group justify="space-between">
+              <Stack gap={0}
+              >
+                <Text fw={600}>Sleep State</Text>
+                <Text size="sm" c="dimmed">Color centers (awake vs sleeping)</Text>
+              </Stack>
+              <Switch aria-label="Sleep State" checked={props.drawSleep} onChange={(e) => props.onDrawSleepChange(e.currentTarget.checked)} />
             </Group>
             <Stack gap={4}
             >
@@ -247,23 +254,21 @@ function DebugPalette(props: DebugProps) {
               <Text fw={500}>Camera Zoom (Actual)</Text>
               <Text c="dimmed">{cameraZoomActual.toFixed(2)}×</Text>
             </Group>
-            <Stack gap={4}
-            >
-              <Group justify="space-between">
-                <Text fw={500}>Pin Mode</Text>
-                <Text c="dimmed">{pinModeLabels[pinMode]}</Text>
-              </Group>
-              <Menu withinPortal>
-                <Menu.Target>
-                  <Button variant="default" rightSection={<IconChevronDown size={16} />}>{pinModeLabels[pinMode]}</Button>
-                </Menu.Target>
-                <Menu.Dropdown>
-                  <Menu.Item onClick={() => onPinModeChange('top')}>Top Edge</Menu.Item>
-                  <Menu.Item onClick={() => onPinModeChange('bottom')}>Bottom Edge</Menu.Item>
-                  <Menu.Item onClick={() => onPinModeChange('corners')}>Corners</Menu.Item>
-                  <Menu.Item onClick={() => onPinModeChange('none')}>None</Menu.Item>
-                </Menu.Dropdown>
-              </Menu>
+            <Stack gap={6}>
+              <Text fw={500}>Pin Mode</Text>
+              <Select
+                aria-label="Pin Mode"
+                placeholder="Choose pin"
+                data={[
+                  { value: 'top', label: 'Top Edge' },
+                  { value: 'bottom', label: 'Bottom Edge' },
+                  { value: 'corners', label: 'Corners' },
+                  { value: 'none', label: 'None' },
+                ]}
+                value={pinMode}
+                comboboxProps={{ withinPortal: true, zIndex: 2300 }}
+                onChange={(v) => v && onPinModeChange(v as PinMode)}
+              />
             </Stack>
             {!realTime ? <Button variant="default" onClick={onStep}>Step (Space)</Button> : null}
           </Stack>
@@ -296,6 +301,8 @@ function Demo() {
   const [cameraZoom, setCameraZoom] = useState(1)
   const [cameraZoomActual, setCameraZoomActual] = useState(1)
   const [pointerColliderVisible, setPointerColliderVisible] = useState(false)
+  const [drawAABBs, setDrawAABBs] = useState(false)
+  const [drawSleep, setDrawSleep] = useState(false)
   const [pinMode, setPinMode] = useState<PinMode>('top')
 
   useEffect(() => {
@@ -428,6 +435,16 @@ function Demo() {
   }, [pointerColliderVisible])
 
   useEffect(() => {
+    const overlay = controllerRef.current?.getOverlayState?.() as any
+    if (overlay) overlay.drawAABBs = drawAABBs
+  }, [drawAABBs])
+
+  useEffect(() => {
+    const overlay = controllerRef.current?.getOverlayState?.() as any
+    if (overlay) overlay.drawSleep = drawSleep
+  }, [drawSleep])
+
+  useEffect(() => {
     actionsRef.current?.setPinMode(pinMode)
     if (!actionsRef.current) controllerRef.current?.setPinMode(pinMode)
   }, [pinMode])
@@ -495,6 +512,10 @@ function Demo() {
         }}
         pointerColliderVisible={pointerColliderVisible}
         onPointerColliderVisibleChange={setPointerColliderVisible}
+        drawAABBs={drawAABBs}
+        onDrawAABBsChange={setDrawAABBs}
+        drawSleep={drawSleep}
+        onDrawSleepChange={setDrawSleep}
         pinMode={pinMode}
         onPinModeChange={setPinMode}
         onStep={() => actionsRef.current?.stepOnce()}
