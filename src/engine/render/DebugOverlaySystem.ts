@@ -47,10 +47,14 @@ export class DebugOverlaySystem implements EngineSystem {
       mesh.position.set(this.state.pointer.x, this.state.pointer.y, 0.2)
     }
 
-    // Draw static AABBs
-    this.drawAABBs()
-    // Draw cloth centers with sleeping/awake coloring
-    this.drawSimCircles()
+    // Only render debug gizmos when explicitly visible
+    if (visible) {
+      this.drawAABBs(true)
+      this.drawSimCircles(true)
+    } else {
+      this.drawAABBs(false)
+      this.drawSimCircles(false)
+    }
   }
 
   private ensurePointer() {
@@ -63,13 +67,15 @@ export class DebugOverlaySystem implements EngineSystem {
     return this.pointer
   }
 
-  private drawAABBs() {
+  private drawAABBs(visible: boolean) {
     if (!this.view.scene) return
     if (!this.aabbGroup) {
       this.aabbGroup = new THREE.Group()
       this.aabbGroup.renderOrder = 999
       this.view.scene.add(this.aabbGroup)
     }
+    this.aabbGroup.visible = visible
+    if (!visible) return
     // Rebuild each frame for simplicity (counts are small); could be optimized
     while (this.aabbGroup.children.length) this.aabbGroup.remove(this.aabbGroup.children[0])
     const color = new THREE.Color(0x8888ff)
@@ -93,27 +99,34 @@ export class DebugOverlaySystem implements EngineSystem {
     }
   }
 
-  private drawSimCircles() {
+  private drawSimCircles(visible: boolean) {
     if (!this.view.scene) return
     if (!this.circleGroup) {
       this.circleGroup = new THREE.Group()
       this.circleGroup.renderOrder = 1000
       this.view.scene.add(this.circleGroup)
     }
+    this.circleGroup.visible = visible
+    if (!visible) return
     while (this.circleGroup.children.length) this.circleGroup.remove(this.circleGroup.children[0])
     const snap = this.state.simSnapshot
     if (!snap) return
     for (const body of snap.bodies) {
-      const geom = new THREE.CircleGeometry(body.radius, 48)
-      const mat = new THREE.MeshBasicMaterial({
+      const segments = 64
+      const verts: number[] = []
+      for (let i = 0; i < segments; i++) {
+        const t = (i / segments) * Math.PI * 2
+        verts.push(body.center.x + Math.cos(t) * body.radius, body.center.y + Math.sin(t) * body.radius, 0.1)
+      }
+      const geom = new THREE.BufferGeometry()
+      geom.setAttribute('position', new THREE.Float32BufferAttribute(verts, 3))
+      const mat = new THREE.LineBasicMaterial({
         color: body.sleeping ? 0x55cc55 : 0xff8844,
-        wireframe: true,
         transparent: true,
-        opacity: 0.8,
+        opacity: 0.9,
       })
-      const mesh = new THREE.Mesh(geom, mat)
-      mesh.position.set(body.center.x, body.center.y, 0.1)
-      this.circleGroup.add(mesh)
+      const loop = new THREE.LineLoop(geom, mat)
+      this.circleGroup.add(loop)
     }
   }
 }
