@@ -68,19 +68,20 @@ export class CameraSystem implements EngineSystem<EngineWorld> {
    */
   getSnapshot(): CameraSnapshot {
     const src = this.snapshot
-    const copy = {
+    const copy: MutableCameraSnapshot = {
       position: src.position.clone(),
       velocity: src.velocity.clone(),
       target: src.target.clone(),
       zoom: src.zoom,
       zoomVelocity: src.zoomVelocity,
       targetZoom: src.targetZoom,
-    } as const
+    }
     // Freeze vector objects and the container to prevent mutation.
     Object.freeze(copy.position)
     Object.freeze(copy.velocity)
     Object.freeze(copy.target)
-    return Object.freeze(copy) as unknown as CameraSnapshot
+    const frozen = Object.freeze(copy) as Readonly<MutableCameraSnapshot>
+    return frozen
   }
 
   /**
