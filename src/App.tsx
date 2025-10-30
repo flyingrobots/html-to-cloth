@@ -113,7 +113,10 @@ function DebugPalette({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-md border-none bg-background p-0" aria-describedby="debug-desc">
+      <DialogContent
+        className="max-w-sm md:max-w-md border-none bg-background p-0 max-h-[85vh] overflow-y-auto"
+        aria-describedby="debug-desc"
+      >
         <DialogHeader className="sr-only">
           <DialogTitle>Debug Settings</DialogTitle>
           <DialogDescription id="debug-desc">Simulation and render controls</DialogDescription>
