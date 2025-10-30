@@ -9,7 +9,8 @@ const config: PlaywrightTestConfig = {
     { name: 'firefox', use: { browserName: 'firefox' } },
   ],
   webServer: {
-    command: 'npm run preview',
+    // Build first so a fresh checkout can run tests without manual pre-steps
+    command: 'npm run build && npm run preview',
     port: 4173,
     reuseExistingServer: true,
     timeout: 60_000,
@@ -17,4 +18,3 @@ const config: PlaywrightTestConfig = {
 }
 
 export default config
-
