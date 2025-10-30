@@ -47,7 +47,25 @@ export class DebugOverlaySystem implements EngineSystem {
     if (visible) {
       mesh.position.set(this.state.pointer.x, this.state.pointer.y, 0.2)
       const r = Math.max(0.0005, Math.min(0.2, this.state.pointerRadius || 0.01))
-      mesh.scale.set(r, r, 1)
+      // Compensate for orthographic anisotropy so the circle renders round on any viewport aspect.
+      // px/m along X = viewportWidth / worldWidth; px/m along Y = viewportHeight / worldHeight
+      const cam = this.view.camera
+      const worldWidth = Math.max(1e-6, (cam.right as number) - (cam.left as number))
+      const worldHeight = Math.max(1e-6, (cam.top as number) - (cam.bottom as number))
+      let viewportWidth = 1
+      let viewportHeight = 1
+      const anyView = this.view as unknown as { getViewportPixels?: () => { width: number; height: number } }
+      try {
+        const vp = anyView.getViewportPixels?.()
+        if (vp && vp.width && vp.height) {
+          viewportWidth = vp.width
+          viewportHeight = vp.height
+        }
+      } catch {}
+      const pxPerMeterX = viewportWidth / worldWidth
+      const pxPerMeterY = viewportHeight / worldHeight
+      const k = pxPerMeterX / pxPerMeterY // scale Y to match X pixels-per-meter
+      mesh.scale.set(r, r * k, 1)
     }
     // Render other gizmos independently of pointer visibility
     this.drawAABBs(!!this.state.drawAABBs)
