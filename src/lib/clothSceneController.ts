@@ -15,11 +15,12 @@ import { DebugOverlaySystem } from '../engine/render/DebugOverlaySystem'
 import { DebugOverlayState } from '../engine/render/DebugOverlayState'
 import type { Entity } from '../engine/entity/entity'
 import type { Component } from '../engine/entity/component'
+import type { PinMode } from '../types/pinMode'
 import { SimWorld, type SimBody, type SimWarmStartConfig, type SimSleepConfig } from './simWorld'
 
 const WARM_START_PASSES = 2
 
-export type PinMode = 'top' | 'bottom' | 'corners' | 'none'
+export type { PinMode } from '../types/pinMode'
 
 type DebugSettings = {
   realTime: boolean
