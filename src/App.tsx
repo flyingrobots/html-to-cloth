@@ -24,6 +24,7 @@ import { ChevronDown } from "lucide-react"
 
 import { ClothSceneController, type PinMode } from "./lib/clothSceneController"
 import { EngineActions } from "./engine/debug/engineActions"
+import type { CameraSnapshot } from './engine/camera/CameraSystem'
 import { PRESETS, getPreset } from "./app/presets"
 
 function Kbd({ children }: { children: React.ReactNode }) {
@@ -391,7 +392,7 @@ function Demo() {
           setTessellation: (segments: number) => controller.setTessellationSegments(segments),
           setPinMode: (mode) => controller.setPinMode(mode),
         })
-        // Seed camera zoom so renderer starts from the UI's value.
+        // Seed camera zoom target; inspector will poll after changes.
         actionsRef.current.setCameraTargetZoom(cameraZoom)
         // Seed inspector from snapshot if available.
         const snap = actionsRef.current.getCameraSnapshot?.()
@@ -473,12 +474,25 @@ function Demo() {
   }, [substeps])
 
   useEffect(() => {
-    actionsRef.current?.setCameraTargetZoom(cameraZoom)
-    // Sample snapshot shortly after updating target zoom for inspector display.
-    Promise.resolve().then(() => {
-      const snap = actionsRef.current?.getCameraSnapshot?.()
-      if (snap && typeof snap.zoom === 'number') setCameraZoomActual(snap.zoom)
-    })
+    if (!actionsRef.current) {
+      setCameraZoomActual(cameraZoom)
+      return
+    }
+    actionsRef.current.setCameraTargetZoom(cameraZoom)
+    let rafId = 0
+    type ActionsWithSnapshot = EngineActions & { getCameraSnapshot: () => CameraSnapshot | undefined }
+    const poll = () => {
+      const snap = (actionsRef.current as unknown as ActionsWithSnapshot | null)?.getCameraSnapshot?.()
+      if (snap && typeof snap.zoom === 'number') {
+        setCameraZoomActual(snap.zoom)
+        const animating = Math.abs(snap.zoom - cameraZoom) > 0.01 || Math.abs(snap.zoomVelocity ?? 0) > 0.001
+        if (animating) rafId = requestAnimationFrame(poll)
+      } else {
+        rafId = requestAnimationFrame(poll)
+      }
+    }
+    rafId = requestAnimationFrame(poll)
+    return () => cancelAnimationFrame(rafId)
   }, [cameraZoom])
 
   useEffect(() => {
