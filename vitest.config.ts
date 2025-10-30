@@ -7,6 +7,8 @@ import react from '@vitejs/plugin-react'
 export default defineConfig({
   plugins: [react()],
   test: {
+    // Only collect unit/integration tests under src/, not Playwright e2e in qa/
+    include: ['src/**/*.{test,spec}.{ts,tsx}'],
     environment: 'jsdom',
     setupFiles: ['./vitest.setup.ts'],
     globals: true,

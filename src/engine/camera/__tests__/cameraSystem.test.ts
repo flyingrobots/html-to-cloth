@@ -131,13 +131,26 @@ describe('CameraSystem', () => {
     expect(snapshot.velocity.length()).toBe(0)
   })
 
-  it('reuses snapshot references to minimize allocations', () => {
+  it('returns an immutable deep copy per call (no pooled mutation leakage)', () => {
     const system = new CameraSystem({ position: new THREE.Vector3(0, 0, 0) })
-    const first = system.getSnapshot()
     system.fixedUpdate?.(1 / 60)
-    const second = system.getSnapshot()
+    const first = system.getSnapshot()
+    // Frozen copy and frozen vectors
+    expect(Object.isFrozen(first)).toBe(true)
+    expect(Object.isFrozen(first.position)).toBe(true)
+    expect(Object.isFrozen(first.velocity)).toBe(true)
+    expect(Object.isFrozen(first.target)).toBe(true)
 
-    expect(second).toBe(first)
-    expect(second.position).toBe(first.position)
+    // Attempts to mutate should not corrupt internal state
+    try { (first as any).zoom = 999 } catch { /* expected: frozen */ }
+    try { (first.position as any).x = 999 } catch { /* expected: frozen */ }
+
+    // Next snapshot returns a different object and vectors
+    const second = system.getSnapshot()
+    expect(second).not.toBe(first)
+    expect(second.position).not.toBe(first.position)
+    // Internal values remain finite and not our bogus mutations
+    expect(Number.isFinite(second.zoom)).toBe(true)
+    expect(Math.abs(second.position.x)).toBeLessThan(1000)
   })
 })

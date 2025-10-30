@@ -5,7 +5,22 @@ import userEvent from '@testing-library/user-event'
 
 // Minimal mock for ClothSceneController so App can run without WebGL/DOM plumbing.
 const runner = { setRealTime: vi.fn(), stepOnce: vi.fn(), setSubsteps: vi.fn() }
-const camera = { setTargetZoom: vi.fn() }
+const cameraSnapshot = {
+  position: { x: 0, y: 0, z: 0, copy() {} },
+  velocity: { x: 0, y: 0, z: 0, copy() {} },
+  target: { x: 0, y: 0, z: 0, copy() {} },
+  zoom: 1,
+  zoomVelocity: 0,
+  targetZoom: 1,
+}
+const camera = {
+  setTargetZoom: vi.fn((z: number) => {
+    cameraSnapshot.targetZoom = z
+    cameraSnapshot.zoom = z
+    cameraSnapshot.zoomVelocity = 0
+  }),
+  getSnapshot: vi.fn(() => cameraSnapshot),
+}
 const simulation = {
   broadcastGravity: vi.fn(),
   broadcastConstraintIterations: vi.fn(),
@@ -68,7 +83,7 @@ describe('Debug UI → EngineActions integration (App)', () => {
     expect(runner.setRealTime).toHaveBeenCalled()
   })
 
-  it('updates camera target zoom via EngineActions when Camera Zoom changes', async () => {
+  it('updates camera target zoom via EngineActions when Camera Zoom changes and inspector reads snapshot', async () => {
     render(<App />)
     fireEvent.keyDown(window, { key: 'j', ctrlKey: true })
 
@@ -80,6 +95,8 @@ describe('Debug UI → EngineActions integration (App)', () => {
 
     await Promise.resolve()
     expect(camera.setTargetZoom).toHaveBeenCalled()
+    // Inspector shows snapshot-derived value row
+    expect(await screen.findByText('Camera Zoom (Actual)')).toBeInTheDocument()
   })
 
   it('broadcasts gravity and constraint iterations via EngineActions when sliders change', async () => {
