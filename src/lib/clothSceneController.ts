@@ -13,6 +13,8 @@ import { CameraSystem } from '../engine/camera/CameraSystem'
 import { WorldRendererSystem } from '../engine/render/worldRendererSystem'
 import { DebugOverlaySystem } from '../engine/render/DebugOverlaySystem'
 import { DebugOverlayState } from '../engine/render/DebugOverlayState'
+import { RenderSettingsSystem } from '../engine/render/RenderSettingsSystem'
+import { RenderSettingsState } from '../engine/render/RenderSettingsState'
 import type { Entity } from '../engine/entity/entity'
 import type { Component } from '../engine/entity/component'
 import type { PinMode } from '../types/pinMode'
@@ -264,6 +266,8 @@ export class ClothSceneController {
   private worldRenderer: WorldRendererSystem | null = null
   private overlaySystem: DebugOverlaySystem | null = null
   private overlayState: DebugOverlayState | null = null
+  private renderSettingsSystem: RenderSettingsSystem | null = null
+  private renderSettingsState: RenderSettingsState | null = null
   private elementIds = new Map<HTMLElement, string>()
   private onResize = () => this.handleResize()
   private onScroll = () => {
@@ -546,20 +550,24 @@ export class ClothSceneController {
   private installRenderPipeline() {
     if (!this.domToWebGL) return
     if (this.cameraSystem && this.worldRenderer && this.overlaySystem) return
-    if (this.cameraSystem || this.worldRenderer || this.overlaySystem) {
+    if (this.cameraSystem || this.worldRenderer || this.overlaySystem || this.renderSettingsSystem) {
       if (this.cameraSystem) this.engine.removeSystemInstance(this.cameraSystem)
       if (this.worldRenderer) this.engine.removeSystemInstance(this.worldRenderer)
       if (this.overlaySystem) this.engine.removeSystemInstance(this.overlaySystem)
+      if (this.renderSettingsSystem) this.engine.removeSystemInstance(this.renderSettingsSystem)
       this.cameraSystem = null
       this.worldRenderer = null
       this.overlaySystem = null
+      this.renderSettingsSystem = null
     }
     // Create a camera system and world renderer that reads snapshots each frame.
     this.cameraSystem = new CameraSystem()
     this.worldRenderer = new WorldRendererSystem({ view: this.domToWebGL, camera: this.cameraSystem })
-    // Debug overlay state/system for render-only gizmos (e.g., pointer collider)
+    // Render-only systems: debug overlay + render settings (e.g., wireframe)
     this.overlayState = new DebugOverlayState()
     this.overlaySystem = new DebugOverlaySystem({ view: this.domToWebGL, state: this.overlayState })
+    this.renderSettingsState = new RenderSettingsState()
+    this.renderSettingsSystem = new RenderSettingsSystem({ view: this.domToWebGL, state: this.renderSettingsState })
     // Register with lower priority than simulation so render sees the latest snapshot.
     this.engine.addSystem(this.cameraSystem, {
       id: ClothSceneController.CAMERA_SYSTEM_ID,
@@ -574,6 +582,11 @@ export class ClothSceneController {
     this.engine.addSystem(this.overlaySystem, {
       id: ClothSceneController.OVERLAY_SYSTEM_ID,
       priority: 5,
+      allowWhilePaused: true,
+    })
+    this.engine.addSystem(this.renderSettingsSystem, {
+      id: 'render-settings',
+      priority: 8,
       allowWhilePaused: true,
     })
   }
@@ -596,6 +609,11 @@ export class ClothSceneController {
   /** Returns the overlay state for EngineActions. */
   getOverlayState() {
     return this.overlayState
+  }
+
+  /** Returns the render settings state for EngineActions. */
+  getRenderSettingsState() {
+    return this.renderSettingsState
   }
 
   private syncStaticMeshes() {

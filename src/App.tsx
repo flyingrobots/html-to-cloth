@@ -294,13 +294,14 @@ function Demo() {
     controllerRef.current = controller
     controller.init().then(() => {
       try {
+        const getRS = (controller as any).getRenderSettingsState?.bind(controller)
         const actions = new EngineActions({
           runner: controller.getRunner(),
           world: controller.getEngine(),
           camera: controller.getCameraSystem() ?? undefined,
           simulation: controller.getSimulationSystem() ?? undefined,
           overlay: controller.getOverlayState() ?? undefined,
-          renderSettings: undefined,
+          renderSettings: (typeof getRS === 'function' ? getRS() : undefined) ?? undefined,
           setTessellation: (segments: number) => controller.setTessellationSegments(segments),
           setPinMode: (mode) => controller.setPinMode(mode),
         })
@@ -378,7 +379,7 @@ function Demo() {
         setRealTime(true)
       }
     }
-  }, [debugOpen, pointerColliderVisible])
+  }, [debugOpen])
 
   useEffect(() => {
     actionsRef.current?.setGravityScalar(gravity)
