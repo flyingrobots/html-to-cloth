@@ -2,7 +2,7 @@ import * as THREE from 'three'
 
 import type { SimulationRunner } from '../simulationRunner'
 import type { EngineWorld } from '../world'
-import type { CameraSystem } from '../camera/CameraSystem'
+import type { CameraSystem, CameraSnapshot } from '../camera/CameraSystem'
 import type { SimulationSystem } from '../systems/simulationSystem'
 import { DebugOverlayState } from '../render/DebugOverlayState'
 import { RenderSettingsState } from '../render/RenderSettingsState'
@@ -133,8 +133,11 @@ export class EngineActions {
     return this.world
   }
 
-  /** Returns the latest camera snapshot, if a camera system is present. */
-  getCameraSnapshot() {
-    return this.camera?.getSnapshot?.()
+  /**
+   * Returns an immutable deep copy of the latest camera snapshot when a
+   * camera system is attached. See CameraSystem.getSnapshot() for details.
+   */
+  getCameraSnapshot(): CameraSnapshot | undefined {
+    return this.camera?.getSnapshot()
   }
 }
