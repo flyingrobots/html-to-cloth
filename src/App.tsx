@@ -114,16 +114,18 @@ function DebugPalette(props: DebugProps) {
     <Modal opened={open} onClose={() => onOpenChange(false)} withCloseButton={false} size="md" yOffset="5vh">
       <Card withBorder>
         <Stack gap="md">
-          <div>
+          <Stack gap={0}
+          >
             <Title order={3}>Debug Settings</Title>
             <Text c="dimmed" size="sm">Control simulation parameters</Text>
-          </div>
+          </Stack>
           <Stack gap="md">
             <Group justify="space-between" align="flex-start">
-              <div>
+              <Stack gap={0}
+              >
                 <Text fw={600}>Presets</Text>
                 <Text size="sm" c="dimmed">Quick configuration</Text>
-              </div>
+              </Stack>
               <Menu withinPortal>
                 <Menu.Target>
                   <Button variant="default" rightSection={<IconChevronDown size={16} />}>Choose Preset</Button>
@@ -136,95 +138,108 @@ function DebugPalette(props: DebugProps) {
               </Menu>
             </Group>
             <Group justify="space-between">
-              <div>
+              <Stack gap={0}
+              >
                 <Text fw={600}>Wireframe</Text>
                 <Text size="sm" c="dimmed">Toggle mesh rendering as wireframe</Text>
-              </div>
+              </Stack>
               <Switch aria-label="Wireframe" checked={wireframe} onChange={(e) => onWireframeChange(e.currentTarget.checked)} />
             </Group>
             <Group justify="space-between">
-              <div>
+              <Stack gap={0}
+              >
                 <Text fw={600}>Real-Time</Text>
                 <Text size="sm" c="dimmed">Pause simulation to step manually</Text>
-              </div>
+              </Stack>
               <Switch aria-label="Real-Time" checked={realTime} onChange={(e) => onRealTimeChange(e.currentTarget.checked)} />
             </Group>
             <Group justify="space-between">
-              <div>
+              <Stack gap={0}
+              >
                 <Text fw={600}>Pointer Collider</Text>
                 <Text size="sm" c="dimmed">Visualize the pointer collision sphere</Text>
-              </div>
+              </Stack>
               <Switch aria-label="Pointer Collider" checked={pointerColliderVisible} onChange={(e) => onPointerColliderVisibleChange(e.currentTarget.checked)} />
             </Group>
-            <div>
+            <Stack gap={4}
+            >
               <Group justify="space-between">
                 <Text fw={500}>Gravity</Text>
                 <Text c="dimmed">{gravity.toFixed(2)} m/s²</Text>
               </Group>
               <Slider aria-label="Gravity" value={gravity} min={0} max={30} step={0.5} onChange={onGravityChange} />
-            </div>
-            <div>
+            </Stack>
+            <Stack gap={4}
+            >
               <Group justify="space-between">
                 <Text fw={500}>Impulse Multiplier</Text>
                 <Text c="dimmed">{impulseMultiplier.toFixed(2)}</Text>
               </Group>
               <Slider aria-label="Impulse Multiplier" value={impulseMultiplier} min={0.1} max={3} step={0.1} onChange={onImpulseMultiplierChange} />
-            </div>
-            <div>
+            </Stack>
+            <Stack gap={4}
+            >
               <Group justify="space-between">
                 <Text fw={500}>Tessellation</Text>
                 <Text c="dimmed">{tessellationSegments} × {tessellationSegments}</Text>
               </Group>
               <Slider aria-label="Tessellation" value={tessellationSegments} min={1} max={32} step={1} onChange={(v) => onTessellationChange(Math.round(v))} />
-            </div>
-            <div>
+            </Stack>
+            <Stack gap={4}
+            >
               <Group justify="space-between">
                 <Text fw={500}>Constraint Iterations</Text>
                 <Text c="dimmed">{constraintIterations}</Text>
               </Group>
               <Slider aria-label="Constraint Iterations" value={constraintIterations} min={1} max={12} step={1} onChange={(v) => onConstraintIterationsChange(Math.round(v))} />
-            </div>
-            <div>
+            </Stack>
+            <Stack gap={4}
+            >
               <Group justify="space-between">
                 <Text fw={500}>Substeps</Text>
                 <Text c="dimmed">{substeps}</Text>
               </Group>
               <Slider aria-label="Substeps" value={substeps} min={1} max={8} step={1} onChange={(v) => onSubstepsChange(Math.round(v))} />
-            </div>
-            <div>
+            </Stack>
+            <Stack gap={4}
+            >
               <Group justify="space-between">
                 <Text fw={500}>Sleep Velocity Threshold</Text>
                 <Text c="dimmed">{sleepVelocity.toExponential(2)}</Text>
               </Group>
               <Slider aria-label="Sleep Velocity Threshold" value={sleepVelocity} min={0} max={0.01} step={0.0005} onChange={(v) => onSleepVelocityChange(Number(v))} />
-            </div>
-            <div>
+            </Stack>
+            <Stack gap={4}
+            >
               <Group justify="space-between">
                 <Text fw={500}>Sleep Frame Threshold</Text>
                 <Text c="dimmed">{sleepFrames}f</Text>
               </Group>
               <Slider aria-label="Sleep Frame Threshold" value={sleepFrames} min={10} max={240} step={10} onChange={(v) => onSleepFramesChange(Math.round(v))} />
-            </div>
-            <div>
+            </Stack>
+            <Stack gap={4}
+            >
               <Group justify="space-between">
                 <Text fw={500}>Warm Start Passes</Text>
                 <Text c="dimmed">{warmStartPasses}</Text>
               </Group>
               <Slider aria-label="Warm Start Passes" value={warmStartPasses} min={0} max={6} step={1} onChange={(v) => onWarmStartPassesChange(Math.round(v))} />
               <Button variant="default" onClick={() => onWarmStartNow?.()}>Warm Start Now</Button>
-            </div>
-            <div>
+            </Stack>
+            <Stack gap={4}
+            >
               <Group justify="space-between">
                 <Text fw={500}>Camera Zoom</Text>
                 <Text c="dimmed">{cameraZoom.toFixed(2)}×</Text>
               </Group>
               <Slider aria-label="Camera Zoom" value={cameraZoom} min={0.5} max={3} step={0.1} onChange={onCameraZoomChange} />
-            </div>
+            </Stack>
             <Group justify="space-between">
               <Text fw={500}>Camera Zoom (Actual)</Text>
               <Text c="dimmed">{cameraZoomActual.toFixed(2)}×</Text>
             </Group>
-            <div>
+            <Stack gap={4}
+            >
               <Group justify="space-between">
                 <Text fw={500}>Pin Mode</Text>
                 <Text c="dimmed">{pinModeLabels[pinMode]}</Text>
@@ -240,7 +255,7 @@ function DebugPalette(props: DebugProps) {
                   <Menu.Item onClick={() => onPinModeChange('none')}>None</Menu.Item>
                 </Menu.Dropdown>
               </Menu>
-            </div>
+            </Stack>
             {!realTime ? <Button variant="default" onClick={onStep}>Step (Space)</Button> : null}
           </Stack>
           <Divider />
