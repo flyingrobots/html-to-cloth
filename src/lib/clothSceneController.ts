@@ -66,6 +66,12 @@ class ClothBodyAdapter implements SimBody, Component {
   private offscreenCallback: () => void
   private record: DOMMeshRecord
   private debug: Pick<DebugSettings, 'impulseMultiplier'>
+  private _tmpWorldV3 = new THREE.Vector3()
+  private _tmpWorldV3B = new THREE.Vector3()
+  private _tmpLocalV3 = new THREE.Vector3()
+  private _tmpLocalV3B = new THREE.Vector3()
+  private _tmpLocalV2 = new THREE.Vector2()
+  private _tmpLocalV2B = new THREE.Vector2()
 
   constructor(
     id: string,
@@ -89,18 +95,28 @@ class ClothBodyAdapter implements SimBody, Component {
     const cloth = this.item.cloth
     if (!cloth) return
 
+    const worldBody = this.record.worldBody
+
     if (this.pointer.needsImpulse) {
-      const radius = this.getImpulseRadius()
+      const worldRadius = this.getImpulseRadius()
+      const localRadius = this.getLocalImpulseRadius(worldRadius)
       const strength = this.getImpulseStrength()
-      const scaledForce = this.pointer.velocity.clone().multiplyScalar(strength)
-      cloth.applyImpulse(this.pointer.position, scaledForce, radius)
+      const localForce = this.getLocalPointerVelocity().multiplyScalar(strength)
+      const localPoint = this.getLocalPointerPosition()
+      cloth.applyImpulse(localPoint, localForce, localRadius)
       this.pointer.needsImpulse = false
     }
 
     cloth.update(dt)
     this.collisionSystem.apply(cloth)
 
-    if (cloth.isOffscreen(-CANONICAL_HEIGHT_METERS)) {
+    let boundary = -CANONICAL_HEIGHT_METERS
+    if (worldBody) {
+      this._tmpWorldV3.set(0, boundary, 0)
+      worldBody.worldToLocalPoint(this._tmpWorldV3, this._tmpLocalV3)
+      boundary = this._tmpLocalV3.y
+    }
+    if (cloth.isOffscreen(boundary)) {
       this.offscreenCallback()
     }
   }
@@ -172,6 +188,32 @@ class ClothBodyAdapter implements SimBody, Component {
     const { widthMeters = 0, heightMeters = 0 } = this.record ?? {}
     const base = Math.max(widthMeters, heightMeters)
     return base > 0 ? base / 2 : 0.25
+  }
+
+  private getLocalImpulseRadius(worldRadius: number) {
+    const worldBody = this.record.worldBody
+    if (!worldBody) return worldRadius
+    // Sample basis scaling by converting axis sample vectors
+    const sx = worldBody.worldToLocalVector(this._tmpWorldV3.set(worldRadius, 0, 0), this._tmpLocalV3).length()
+    const sy = worldBody.worldToLocalVector(this._tmpWorldV3B.set(0, worldRadius, 0), this._tmpLocalV3B).length()
+    const avg = (sx + sy) * 0.5
+    return Number.isFinite(avg) && avg > 0 ? avg : worldRadius
+  }
+
+  private getLocalPointerPosition() {
+    const worldBody = this.record.worldBody
+    if (!worldBody) return this._tmpLocalV2.copy(this.pointer.position)
+    this._tmpWorldV3.set(this.pointer.position.x, this.pointer.position.y, 0)
+    worldBody.worldToLocalPoint(this._tmpWorldV3, this._tmpLocalV3)
+    return this._tmpLocalV2.set(this._tmpLocalV3.x, this._tmpLocalV3.y)
+  }
+
+  private getLocalPointerVelocity() {
+    const worldBody = this.record.worldBody
+    if (!worldBody) return this._tmpLocalV2B.copy(this.pointer.velocity)
+    this._tmpWorldV3.set(this.pointer.velocity.x, this.pointer.velocity.y, 0)
+    worldBody.worldToLocalVector(this._tmpWorldV3, this._tmpLocalV3)
+    return this._tmpLocalV2B.set(this._tmpLocalV3.x, this._tmpLocalV3.y)
   }
 
   private getImpulseStrength() {

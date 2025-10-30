@@ -8,6 +8,7 @@ import {
   toCanonicalX,
   toCanonicalY,
 } from './units'
+import { WorldBody } from './WorldBody'
 
 export type DOMMeshRecord = {
   mesh: THREE.Mesh<THREE.PlaneGeometry, THREE.MeshBasicMaterial>
@@ -18,6 +19,7 @@ export type DOMMeshRecord = {
   texture: THREE.Texture
   initialPositions: Float32Array
   segments: number
+  worldBody: WorldBody
 }
 
 export class DOMToWebGL {
@@ -126,7 +128,12 @@ export class DOMToWebGL {
     const obj = mesh as unknown as { userData?: Record<string, unknown> }
     obj.userData = { ...(obj.userData || {}), isStatic: true, isCloth: false }
     mesh.frustumCulled = false
-    mesh.position.set(...this.domPositionToWorld(rect))
+    // Establish world transform via WorldBody so simulation can remain in model space
+    const [px, py, pz] = this.domPositionToWorld(rect)
+    const worldBody = new WorldBody({ id: element.id || null, mesh })
+    worldBody.setPositionComponents(px, py, pz)
+    worldBody.setScaleComponents(1, 1, 1)
+    worldBody.applyToMesh()
 
     const positions = mesh.geometry.attributes.position
     const initialPositions = new Float32Array(positions.array as Float32Array)
@@ -140,6 +147,7 @@ export class DOMToWebGL {
       texture,
       initialPositions,
       segments,
+      worldBody,
     }
   }
 
@@ -153,14 +161,15 @@ export class DOMToWebGL {
 
   updateMeshTransform(element: HTMLElement, record: DOMMeshRecord) {
     const rect = element.getBoundingClientRect()
-    record.mesh.position.set(...this.domPositionToWorld(rect))
+    const [px, py, pz] = this.domPositionToWorld(rect)
 
     const widthMeters = toCanonicalWidthMeters(rect.width, this.viewportWidth)
     const heightMeters = toCanonicalHeightMeters(rect.height, this.viewportHeight)
-
     const scaleX = widthMeters / (record.baseWidthMeters || 1)
     const scaleY = heightMeters / (record.baseHeightMeters || 1)
-    record.mesh.scale.set(scaleX, scaleY, 1)
+    record.worldBody.setPositionComponents(px, py, pz)
+    record.worldBody.setScaleComponents(scaleX, scaleY, 1)
+    record.worldBody.applyToMesh()
     record.widthMeters = widthMeters
     record.heightMeters = heightMeters
   }
@@ -179,6 +188,16 @@ export class DOMToWebGL {
   }
 
   pointerToCanonical(clientX: number, clientY: number) {
+    // Prefer camera-unproject mapping to respect zoom/position, but fall back
+    // to pure viewport mapping if three is partially mocked in tests.
+    const ndcX = (clientX / this.viewportWidth) * 2 - 1
+    const ndcY = -(clientY / this.viewportHeight) * 2 + 1
+    const vec = new THREE.Vector3(ndcX, ndcY, 0) as any
+    if (typeof vec.unproject === 'function') {
+      vec.unproject(this.camera)
+      return { x: vec.x as number, y: vec.y as number }
+    }
+    // Fallback: original viewport→canonical mapping
     return fromPointerToCanonical(clientX, clientY, this.viewportWidth, this.viewportHeight)
   }
 
