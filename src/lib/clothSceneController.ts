@@ -32,8 +32,12 @@ type DebugSettings = {
   constraintIterations: number
   substeps: number
   tessellationSegments: number
+  autoTessellation: boolean
+  tessellationMin: number
+  tessellationMax: number
   pointerCollider: boolean
   pinMode: PinMode
+  worldSleepGuardEnabled: boolean
 }
 
 type PointerState = {
@@ -79,6 +83,7 @@ class ClothBodyAdapter implements SimBody, Component {
   private _worldStillFrames = 0
   private _worldSleepVelThreshold = 0.001
   private _worldSleepFrameThreshold = 60
+  private _worldSleepGuardEnabled = true
 
   constructor(
     id: string,
@@ -126,7 +131,7 @@ class ClothBodyAdapter implements SimBody, Component {
       boundary = this._tmpLocalV3.y
     }
     // World-space sleep guard: keep cloth awake until it remains still in world space
-    if (typeof (cloth as any).getBoundingSphere === 'function') {
+    if (this._worldSleepGuardEnabled && typeof (cloth as any).getBoundingSphere === 'function') {
       const localCenter = (cloth as any).getBoundingSphere().center as { x: number; y: number }
       let worldCenter = this._tmpLocalV2
       if (worldBody) {
@@ -187,6 +192,10 @@ class ClothBodyAdapter implements SimBody, Component {
     // Keep adapter thresholds in sync for world-space sleep guarding
     this._worldSleepVelThreshold = config.velocityThreshold
     this._worldSleepFrameThreshold = config.frameThreshold
+  }
+
+  setWorldSleepGuardEnabled(enabled: boolean) {
+    this._worldSleepGuardEnabled = !!enabled
   }
 
   setConstraintIterations(iterations: number) {
@@ -357,8 +366,12 @@ export class ClothSceneController {
     constraintIterations: 4,
     substeps: 1,
     tessellationSegments: 24,
+    autoTessellation: true,
+    tessellationMin: 6,
+    tessellationMax: 24,
     pointerCollider: false,
     pinMode: 'top',
+    worldSleepGuardEnabled: true,
   }
   private onPointerMove = (event: PointerEvent) => this.handlePointerMove(event)
   private onPointerLeave = () => this.resetPointer()
@@ -488,13 +501,17 @@ export class ClothSceneController {
   }
 
   private computeAutoSegments(rect: DOMRect, maxCap = this.debug.tessellationSegments) {
+    // If auto is disabled, use the exact configured segments
+    if (!this.debug.autoTessellation) return Math.max(1, Math.min(48, Math.round(this.debug.tessellationSegments)))
     const viewport = this.domToWebGL!.getViewportPixels()
     const area = Math.max(1, rect.width * rect.height)
     const screenArea = Math.max(1, viewport.width * viewport.height)
     const s = Math.sqrt(area / screenArea) // linearize by diagonal proportion
-    const MIN = 6
-    const MAX = Math.max(MIN + 2, Math.min(48, Math.round(maxCap)))
-    return Math.max(MIN, Math.min(MAX, Math.round(MIN + s * (MAX - MIN))))
+    const MIN = Math.max(1, Math.min(40, Math.round(this.debug.tessellationMin)))
+    const MAX_CAP = Math.max(MIN + 2, Math.min(48, Math.round(maxCap)))
+    const MAX = Math.max(MIN + 2, Math.min(48, Math.round(this.debug.tessellationMax)))
+    const upper = Math.min(MAX, MAX_CAP)
+    return Math.max(MIN, Math.min(upper, Math.round(MIN + s * (upper - MIN))))
   }
 
   private async prepareElements(elements: HTMLElement[]) {
@@ -590,6 +607,7 @@ export class ClothSceneController {
       record,
       this.debug
     )
+    adapter.setWorldSleepGuardEnabled(this.debug.worldSleepGuardEnabled)
     // Mark mesh as cloth for render settings system.
     const meshObj = record.mesh as unknown as { userData?: Record<string, unknown> }
     meshObj.userData = { ...(meshObj.userData || {}), isCloth: true, isStatic: false }
@@ -880,6 +898,14 @@ export class ClothSceneController {
     }
   }
 
+  /** Enables/disables world-space sleep guard on all active adapters and future bodies. */
+  setWorldSleepGuardEnabled(enabled: boolean) {
+    this.debug.worldSleepGuardEnabled = !!enabled
+    for (const item of this.items.values()) {
+      item.adapter?.setWorldSleepGuardEnabled(this.debug.worldSleepGuardEnabled)
+    }
+  }
+
   async setTessellationSegments(segments: number) {
     const pool = this.pool
     if (!pool) return
@@ -908,6 +934,19 @@ export class ClothSceneController {
 
     await Promise.all(tasks)
     this.collisionSystem.refresh()
+  }
+
+  /** Enables/disables automatic tessellation based on on-screen size. */
+  setTessellationAutoEnabled(enabled: boolean) {
+    this.debug.autoTessellation = !!enabled
+  }
+
+  /** Sets the min/max caps used by auto tessellation. */
+  setTessellationMinMax(min: number, max: number) {
+    const mi = Math.max(1, Math.min(46, Math.round(min)))
+    const ma = Math.max(mi + 2, Math.min(48, Math.round(max)))
+    this.debug.tessellationMin = mi
+    this.debug.tessellationMax = ma
   }
 
   // setPointerColliderVisible removed in favour of DebugOverlaySystem

@@ -604,6 +604,33 @@ describe('ClothSceneController DOM integration', () => {
     webgl.dispose()
   })
 
+  it('honors tessellation auto toggle and min/max caps', async () => {
+    const webgl = new ClothSceneController()
+    await webgl.init()
+
+    poolMocks.prepare.mockClear()
+    poolMocks.mount.mockClear()
+
+    // Turn auto OFF → exact segments should be used for inactive meshes
+    ;(webgl as any).setTessellationAutoEnabled(false)
+    await (webgl as any).setTessellationSegments(15)
+
+    const calledSegmentsFixed = poolMocks.prepare.mock.calls[0][1]
+    expect(calledSegmentsFixed).toBe(15)
+
+    // Turn auto ON with custom min/max caps
+    poolMocks.prepare.mockClear()
+    ;(webgl as any).setTessellationMinMax(8, 20)
+    ;(webgl as any).setTessellationAutoEnabled(true)
+    await (webgl as any).setTessellationSegments(18)
+
+    const autoSeg = poolMocks.prepare.mock.calls[0][1]
+    expect(autoSeg).toBeGreaterThanOrEqual(8)
+    expect(autoSeg).toBeLessThanOrEqual(20)
+
+    webgl.dispose()
+  })
+
   it('updates constraint iterations for active cloth bodies', async () => {
     const webgl = new ClothSceneController()
     await webgl.init()
@@ -637,6 +664,49 @@ describe('ClothSceneController DOM integration', () => {
     window.dispatchEvent(new Event('pointerleave'))
     expect(state.pointer.x).toBe(0)
     expect(state.pointer.y).toBe(0)
+
+    webgl.dispose()
+  })
+
+  it('keeps cloth awake under world-space motion when guard is enabled', async () => {
+    const webgl = new ClothSceneController()
+    await webgl.init()
+
+    const button = document.getElementById('cta') as HTMLElement
+    button.dispatchEvent(new MouseEvent('click'))
+
+    const sim = getSimulationSystem()
+    const adapter = sim.addBody.mock.calls[0][0]
+    const cloth = clothMocks.instances.at(-1) as any
+    // Inject bounding sphere method so the guard path executes
+    cloth.getBoundingSphere = vi.fn(() => ({ center: new THREE.Vector2(0.1, 0.1), radius: 0.5 }))
+    cloth.wake.mockClear()
+
+    adapter.update(0.016)
+    expect(cloth.wake).toHaveBeenCalled()
+
+    webgl.dispose()
+  })
+
+  it('allows sleep path when world-space guard is disabled', async () => {
+    const webgl = new ClothSceneController()
+    await webgl.init()
+
+    ;(webgl as any).setWorldSleepGuardEnabled(false)
+
+    const button = document.getElementById('cta') as HTMLElement
+    button.dispatchEvent(new MouseEvent('click'))
+
+    const sim = getSimulationSystem()
+    const adapter = sim.addBody.mock.calls[0][0]
+    const cloth = clothMocks.instances.at(-1) as any
+    // Inject bounding sphere method so the guard would run if enabled
+    cloth.getBoundingSphere = vi.fn(() => ({ center: new THREE.Vector2(0, 0), radius: 0.5 }))
+    cloth.wake.mockClear()
+
+    adapter.update(0.016)
+    // guard disabled → update should not forcibly call wake via guard
+    expect(cloth.wake).not.toHaveBeenCalled()
 
     webgl.dispose()
   })

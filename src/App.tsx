@@ -42,6 +42,12 @@ type DebugProps = {
   onImpulseMultiplierChange: (value: number) => void
   tessellationSegments: number
   onTessellationChange: (value: number) => void
+  autoTessellation?: boolean
+  onAutoTessellationChange?: (value: boolean) => void
+  tessellationMin?: number
+  tessellationMax?: number
+  onTessellationMinChange?: (value: number) => void
+  onTessellationMaxChange?: (value: number) => void
   constraintIterations: number
   onConstraintIterationsChange: (value: number) => void
   substeps: number
@@ -50,6 +56,8 @@ type DebugProps = {
   onSleepVelocityChange: (value: number) => void
   sleepFrames: number
   onSleepFramesChange: (value: number) => void
+  worldSleepGuard?: boolean
+  onWorldSleepGuardChange?: (value: boolean) => void
   warmStartPasses: number
   onWarmStartPassesChange: (value: number) => void
   cameraZoom: number
@@ -85,6 +93,12 @@ function DebugPalette(props: DebugProps) {
     onImpulseMultiplierChange,
     tessellationSegments,
     onTessellationChange,
+    autoTessellation,
+    onAutoTessellationChange,
+    tessellationMin,
+    tessellationMax,
+    onTessellationMinChange,
+    onTessellationMaxChange,
     constraintIterations,
     onConstraintIterationsChange,
     substeps,
@@ -93,6 +107,8 @@ function DebugPalette(props: DebugProps) {
     onSleepVelocityChange,
     sleepFrames,
     onSleepFramesChange,
+    worldSleepGuard,
+    onWorldSleepGuardChange,
     warmStartPasses,
     onWarmStartPassesChange,
     cameraZoom,
@@ -210,6 +226,27 @@ function DebugPalette(props: DebugProps) {
                 <Text c="dimmed">{tessellationSegments} × {tessellationSegments}</Text>
               </Group>
               <Slider aria-label="Tessellation" value={tessellationSegments} min={1} max={32} step={1} onChange={(v) => onTessellationChange(Math.round(v))} />
+              <Group justify="space-between">
+                <Stack gap={0}>
+                  <Text fw={600}>Auto Tessellation</Text>
+                  <Text size="sm" c="dimmed">Scale segments by on-screen size</Text>
+                </Stack>
+                <Switch aria-label="Auto Tessellation" checked={!!autoTessellation} onChange={(e) => onAutoTessellationChange?.(e.currentTarget.checked)} />
+              </Group>
+              {autoTessellation ? (
+                <>
+                  <Group justify="space-between">
+                    <Text fw={500}>Min Segments</Text>
+                    <Text c="dimmed">{tessellationMin}</Text>
+                  </Group>
+                  <Slider aria-label="Tessellation Min" value={tessellationMin ?? 6} min={1} max={46} step={1} onChange={(v) => onTessellationMinChange?.(Math.round(v))} />
+                  <Group justify="space-between">
+                    <Text fw={500}>Max Segments</Text>
+                    <Text c="dimmed">{tessellationMax}</Text>
+                  </Group>
+                  <Slider aria-label="Tessellation Max" value={tessellationMax ?? 24} min={(tessellationMin ?? 6) + 2} max={48} step={1} onChange={(v) => onTessellationMaxChange?.(Math.round(v))} />
+                </>
+              ) : null}
             </Stack>
             <Stack gap={4}
             >
@@ -242,6 +279,13 @@ function DebugPalette(props: DebugProps) {
                 <Text c="dimmed">{sleepFrames}f</Text>
               </Group>
               <Slider aria-label="Sleep Frame Threshold" value={sleepFrames} min={10} max={240} step={10} onChange={(v) => onSleepFramesChange(Math.round(v))} />
+              <Group justify="space-between">
+                <Stack gap={0}>
+                  <Text fw={600}>World Sleep Guard</Text>
+                  <Text size="sm" c="dimmed">Delay sleep until world-space still</Text>
+                </Stack>
+                <Switch aria-label="World Sleep Guard" checked={!!worldSleepGuard} onChange={(e) => onWorldSleepGuardChange?.(e.currentTarget.checked)} />
+              </Group>
             </Stack>
             <Stack gap={4}
             >
@@ -303,10 +347,14 @@ function Demo() {
   const [gravity, setGravity] = useState(2)
   const [impulseMultiplier, setImpulseMultiplier] = useState(1)
   const [tessellationSegments, setTessellationSegments] = useState(24)
+  const [autoTessellation, setAutoTessellation] = useState(true)
+  const [tessellationMin, setTessellationMin] = useState(6)
+  const [tessellationMax, setTessellationMax] = useState(24)
   const [constraintIterations, setConstraintIterations] = useState(6)
   const [substeps, setSubsteps] = useState(2)
   const [sleepVelocity, setSleepVelocity] = useState(0.001)
   const [sleepFrames, setSleepFrames] = useState(60)
+  const [worldSleepGuard, setWorldSleepGuard] = useState(true)
   const [warmStartPasses, setWarmStartPasses] = useState(2)
   const [cameraZoom, setCameraZoom] = useState(1)
   const [cameraZoomActual, setCameraZoomActual] = useState(1)
@@ -442,6 +490,18 @@ function Demo() {
   }, [tessellationSegments])
 
   useEffect(() => {
+    ;(controllerRef.current as any)?.setTessellationAutoEnabled?.(autoTessellation)
+  }, [autoTessellation])
+
+  useEffect(() => {
+    ;(controllerRef.current as any)?.setTessellationMinMax?.(tessellationMin, tessellationMax)
+  }, [tessellationMin, tessellationMax])
+
+  useEffect(() => {
+    ;(controllerRef.current as any)?.setWorldSleepGuardEnabled?.(worldSleepGuard)
+  }, [worldSleepGuard])
+
+  useEffect(() => {
     actionsRef.current?.setPointerOverlayVisible(pointerColliderVisible)
   }, [pointerColliderVisible])
 
@@ -512,6 +572,12 @@ function Demo() {
         onImpulseMultiplierChange={setImpulseMultiplier}
         tessellationSegments={tessellationSegments}
         onTessellationChange={setTessellationSegments}
+        autoTessellation={autoTessellation}
+        onAutoTessellationChange={setAutoTessellation}
+        tessellationMin={tessellationMin}
+        tessellationMax={tessellationMax}
+        onTessellationMinChange={setTessellationMin}
+        onTessellationMaxChange={setTessellationMax}
         constraintIterations={constraintIterations}
         onConstraintIterationsChange={setConstraintIterations}
         substeps={substeps}
@@ -520,6 +586,8 @@ function Demo() {
         onSleepVelocityChange={setSleepVelocity}
         sleepFrames={sleepFrames}
         onSleepFramesChange={setSleepFrames}
+        worldSleepGuard={worldSleepGuard}
+        onWorldSleepGuardChange={setWorldSleepGuard}
         warmStartPasses={warmStartPasses}
         onWarmStartPassesChange={setWarmStartPasses}
         cameraZoom={cameraZoom}
