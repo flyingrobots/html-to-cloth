@@ -10,8 +10,12 @@ export class DebugOverlayState {
   drawAABBs = false
   /** Whether to draw sleep/awake state circles when visible. */
   drawSleep = false
+  /** Whether to draw pin markers when visible. */
+  drawPins = false
   /** Static collision AABBs (canonical coordinates). */
   aabbs: Array<{ min: { x: number; y: number }; max: { x: number; y: number } }> = []
   /** Simulation snapshot for sleeping/awake coloring of gizmos. */
   simSnapshot?: { bodies: Array<{ id: string; center: { x: number; y: number }; radius: number; sleeping: boolean }> }
+  /** World-space pin markers (small crosses). */
+  pinMarkers: Array<{ x: number; y: number }> = []
 }

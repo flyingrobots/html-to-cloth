@@ -63,6 +63,8 @@ type DebugProps = {
   onDrawAABBsChange: (value: boolean) => void
   drawSleep: boolean
   onDrawSleepChange: (value: boolean) => void
+  drawPins: boolean
+  onDrawPinsChange: (value: boolean) => void
   pinMode: PinMode
   onPinModeChange: (value: PinMode) => void
   onStep: () => void
@@ -176,6 +178,14 @@ function DebugPalette(props: DebugProps) {
                 <Text size="sm" c="dimmed">Color centers (awake vs sleeping)</Text>
               </Stack>
               <Switch aria-label="Sleep State" checked={props.drawSleep} onChange={(e) => props.onDrawSleepChange(e.currentTarget.checked)} />
+            </Group>
+            <Group justify="space-between">
+              <Stack gap={0}
+              >
+                <Text fw={600}>Pin Markers</Text>
+                <Text size="sm" c="dimmed">Draw markers on pinned vertices</Text>
+              </Stack>
+              <Switch aria-label="Pin Markers" checked={props.drawPins} onChange={(e) => props.onDrawPinsChange(e.currentTarget.checked)} />
             </Group>
             <Stack gap={4}
             >
@@ -303,6 +313,7 @@ function Demo() {
   const [pointerColliderVisible, setPointerColliderVisible] = useState(false)
   const [drawAABBs, setDrawAABBs] = useState(false)
   const [drawSleep, setDrawSleep] = useState(false)
+  const [drawPins, setDrawPins] = useState(false)
   const [pinMode, setPinMode] = useState<PinMode>('top')
 
   useEffect(() => {
@@ -445,6 +456,21 @@ function Demo() {
   }, [drawSleep])
 
   useEffect(() => {
+    const overlay = controllerRef.current?.getOverlayState?.() as any
+    if (overlay) overlay.drawPins = drawPins
+  }, [drawPins])
+
+  useEffect(() => {
+    const overlay = controllerRef.current?.getOverlayState?.() as any
+    if (overlay) overlay.drawAABBs = drawAABBs
+  }, [drawAABBs])
+
+  useEffect(() => {
+    const overlay = controllerRef.current?.getOverlayState?.() as any
+    if (overlay) overlay.drawSleep = drawSleep
+  }, [drawSleep])
+
+  useEffect(() => {
     actionsRef.current?.setPinMode(pinMode)
     if (!actionsRef.current) controllerRef.current?.setPinMode(pinMode)
   }, [pinMode])
@@ -516,6 +542,8 @@ function Demo() {
         onDrawAABBsChange={setDrawAABBs}
         drawSleep={drawSleep}
         onDrawSleepChange={setDrawSleep}
+        drawPins={drawPins}
+        onDrawPinsChange={setDrawPins}
         pinMode={pinMode}
         onPinModeChange={setPinMode}
         onStep={() => actionsRef.current?.stepOnce()}

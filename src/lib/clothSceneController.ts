@@ -237,6 +237,20 @@ class ClothBodyAdapter implements SimBody, Component {
     const elementStrength = !Number.isNaN(parsed) && parsed > 0 ? parsed : 1
     return elementStrength * this.debug.impulseMultiplier
   }
+
+  /** Returns world-space positions of pinned vertices for debug overlay. */
+  getPinnedWorldPositions() {
+    const cloth = this.item.cloth
+    const record = this.record
+    if (!cloth || !record) return [] as { x: number; y: number }[]
+    const locals = cloth.getPinnedVertexPositions()
+    const out: { x: number; y: number }[] = []
+    for (const v of locals) {
+      const world = record.worldBody.localToWorldPoint(this._tmpLocalV3.set(v.x, v.y, v.z), this._tmpWorldV3)
+      out.push({ x: world.x, y: world.y })
+    }
+    return out
+  }
 }
 
 export type ClothSceneControllerOptions = {
@@ -700,6 +714,14 @@ export class ClothSceneController {
     try {
       this.overlayState.simSnapshot = this.simulationSystem.getSnapshot() as any
     } catch {}
+    // Pin markers from active cloth adapters
+    const pins: Array<{ x: number; y: number }> = []
+    for (const item of this.items.values()) {
+      if (!item.isActive || !item.adapter) continue
+      const pts = item.adapter.getPinnedWorldPositions()
+      for (const p of pts) pins.push(p)
+    }
+    this.overlayState.pinMarkers = pins
   }
 
   private getBodyId(element: HTMLElement) {

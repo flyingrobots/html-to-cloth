@@ -434,4 +434,13 @@ export class ClothPhysics {
   private index(x: number, y: number) {
     return y * this.widthSegments + x
   }
+
+  /** Returns an array of pinned vertex positions (local/model space). */
+  getPinnedVertexPositions() {
+    const out: THREE.Vector3[] = []
+    for (const p of this.particles) {
+      if (p.pinned) out.push(p.position.clone())
+    }
+    return out
+  }
 }

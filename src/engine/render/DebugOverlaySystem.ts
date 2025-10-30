@@ -24,6 +24,7 @@ export class DebugOverlaySystem implements EngineSystem {
   private attached = false
   private aabbGroup?: THREE.Group
   private circleGroup?: THREE.Group
+  private pinGroup?: THREE.Group
 
   constructor(options: DebugOverlayOptions) {
     this.view = options.view
@@ -54,6 +55,7 @@ export class DebugOverlaySystem implements EngineSystem {
     } else {
       this.drawAABBs(false)
       this.drawSimCircles(false)
+      this.drawPins(false)
     }
   }
 
@@ -96,6 +98,33 @@ export class DebugOverlaySystem implements EngineSystem {
       const mat = new THREE.LineBasicMaterial({ color, transparent: true, opacity: 0.6 })
       const lines = new THREE.LineSegments(geom, mat)
       this.aabbGroup.add(lines)
+    }
+  }
+
+  private drawPins(visible: boolean) {
+    if (!this.view.scene) return
+    if (!this.pinGroup) {
+      this.pinGroup = new THREE.Group()
+      this.pinGroup.renderOrder = 1001
+      this.view.scene.add(this.pinGroup)
+    }
+    this.pinGroup.visible = visible
+    if (!visible) return
+    while (this.pinGroup.children.length) this.pinGroup.remove(this.pinGroup.children[0])
+    const size = 0.02
+    const color = new THREE.Color(0x00ffff)
+    for (const p of this.state.pinMarkers) {
+      const geom = new THREE.BufferGeometry()
+      const verts = new Float32Array([
+        p.x - size, p.y, 0.12,
+        p.x + size, p.y, 0.12,
+        p.x, p.y - size, 0.12,
+        p.x, p.y + size, 0.12,
+      ])
+      geom.setAttribute('position', new THREE.BufferAttribute(verts, 3))
+      const mat = new THREE.LineBasicMaterial({ color, transparent: true, opacity: 0.9 })
+      const lines = new THREE.LineSegments(geom, mat)
+      this.pinGroup.add(lines)
     }
   }
 
