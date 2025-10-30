@@ -369,25 +369,8 @@ function Demo() {
   useEffect(() => {
     const actions = actionsRef.current
     if (!actions) return
-    let forcedPause = false
-    if (debugOpen) {
-      if (realTimeRef.current) {
-        actions.setRealTime(false)
-        realTimeRef.current = false
-        forcedPause = true
-        setRealTime(false)
-      }
-      actions.setPointerOverlayVisible(false)
-    } else {
-      actions.setPointerOverlayVisible(pointerColliderVisible)
-    }
-    return () => {
-      if (forcedPause) {
-        actions.setRealTime(true)
-        realTimeRef.current = true
-        setRealTime(true)
-      }
-    }
+    // Only toggle overlay visibility when the drawer opens/closes; do not alter real-time here.
+    actions.setPointerOverlayVisible(debugOpen ? false : pointerColliderVisible)
   }, [debugOpen])
 
   useEffect(() => {

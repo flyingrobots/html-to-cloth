@@ -352,6 +352,7 @@ export class ClothSceneController {
     if (!clothElements.length) return
 
     await this.prepareElements(clothElements)
+    this.updateOverlayDebug()
 
     window.addEventListener('resize', this.onResize, { passive: true })
     window.addEventListener('scroll', this.onScroll, { passive: true })
@@ -430,6 +431,16 @@ export class ClothSceneController {
     this.elementIds.clear()
   }
 
+  private computeAutoSegments(rect: DOMRect, maxCap = this.debug.tessellationSegments) {
+    const viewport = this.domToWebGL!.getViewportPixels()
+    const area = Math.max(1, rect.width * rect.height)
+    const screenArea = Math.max(1, viewport.width * viewport.height)
+    const s = Math.sqrt(area / screenArea) // linearize by diagonal proportion
+    const MIN = 6
+    const MAX = Math.max(MIN + 2, Math.min(48, Math.round(maxCap)))
+    return Math.max(MIN, Math.min(MAX, Math.round(MIN + s * (MAX - MIN))))
+  }
+
   private async prepareElements(elements: HTMLElement[]) {
     // Capture current references; the controller may get disposed while
     // awaiting pool work during rapid navigations or hot reload.
@@ -440,7 +451,9 @@ export class ClothSceneController {
     for (const element of elements) {
       // Bail early if controller was disposed or pool swapped out.
       if (this.disposed || this.pool !== pool || this.domToWebGL !== bridge) return
-      await pool.prepare(element, this.debug.tessellationSegments)
+      const rect = element.getBoundingClientRect()
+      const seg = this.computeAutoSegments(rect, this.debug.tessellationSegments)
+      await pool.prepare(element, seg)
       if (this.disposed || this.pool !== pool || this.domToWebGL !== bridge) return
       pool.mount(element)
 
@@ -635,6 +648,7 @@ export class ClothSceneController {
         this.domToWebGL.updateMeshTransform(item.element, record)
       }
     }
+    this.updateOverlayDebug()
   }
 
   private handlePointerMove(event: PointerEvent) {
@@ -662,6 +676,7 @@ export class ClothSceneController {
     }
 
     this.simulationSystem.notifyPointer(this.pointer.position)
+    this.updateOverlayDebug()
     // overlay pointer updated elsewhere
   }
 
@@ -671,6 +686,20 @@ export class ClothSceneController {
     this.pointer.velocity.set(0, 0)
     this.overlayState?.pointer.set(0, 0)
     // overlay pointer updated elsewhere
+  }
+
+  private updateOverlayDebug() {
+    if (!this.overlayState) return
+    // Static AABBs
+    const aabbs = this.collisionSystem.getStaticAABBs().map((b) => ({
+      min: { x: b.min.x, y: b.min.y },
+      max: { x: b.max.x, y: b.max.y },
+    }))
+    this.overlayState.aabbs = aabbs
+    // Simulation snapshot (sleeping/awake)
+    try {
+      this.overlayState.simSnapshot = this.simulationSystem.getSnapshot() as any
+    } catch {}
   }
 
   private getBodyId(element: HTMLElement) {
@@ -799,7 +828,7 @@ export class ClothSceneController {
       const element = item.element
       tasks.push(
         pool
-          .prepare(element, clamped)
+          .prepare(element, this.computeAutoSegments(element.getBoundingClientRect(), clamped))
           .then(() => {
             pool.mount(element)
             item.record = pool.getRecord(element)

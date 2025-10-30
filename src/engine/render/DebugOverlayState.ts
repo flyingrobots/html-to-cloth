@@ -6,5 +6,8 @@ export class DebugOverlayState {
   readonly pointer = new THREE.Vector2()
   /** Whether the pointer collider gizmo should be visible. */
   visible = false
+  /** Static collision AABBs (canonical coordinates). */
+  aabbs: Array<{ min: { x: number; y: number }; max: { x: number; y: number } }> = []
+  /** Simulation snapshot for sleeping/awake coloring of gizmos. */
+  simSnapshot?: { bodies: Array<{ id: string; center: { x: number; y: number }; radius: number; sleeping: boolean }> }
 }
-

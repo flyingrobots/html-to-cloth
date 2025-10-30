@@ -22,6 +22,8 @@ export class DebugOverlaySystem implements EngineSystem {
   private readonly state: DebugOverlayState
   private pointer?: THREE.Mesh
   private attached = false
+  private aabbGroup?: THREE.Group
+  private circleGroup?: THREE.Group
 
   constructor(options: DebugOverlayOptions) {
     this.view = options.view
@@ -44,6 +46,11 @@ export class DebugOverlaySystem implements EngineSystem {
     if (visible) {
       mesh.position.set(this.state.pointer.x, this.state.pointer.y, 0.2)
     }
+
+    // Draw static AABBs
+    this.drawAABBs()
+    // Draw cloth centers with sleeping/awake coloring
+    this.drawSimCircles()
   }
 
   private ensurePointer() {
@@ -54,5 +61,59 @@ export class DebugOverlaySystem implements EngineSystem {
       this.pointer.visible = false
     }
     return this.pointer
+  }
+
+  private drawAABBs() {
+    if (!this.view.scene) return
+    if (!this.aabbGroup) {
+      this.aabbGroup = new THREE.Group()
+      this.aabbGroup.renderOrder = 999
+      this.view.scene.add(this.aabbGroup)
+    }
+    // Rebuild each frame for simplicity (counts are small); could be optimized
+    while (this.aabbGroup.children.length) this.aabbGroup.remove(this.aabbGroup.children[0])
+    const color = new THREE.Color(0x8888ff)
+    for (const box of this.state.aabbs) {
+      const geom = new THREE.BufferGeometry()
+      const min = box.min, max = box.max
+      const vertices = new Float32Array([
+        min.x, min.y, 0,
+        max.x, min.y, 0,
+        max.x, min.y, 0,
+        max.x, max.y, 0,
+        max.x, max.y, 0,
+        min.x, max.y, 0,
+        min.x, max.y, 0,
+        min.x, min.y, 0,
+      ])
+      geom.setAttribute('position', new THREE.BufferAttribute(vertices, 3))
+      const mat = new THREE.LineBasicMaterial({ color, transparent: true, opacity: 0.6 })
+      const lines = new THREE.LineSegments(geom, mat)
+      this.aabbGroup.add(lines)
+    }
+  }
+
+  private drawSimCircles() {
+    if (!this.view.scene) return
+    if (!this.circleGroup) {
+      this.circleGroup = new THREE.Group()
+      this.circleGroup.renderOrder = 1000
+      this.view.scene.add(this.circleGroup)
+    }
+    while (this.circleGroup.children.length) this.circleGroup.remove(this.circleGroup.children[0])
+    const snap = this.state.simSnapshot
+    if (!snap) return
+    for (const body of snap.bodies) {
+      const geom = new THREE.CircleGeometry(body.radius, 48)
+      const mat = new THREE.MeshBasicMaterial({
+        color: body.sleeping ? 0x55cc55 : 0xff8844,
+        wireframe: true,
+        transparent: true,
+        opacity: 0.8,
+      })
+      const mesh = new THREE.Mesh(geom, mat)
+      mesh.position.set(body.center.x, body.center.y, 0.1)
+      this.circleGroup.add(mesh)
+    }
   }
 }
