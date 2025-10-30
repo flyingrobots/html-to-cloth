@@ -434,7 +434,8 @@ describe('ClothSceneController DOM integration', () => {
 
     expect(cloth.applyImpulse).toHaveBeenCalledTimes(1)
     const [, force, radius] = cloth.applyImpulse.mock.calls[0]
-    expect(radius).toBeCloseTo(0.5)
+    // Default radius scaled to base/12 to keep impulses sane across sizes
+    expect(radius).toBeCloseTo(0.08333333333333333)
     expect(force.x).toBeCloseTo(initialVelocity.x)
     expect(force.y).toBeCloseTo(initialVelocity.y)
 

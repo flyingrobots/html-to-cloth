@@ -186,8 +186,13 @@ class ClothBodyAdapter implements SimBody, Component {
       return parsed
     }
     const { widthMeters = 0, heightMeters = 0 } = this.record ?? {}
-    const base = Math.max(widthMeters, heightMeters)
-    return base > 0 ? base / 2 : 0.25
+    const base = Math.min(widthMeters || 0, heightMeters || 0)
+    const MIN_POINTER_RADIUS = 0.0006
+    const DEFAULT_POINTER_RADIUS = 0.0012
+    if (base > 0) {
+      return Math.max(MIN_POINTER_RADIUS, base / 12)
+    }
+    return DEFAULT_POINTER_RADIUS
   }
 
   private getLocalImpulseRadius(worldRadius: number) {
@@ -466,7 +471,7 @@ export class ClothSceneController {
     this.pool.resetGeometry(element)
 
     const cloth = new ClothPhysics(record.mesh, {
-      damping: 0.97,
+      damping: 0.985,
       constraintIterations: this.debug.constraintIterations,
     })
 
