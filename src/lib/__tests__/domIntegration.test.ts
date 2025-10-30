@@ -648,7 +648,7 @@ describe('ClothSceneController DOM integration', () => {
     webgl.dispose()
   })
 
-  it('updates overlay pointer state on pointer move and resets on leave', async () => {
+  it('updates overlay pointer state on pointer move and leaves last position on pointer leave (no teleport)', async () => {
     const webgl = new ClothSceneController()
     await webgl.init()
 
@@ -661,9 +661,12 @@ describe('ClothSceneController DOM integration', () => {
     expect(state.pointer.x).not.toBe(0)
     expect(state.pointer.y).not.toBe(0)
 
+    const lastX = state.pointer.x
+    const lastY = state.pointer.y
     window.dispatchEvent(new Event('pointerleave'))
-    expect(state.pointer.x).toBe(0)
-    expect(state.pointer.y).toBe(0)
+    // Overlay retains last known pointer to avoid a 0,0 jump
+    expect(state.pointer.x).toBe(lastX)
+    expect(state.pointer.y).toBe(lastY)
 
     webgl.dispose()
   })

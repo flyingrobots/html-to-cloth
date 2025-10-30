@@ -601,7 +601,6 @@ function Demo() {
           setSleepVelocity(p.sleepVelocity)
           setSleepFrames(p.sleepFrames)
           setWarmStartPasses(p.warmStartPasses)
-          setCameraZoom(p.cameraZoom)
         }}
         pointerColliderVisible={pointerColliderVisible}
         onPointerColliderVisibleChange={setPointerColliderVisible}

@@ -3,7 +3,6 @@ export type DebugPreset = {
   iterations: number
   sleepVelocity: number
   sleepFrames: number
-  cameraZoom: number
   warmStartPasses: number
 }
 
@@ -13,7 +12,6 @@ const PRESET_LIST: ReadonlyArray<Readonly<DebugPreset>> = Object.freeze([
     iterations: 3,
     sleepVelocity: 0.0005,
     sleepFrames: 80,
-    cameraZoom: 1.2,
     warmStartPasses: 2,
   },
   {
@@ -21,7 +19,6 @@ const PRESET_LIST: ReadonlyArray<Readonly<DebugPreset>> = Object.freeze([
     iterations: 6,
     sleepVelocity: 0.001,
     sleepFrames: 60,
-    cameraZoom: 1.0,
     warmStartPasses: 3,
   },
   {
@@ -29,7 +26,6 @@ const PRESET_LIST: ReadonlyArray<Readonly<DebugPreset>> = Object.freeze([
     iterations: 8,
     sleepVelocity: 0.002,
     sleepFrames: 40,
-    cameraZoom: 0.9,
     warmStartPasses: 1,
   },
 ])

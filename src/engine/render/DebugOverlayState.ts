@@ -4,6 +4,8 @@ import * as THREE from 'three'
 export class DebugOverlayState {
   /** World-space pointer position in canonical meters. */
   readonly pointer = new THREE.Vector2()
+  /** World-space pointer collider radius (meters) for the gizmo. */
+  pointerRadius = 0.01
   /** Whether the pointer collider gizmo should be visible. */
   visible = false
   /** Whether to draw static AABBs when visible. */

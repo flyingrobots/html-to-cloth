@@ -585,10 +585,7 @@ export class ClothSceneController {
     const sizeHint = Math.max(0.0005, Math.min(record.widthMeters, record.heightMeters))
     const jitter = Math.min(0.02, sizeHint * 0.2)
     cloth.addTurbulence(jitter)
-    item.releasePinsTimeout = window.setTimeout(() => {
-      cloth.releaseAllPins()
-      delete item.releasePinsTimeout
-    }, 900)
+    // Do not auto-release pins; keep according to selected Pin Mode for predictable behavior.
 
     item.cloth = cloth
     item.record = record
@@ -760,7 +757,7 @@ export class ClothSceneController {
     this.pointer.active = false
     this.pointer.needsImpulse = false
     this.pointer.velocity.set(0, 0)
-    this.overlayState?.pointer.set(0, 0)
+    // Keep overlay pointer at last known position to avoid visual teleport
     // overlay pointer updated elsewhere
   }
 
@@ -784,6 +781,18 @@ export class ClothSceneController {
       for (const p of pts) pins.push(p)
     }
     this.overlayState.pinMarkers = pins
+    // Pointer collider radius: derive from first available record (active or static) to approximate
+    let r = 0.01
+    for (const item of this.items.values()) {
+      const record = item.record
+      if (!record) continue
+      const base = Math.min(record.widthMeters || 0, record.heightMeters || 0)
+      const MIN = 0.0006
+      const DEFAULT = 0.0012
+      r = base > 0 ? Math.max(MIN, base / 12) : DEFAULT
+      break
+    }
+    this.overlayState.pointerRadius = r
   }
 
   private getBodyId(element: HTMLElement) {

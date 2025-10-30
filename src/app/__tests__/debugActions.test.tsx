@@ -145,19 +145,22 @@ describe('Debug UI → EngineActions integration (App)', () => {
     expect(simulation.broadcastWarmStart).toHaveBeenCalled()
   })
 
-  it('applies a preset and routes multiple engine actions', async () => {
+  it('applies a preset and routes cloth-only actions (no camera zoom side effects)', async () => {
     render(<App />)
     fireEvent.keyDown(window, { key: 'j', ctrlKey: true })
 
     const user = userEvent.setup()
     const select = await screen.findByPlaceholderText('Choose preset')
+    const zoomCallsBefore = camera.setTargetZoom.mock.calls.length
     await user.click(select)
     const heavy = await screen.findByRole('option', { name: 'Heavy' })
     await user.click(heavy)
 
     await Promise.resolve()
     expect(simulation.broadcastConstraintIterations).toHaveBeenCalled()
-    expect(camera.setTargetZoom).toHaveBeenCalled()
+    // Presets should not modify camera zoom beyond any prior calls
+    const zoomCallsAfter = camera.setTargetZoom.mock.calls.length
+    expect(zoomCallsAfter).toBe(zoomCallsBefore)
   })
 
   it('routes Pin Mode changes via EngineActions', async () => {

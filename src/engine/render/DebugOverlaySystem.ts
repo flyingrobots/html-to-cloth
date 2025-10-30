@@ -20,7 +20,7 @@ export class DebugOverlaySystem implements EngineSystem {
 
   private readonly view: RenderView
   private readonly state: DebugOverlayState
-  private pointer?: THREE.Mesh
+  private pointer?: THREE.LineLoop
   private attached = false
   private aabbGroup?: THREE.Group
   private circleGroup?: THREE.Group
@@ -46,6 +46,8 @@ export class DebugOverlaySystem implements EngineSystem {
     mesh.visible = visible
     if (visible) {
       mesh.position.set(this.state.pointer.x, this.state.pointer.y, 0.2)
+      const r = Math.max(0.0005, Math.min(0.2, this.state.pointerRadius || 0.01))
+      mesh.scale.set(r, r, 1)
     }
     // Render other gizmos independently of pointer visibility
     this.drawAABBs(!!this.state.drawAABBs)
@@ -55,10 +57,19 @@ export class DebugOverlaySystem implements EngineSystem {
 
   private ensurePointer() {
     if (!this.pointer) {
-      const geometry = new THREE.SphereGeometry(0.12, 16, 16)
-      const material = new THREE.MeshBasicMaterial({ color: 0x66ccff, wireframe: true })
-      this.pointer = new THREE.Mesh(geometry, material)
+      // Unit circle in XY, scaled by pointerRadius each frame
+      const segments = 64
+      const verts: number[] = []
+      for (let i = 0; i < segments; i++) {
+        const t = (i / segments) * Math.PI * 2
+        verts.push(Math.cos(t), Math.sin(t), 0)
+      }
+      const geometry = new THREE.BufferGeometry()
+      geometry.setAttribute('position', new THREE.Float32BufferAttribute(verts, 3))
+      const material = new THREE.LineBasicMaterial({ color: 0x66ccff, transparent: true, opacity: 0.9 })
+      this.pointer = new THREE.LineLoop(geometry, material)
       this.pointer.visible = false
+      this.pointer.renderOrder = 1002
     }
     return this.pointer
   }
