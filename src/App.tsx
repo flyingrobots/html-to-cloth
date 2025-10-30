@@ -362,7 +362,7 @@ function Demo() {
   const [drawAABBs, setDrawAABBs] = useState(false)
   const [drawSleep, setDrawSleep] = useState(false)
   const [drawPins, setDrawPins] = useState(false)
-  const [pinMode, setPinMode] = useState<PinMode>('top')
+  const [pinMode, setPinMode] = useState<PinMode>('none')
 
   useEffect(() => {
     const controller = new ClothSceneController()

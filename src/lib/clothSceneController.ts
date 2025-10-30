@@ -848,7 +848,9 @@ export class ClothSceneController {
   setGravity(gravity: number) {
     this.debug.gravity = gravity
     for (const item of this.items.values()) {
-      item.cloth?.setGravity(new THREE.Vector3(0, -gravity, 0))
+      if (!item.cloth) continue
+      item.cloth.setGravity(new THREE.Vector3(0, -gravity, 0))
+      item.cloth.wake()
     }
   }
 

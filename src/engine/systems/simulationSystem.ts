@@ -153,6 +153,8 @@ export class SimulationSystem implements EngineSystem<EngineWorld> {
   broadcastGravity(gravity: Vector3) {
     for (const record of this.bodies.values()) {
       record.body.setGlobalGravity?.(gravity)
+      // Changing gravity should immediately wake sleepers so the effect is visible.
+      record.body.wake?.()
     }
   }
 
