@@ -32,6 +32,38 @@ export class DebugOverlaySystem implements EngineSystem {
     this.priority = 5
   }
 
+  onDetach() {
+    this.dispose()
+  }
+
+  dispose() {
+    // Pointer
+    if (this.pointer) {
+      this.pointer.geometry.dispose()
+      const mat = this.pointer.material
+      if (mat instanceof THREE.Material) mat.dispose()
+      if (this.attached) this.view.scene?.remove(this.pointer)
+      this.pointer = undefined
+      this.attached = false
+    }
+    // Groups
+    if (this.aabbGroup) {
+      this.clearOverlayGroup(this.aabbGroup)
+      this.view.scene?.remove(this.aabbGroup)
+      this.aabbGroup = undefined
+    }
+    if (this.pinGroup) {
+      this.clearOverlayGroup(this.pinGroup)
+      this.view.scene?.remove(this.pinGroup)
+      this.pinGroup = undefined
+    }
+    if (this.circleGroup) {
+      this.clearOverlayGroup(this.circleGroup)
+      this.view.scene?.remove(this.circleGroup)
+      this.circleGroup = undefined
+    }
+  }
+
   frameUpdate() {
     const mesh = this.ensurePointer()
     const visible = this.state.visible
@@ -63,6 +95,17 @@ export class DebugOverlaySystem implements EngineSystem {
     return this.pointer
   }
 
+  private clearOverlayGroup(group: THREE.Group) {
+    for (const child of [...group.children]) {
+      if (child instanceof THREE.LineSegments || child instanceof THREE.LineLoop) {
+        child.geometry.dispose()
+        const mat = child.material
+        if (mat instanceof THREE.Material) mat.dispose()
+      }
+      group.remove(child)
+    }
+  }
+
   private drawAABBs(visible: boolean) {
     if (!this.view.scene) return
     if (!this.aabbGroup) {
@@ -72,8 +115,8 @@ export class DebugOverlaySystem implements EngineSystem {
     }
     this.aabbGroup.visible = visible
     if (!visible) return
-    // Rebuild each frame for simplicity (counts are small); could be optimized
-    while (this.aabbGroup.children.length) this.aabbGroup.remove(this.aabbGroup.children[0])
+    // Rebuild each frame for simplicity (counts are small); dispose old resources first.
+    this.clearOverlayGroup(this.aabbGroup)
     const color = new THREE.Color(0x8888ff)
     for (const box of this.state.aabbs) {
       const geom = new THREE.BufferGeometry()
@@ -104,7 +147,7 @@ export class DebugOverlaySystem implements EngineSystem {
     }
     this.pinGroup.visible = visible
     if (!visible) return
-    while (this.pinGroup.children.length) this.pinGroup.remove(this.pinGroup.children[0])
+    this.clearOverlayGroup(this.pinGroup)
     const size = 0.02
     const color = new THREE.Color(0x00ffff)
     for (const p of this.state.pinMarkers) {
@@ -131,7 +174,7 @@ export class DebugOverlaySystem implements EngineSystem {
     }
     this.circleGroup.visible = visible
     if (!visible) return
-    while (this.circleGroup.children.length) this.circleGroup.remove(this.circleGroup.children[0])
+    this.clearOverlayGroup(this.circleGroup)
     const snap = this.state.simSnapshot
     if (!snap) return
     for (const body of snap.bodies) {

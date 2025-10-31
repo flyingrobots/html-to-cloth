@@ -97,7 +97,7 @@ class ClothBodyAdapter implements SimBody, Component {
     this.record = record
     this.debug = debug
     // Initialize world sleep thresholds from controller defaults
-    this._worldSleepVelThreshold = (window as any).__clothWorldSleepVel ?? 0.001
+    this._worldSleepVelThreshold = window.__clothWorldSleepVel ?? 0.001
   }
 
   update(dt: number) {
@@ -126,8 +126,17 @@ class ClothBodyAdapter implements SimBody, Component {
       boundary = this._tmpLocalV3.y
     }
     // World-space sleep guard: keep cloth awake until it remains still in world space
-    if (typeof (cloth as any).getBoundingSphere === 'function') {
-      const localCenter = (cloth as any).getBoundingSphere().center as { x: number; y: number }
+    {
+      type MaybeGS = { getBoundingSphere?: () => { center: { x: number; y: number } } }
+      const maybe = cloth as unknown as MaybeGS
+      if (typeof maybe.getBoundingSphere !== 'function') {
+        // Tests/mocks may omit this; skip world-space guard in that case.
+        if (cloth.isOffscreen(boundary)) {
+          this.offscreenCallback()
+        }
+        return
+      }
+      const localCenter = maybe.getBoundingSphere().center
       let worldCenter = this._tmpLocalV2
       if (worldBody) {
         const w = worldBody.localToWorldPoint(
@@ -756,8 +765,12 @@ export class ClothSceneController {
     this.overlayState.aabbs = aabbs
     // Simulation snapshot (sleeping/awake)
     try {
-      this.overlayState.simSnapshot = this.simulationSystem.getSnapshot() as any
-    } catch {}
+      const snapshot = this.simulationSystem.getSnapshot()
+      this.overlayState.simSnapshot = this.isSimSnapshot(snapshot) ? snapshot : undefined
+    } catch (error) {
+      console.error('Failed to capture simulation snapshot for overlay', error)
+      this.overlayState.simSnapshot = undefined
+    }
     // Pin markers from active cloth adapters
     const pins: Array<{ x: number; y: number }> = []
     for (const item of this.items.values()) {
@@ -766,6 +779,10 @@ export class ClothSceneController {
       for (const p of pts) pins.push(p)
     }
     this.overlayState.pinMarkers = pins
+  }
+
+  private isSimSnapshot(value: unknown): value is import('./simWorld').SimWorldSnapshot {
+    return Boolean(value && typeof value === 'object' && Array.isArray((value as import('./simWorld').SimWorldSnapshot).bodies))
   }
 
   private getBodyId(element: HTMLElement) {
