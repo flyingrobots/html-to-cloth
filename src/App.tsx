@@ -480,7 +480,7 @@ function Demo() {
         </Stack>
       </Group>
       <Affix position={{ bottom: 24, left: 0, right: 0 }}>
-        <Paper radius="xl" px="md" py={8} withBorder style={{ marginInline: 'auto', width: 'max-content' }}>
+        <Paper radius="xl" px="md" py={8} withBorder mx="auto" w="max-content">
           <Group gap={6} align="center">
             <Text size="sm">Press</Text>
             <Kbd>{modifierKey}</Kbd>

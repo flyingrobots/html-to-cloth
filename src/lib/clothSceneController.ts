@@ -32,6 +32,9 @@ type DebugSettings = {
   constraintIterations: number
   substeps: number
   tessellationSegments: number
+  autoTessellation?: boolean
+  tessellationMin?: number
+  tessellationMax?: number
   pointerCollider: boolean
   pinMode: PinMode
 }
@@ -497,13 +500,32 @@ export class ClothSceneController {
   }
 
   private computeAutoSegments(rect: DOMRect, maxCap = this.debug.tessellationSegments) {
+    const clamp = (val: number, min: number, max: number) => Math.max(min, Math.min(max, val))
+    const round = (n: number) => Math.round(n)
+
+    // Auto off → return the exact configured segments (clamped)
+    if (!this.debug.autoTessellation) {
+      return clamp(round(this.debug.tessellationSegments), 1, 48)
+    }
+
     const viewport = this.domToWebGL!.getViewportPixels()
-    const area = Math.max(1, rect.width * rect.height)
-    const screenArea = Math.max(1, viewport.width * viewport.height)
-    const s = Math.sqrt(area / screenArea) // linearize by diagonal proportion
-    const MIN = 6
-    const MAX = Math.max(MIN + 2, Math.min(48, Math.round(maxCap)))
-    return Math.max(MIN, Math.min(MAX, Math.round(MIN + s * (MAX - MIN))))
+    const rectW = Number.isFinite(rect.width) ? rect.width : 0
+    const rectH = Number.isFinite(rect.height) ? rect.height : 0
+    const vpW = Number.isFinite(viewport.width) ? viewport.width : 0
+    const vpH = Number.isFinite(viewport.height) ? viewport.height : 0
+
+    const area = Math.max(1, rectW * rectH)
+    const screenArea = Math.max(1, vpW * vpH)
+    const s = Math.sqrt(area / screenArea) // proportion of screen by diagonal
+
+    const MIN_SEGMENTS = clamp(round(this.debug.tessellationMin ?? 6), 1, 40)
+    const MAX_TESSELLATION_CAP = 48
+    const rawMax = round(maxCap)
+    const maxUser = clamp(round(this.debug.tessellationMax ?? maxCap), MIN_SEGMENTS + 2, MAX_TESSELLATION_CAP)
+    const MAX = Math.min(clamp(rawMax, MIN_SEGMENTS + 2, MAX_TESSELLATION_CAP), maxUser)
+
+    const desired = round(MIN_SEGMENTS + s * (MAX - MIN_SEGMENTS))
+    return clamp(desired, MIN_SEGMENTS, MAX)
   }
 
   private async prepareElements(elements: HTMLElement[]) {
