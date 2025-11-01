@@ -661,10 +661,10 @@ export class ClothSceneController {
     const gravityVector = new THREE.Vector3(0, -this.debug.gravity, 0)
     cloth.setGravity(gravityVector)
 
-    // Seed a small, size-relative perturbation to avoid perfectly rigid start.
-    // Using a fixed 0.06 meters overwhelmed tiny meshes on some viewports.
+    // Seed a very small, size-relative perturbation to avoid perfectly rigid start
+    // without causing a visible crumple/pop.
     const sizeHint = Math.max(0.0005, Math.min(record.widthMeters, record.heightMeters))
-    const jitter = Math.min(0.02, sizeHint * 0.2)
+    const jitter = Math.min(0.004, sizeHint * 0.05)
     cloth.addTurbulence(jitter)
     // Do not auto-release pins; keep according to selected Pin Mode for predictable behavior.
 
@@ -700,6 +700,48 @@ export class ClothSceneController {
     element.removeEventListener('click', item.clickHandler)
     // Refresh debug overlay data (pins, snapshot) immediately after activation
     this.updateOverlayDebug()
+  }
+
+  /** Public: convert an active cloth element back to a static DOM-backed mesh. */
+  async restoreElement(element: HTMLElement) {
+    const item = this.items.get(element)
+    if (!item) return
+    // If not active, ensure it's mounted and visible
+    if (!item.isActive) {
+      this.pool?.mount(element)
+      element.style.opacity = '1'
+      this.collisionSystem.addStaticBody(element)
+      return
+    }
+    // Remove from simulation and entity manager
+    if (item.adapter) {
+      this.simulationSystem.removeBody(item.adapter.id)
+    }
+    if (item.entity) {
+      item.entity.destroy()
+      item.entity = undefined
+    }
+    // Mark mesh as static again for render settings system
+    const mesh = item.record?.mesh
+    if (mesh) {
+      const obj = mesh as unknown as { userData?: Record<string, unknown> }
+      obj.userData = { ...(obj.userData || {}), isCloth: false, isStatic: true }
+    }
+    // Recycle and remount the DOM mesh in static mode
+    if (this.pool) {
+      this.pool.recycle(element)
+      this.pool.resetGeometry(element)
+      this.pool.mount(element)
+    }
+    element.style.opacity = '1'
+    // Re-add the click handler to allow re-activation
+    if (item.clickHandler) {
+      element.addEventListener('click', item.clickHandler)
+    }
+    this.collisionSystem.addStaticBody(element)
+    item.isActive = false
+    item.cloth = undefined
+    item.adapter = undefined
   }
 
   private animate() {

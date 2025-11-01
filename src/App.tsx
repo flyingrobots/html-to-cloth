@@ -76,6 +76,7 @@ type DebugProps = {
   onReset: () => void
   // Optional helper passed by parent to clothify the panel element
   clothifyElement?: (el: HTMLElement) => Promise<void>
+  restoreElement?: (el: HTMLElement) => Promise<void>
 }
 
 function DebugPalette(props: DebugProps) {
@@ -127,6 +128,18 @@ function DebugPalette(props: DebugProps) {
   // (labels kept close to Select entries)
 
   const panelRef = useRef<HTMLDivElement | null>(null)
+
+  // If the panel is reopened after being clothified, restore it to static DOM to avoid
+  // double images and transparency blending with the cloth copy.
+  useEffect(() => {
+    if (!open) return
+    const el = panelRef.current
+    if (!el) return
+    if (props.restoreElement) {
+      // best effort restore; ignore failures
+      Promise.resolve(props.restoreElement(el)).catch(() => {})
+    }
+  }, [open, props])
 
   return (
     <Affix position={{ top: 16, right: 16 }} zIndex={2100}>
@@ -691,8 +704,20 @@ function Demo() {
         clothifyElement={async (el: HTMLElement) => {
           try {
             await controllerRef.current?.clothify?.(el, { activate: true, addClickHandler: false })
+            if (!realTimeRef.current) {
+              // Give it a nudge when paused so it separates from the DOM panel
+              controllerRef.current?.stepOnce()
+              controllerRef.current?.stepOnce()
+            }
           } catch (err) {
             console.warn('clothifyElement failed', err)
+          }
+        }}
+        restoreElement={async (el: HTMLElement) => {
+          try {
+            await controllerRef.current?.restoreElement?.(el)
+          } catch (err) {
+            console.warn('restoreElement failed', err)
           }
         }}
       />
