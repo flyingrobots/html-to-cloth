@@ -1,6 +1,5 @@
 export type DebugPreset = {
   name: string
-  gravity: number
   iterations: number
   sleepVelocity: number
   sleepFrames: number
@@ -11,7 +10,6 @@ export type DebugPreset = {
 const PRESET_LIST: ReadonlyArray<Readonly<DebugPreset>> = Object.freeze([
   {
     name: 'Floaty',
-    gravity: 6.0,
     iterations: 3,
     sleepVelocity: 0.0005,
     sleepFrames: 80,
@@ -20,7 +18,6 @@ const PRESET_LIST: ReadonlyArray<Readonly<DebugPreset>> = Object.freeze([
   },
   {
     name: 'Crisp',
-    gravity: 9.81,
     iterations: 6,
     sleepVelocity: 0.001,
     sleepFrames: 60,
@@ -29,7 +26,6 @@ const PRESET_LIST: ReadonlyArray<Readonly<DebugPreset>> = Object.freeze([
   },
   {
     name: 'Heavy',
-    gravity: 14.0,
     iterations: 8,
     sleepVelocity: 0.002,
     sleepFrames: 40,

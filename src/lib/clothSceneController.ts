@@ -13,6 +13,8 @@ import { CameraSystem } from '../engine/camera/CameraSystem'
 import { WorldRendererSystem } from '../engine/render/worldRendererSystem'
 import { DebugOverlaySystem } from '../engine/render/DebugOverlaySystem'
 import { DebugOverlayState } from '../engine/render/DebugOverlayState'
+import { RenderSettingsSystem } from '../engine/render/RenderSettingsSystem'
+import { RenderSettingsState } from '../engine/render/RenderSettingsState'
 import type { Entity } from '../engine/entity/entity'
 import type { Component } from '../engine/entity/component'
 import type { PinMode } from '../types/pinMode'
@@ -30,6 +32,9 @@ type DebugSettings = {
   constraintIterations: number
   substeps: number
   tessellationSegments: number
+  autoTessellation?: boolean
+  tessellationMin?: number
+  tessellationMax?: number
   pointerCollider: boolean
   pinMode: PinMode
 }
@@ -72,6 +77,11 @@ class ClothBodyAdapter implements SimBody, Component {
   private _tmpLocalV3B = new THREE.Vector3()
   private _tmpLocalV2 = new THREE.Vector2()
   private _tmpLocalV2B = new THREE.Vector2()
+  // World-space sleep tracking (prevents premature sleep on scaled meshes)
+  private _lastWorldCenter = new THREE.Vector2()
+  private _worldStillFrames = 0
+  private _worldSleepVelThreshold = 0.001
+  private _worldSleepFrameThreshold = 60
 
   constructor(
     id: string,
@@ -89,6 +99,8 @@ class ClothBodyAdapter implements SimBody, Component {
     this.offscreenCallback = handleOffscreen
     this.record = record
     this.debug = debug
+    // Initialize world sleep thresholds from controller defaults
+    this._worldSleepVelThreshold = window.__clothWorldSleepVel ?? 0.001
   }
 
   update(dt: number) {
@@ -116,6 +128,47 @@ class ClothBodyAdapter implements SimBody, Component {
       worldBody.worldToLocalPoint(this._tmpWorldV3, this._tmpLocalV3)
       boundary = this._tmpLocalV3.y
     }
+    // World-space sleep guard: keep cloth awake until it remains still in world space
+    {
+      type MaybeGS = { getBoundingSphere?: () => { center: { x: number; y: number } } }
+      const maybe = cloth as unknown as MaybeGS
+      if (typeof maybe.getBoundingSphere !== 'function') {
+        // Tests/mocks may omit this; skip world-space guard in that case.
+        if (cloth.isOffscreen(boundary)) {
+          this.offscreenCallback()
+        }
+        return
+      }
+      const localCenter = maybe.getBoundingSphere().center
+      let worldCenter = this._tmpLocalV2
+      if (worldBody) {
+        const w = worldBody.localToWorldPoint(
+          this._tmpLocalV3.set(localCenter.x, localCenter.y, 0),
+          this._tmpWorldV3
+        )
+        worldCenter = this._tmpLocalV2.set(w.x, w.y)
+      } else {
+        // Fallback: treat local as world when no transform is present
+        worldCenter = this._tmpLocalV2.set(localCenter.x, localCenter.y)
+      }
+      const dx = worldCenter.x - this._lastWorldCenter.x
+      const dy = worldCenter.y - this._lastWorldCenter.y
+      const deltaSq = dx * dx + dy * dy
+      // scale threshold by dt to approximate velocity threshold per frame
+      const v = this._worldSleepVelThreshold * Math.max(1e-6, dt)
+      if (deltaSq >= v * v) {
+        this._worldStillFrames = 0
+        cloth.wake()
+      } else {
+        this._worldStillFrames += 1
+        // Guard: keep cloth awake until world-still for N frames
+        if (this._worldStillFrames < this._worldSleepFrameThreshold) {
+          cloth.wake()
+        }
+      }
+      this._lastWorldCenter.copy(worldCenter)
+    }
+
     if (cloth.isOffscreen(boundary)) {
       this.offscreenCallback()
     }
@@ -143,6 +196,9 @@ class ClothBodyAdapter implements SimBody, Component {
     const cloth = this.item.cloth
     if (!cloth) return
     cloth.setSleepThresholds(config.velocityThreshold, config.frameThreshold)
+    // Keep adapter thresholds in sync for world-space sleep guarding
+    this._worldSleepVelThreshold = config.velocityThreshold
+    this._worldSleepFrameThreshold = config.frameThreshold
   }
 
   setConstraintIterations(iterations: number) {
@@ -150,7 +206,15 @@ class ClothBodyAdapter implements SimBody, Component {
   }
 
   setGlobalGravity(gravity: THREE.Vector3) {
-    this.item.cloth?.setGravity(gravity)
+    const worldBody = this.record.worldBody
+    if (!worldBody) {
+      this.item.cloth?.setGravity(gravity)
+      return
+    }
+    // Convert world gravity vector into the cloth's local/model space
+    const local = this._tmpWorldV3.copy(gravity)
+    worldBody.worldToLocalVector(local, this._tmpLocalV3)
+    this.item.cloth?.setGravity(this._tmpLocalV3)
   }
 
   handleOffscreen() {
@@ -227,6 +291,20 @@ class ClothBodyAdapter implements SimBody, Component {
     const elementStrength = !Number.isNaN(parsed) && parsed > 0 ? parsed : 1
     return elementStrength * this.debug.impulseMultiplier
   }
+
+  /** Returns world-space positions of pinned vertices for debug overlay. */
+  getPinnedWorldPositions() {
+    const cloth = this.item.cloth
+    const record = this.record
+    if (!cloth || !record) return [] as { x: number; y: number }[]
+    const locals = cloth.getPinnedVertexPositions()
+    const out: { x: number; y: number }[] = []
+    for (const v of locals) {
+      const world = record.worldBody.localToWorldPoint(this._tmpLocalV3.set(v.x, v.y, v.z), this._tmpWorldV3)
+      out.push({ x: world.x, y: world.y })
+    }
+    return out
+  }
 }
 
 export type ClothSceneControllerOptions = {
@@ -264,6 +342,8 @@ export class ClothSceneController {
   private worldRenderer: WorldRendererSystem | null = null
   private overlaySystem: DebugOverlaySystem | null = null
   private overlayState: DebugOverlayState | null = null
+  private renderSettingsSystem: RenderSettingsSystem | null = null
+  private renderSettingsState: RenderSettingsState | null = null
   private elementIds = new Map<HTMLElement, string>()
   private onResize = () => this.handleResize()
   private onScroll = () => {
@@ -340,6 +420,7 @@ export class ClothSceneController {
     if (!clothElements.length) return
 
     await this.prepareElements(clothElements)
+    this.updateOverlayDebug()
 
     window.addEventListener('resize', this.onResize, { passive: true })
     window.addEventListener('scroll', this.onScroll, { passive: true })
@@ -418,6 +499,35 @@ export class ClothSceneController {
     this.elementIds.clear()
   }
 
+  private computeAutoSegments(rect: DOMRect, maxCap = this.debug.tessellationSegments) {
+    const clamp = (val: number, min: number, max: number) => Math.max(min, Math.min(max, val))
+    const round = (n: number) => Math.round(n)
+
+    // Auto off → return the exact configured segments (clamped)
+    if (!this.debug.autoTessellation) {
+      return clamp(round(this.debug.tessellationSegments), 1, 48)
+    }
+
+    const viewport = this.domToWebGL!.getViewportPixels()
+    const rectW = Number.isFinite(rect.width) ? rect.width : 0
+    const rectH = Number.isFinite(rect.height) ? rect.height : 0
+    const vpW = Number.isFinite(viewport.width) ? viewport.width : 0
+    const vpH = Number.isFinite(viewport.height) ? viewport.height : 0
+
+    const area = Math.max(1, rectW * rectH)
+    const screenArea = Math.max(1, vpW * vpH)
+    const s = Math.sqrt(area / screenArea) // proportion of screen by diagonal
+
+    const MIN_SEGMENTS = clamp(round(this.debug.tessellationMin ?? 6), 1, 40)
+    const MAX_TESSELLATION_CAP = 48
+    const rawMax = round(maxCap)
+    const maxUser = clamp(round(this.debug.tessellationMax ?? maxCap), MIN_SEGMENTS + 2, MAX_TESSELLATION_CAP)
+    const MAX = Math.min(clamp(rawMax, MIN_SEGMENTS + 2, MAX_TESSELLATION_CAP), maxUser)
+
+    const desired = round(MIN_SEGMENTS + s * (MAX - MIN_SEGMENTS))
+    return clamp(desired, MIN_SEGMENTS, MAX)
+  }
+
   private async prepareElements(elements: HTMLElement[]) {
     // Capture current references; the controller may get disposed while
     // awaiting pool work during rapid navigations or hot reload.
@@ -428,7 +538,9 @@ export class ClothSceneController {
     for (const element of elements) {
       // Bail early if controller was disposed or pool swapped out.
       if (this.disposed || this.pool !== pool || this.domToWebGL !== bridge) return
-      await pool.prepare(element, this.debug.tessellationSegments)
+      const rect = element.getBoundingClientRect()
+      const seg = this.computeAutoSegments(rect, this.debug.tessellationSegments)
+      await pool.prepare(element, seg)
       if (this.disposed || this.pool !== pool || this.domToWebGL !== bridge) return
       pool.mount(element)
 
@@ -496,7 +608,8 @@ export class ClothSceneController {
     item.record = record
     const material = record.mesh.material as THREE.MeshBasicMaterial | undefined
     if (material) {
-      material.wireframe = this.debug.wireframe
+      const wire = this.renderSettingsState ? this.renderSettingsState.wireframe : this.debug.wireframe
+      material.wireframe = wire
     }
     const adapterId = this.getBodyId(element)
     const adapter = new ClothBodyAdapter(
@@ -520,6 +633,8 @@ export class ClothSceneController {
     item.adapter = adapter
     item.entity = entity
     element.removeEventListener('click', item.clickHandler)
+    // Refresh debug overlay data (pins, snapshot) immediately after activation
+    this.updateOverlayDebug()
   }
 
   private animate() {
@@ -546,20 +661,24 @@ export class ClothSceneController {
   private installRenderPipeline() {
     if (!this.domToWebGL) return
     if (this.cameraSystem && this.worldRenderer && this.overlaySystem) return
-    if (this.cameraSystem || this.worldRenderer || this.overlaySystem) {
+    if (this.cameraSystem || this.worldRenderer || this.overlaySystem || this.renderSettingsSystem) {
       if (this.cameraSystem) this.engine.removeSystemInstance(this.cameraSystem)
       if (this.worldRenderer) this.engine.removeSystemInstance(this.worldRenderer)
       if (this.overlaySystem) this.engine.removeSystemInstance(this.overlaySystem)
+      if (this.renderSettingsSystem) this.engine.removeSystemInstance(this.renderSettingsSystem)
       this.cameraSystem = null
       this.worldRenderer = null
       this.overlaySystem = null
+      this.renderSettingsSystem = null
     }
     // Create a camera system and world renderer that reads snapshots each frame.
     this.cameraSystem = new CameraSystem()
     this.worldRenderer = new WorldRendererSystem({ view: this.domToWebGL, camera: this.cameraSystem })
-    // Debug overlay state/system for render-only gizmos (e.g., pointer collider)
+    // Render-only systems: debug overlay + render settings (e.g., wireframe)
     this.overlayState = new DebugOverlayState()
     this.overlaySystem = new DebugOverlaySystem({ view: this.domToWebGL, state: this.overlayState })
+    this.renderSettingsState = new RenderSettingsState()
+    this.renderSettingsSystem = new RenderSettingsSystem({ view: this.domToWebGL, state: this.renderSettingsState })
     // Register with lower priority than simulation so render sees the latest snapshot.
     this.engine.addSystem(this.cameraSystem, {
       id: ClothSceneController.CAMERA_SYSTEM_ID,
@@ -574,6 +693,11 @@ export class ClothSceneController {
     this.engine.addSystem(this.overlaySystem, {
       id: ClothSceneController.OVERLAY_SYSTEM_ID,
       priority: 5,
+      allowWhilePaused: true,
+    })
+    this.engine.addSystem(this.renderSettingsSystem, {
+      id: 'render-settings',
+      priority: 8,
       allowWhilePaused: true,
     })
   }
@@ -598,6 +722,11 @@ export class ClothSceneController {
     return this.overlayState
   }
 
+  /** Returns the render settings state for EngineActions. */
+  getRenderSettingsState() {
+    return this.renderSettingsState
+  }
+
   private syncStaticMeshes() {
     if (!this.domToWebGL) return
 
@@ -608,6 +737,7 @@ export class ClothSceneController {
         this.domToWebGL.updateMeshTransform(item.element, record)
       }
     }
+    this.updateOverlayDebug()
   }
 
   private handlePointerMove(event: PointerEvent) {
@@ -635,6 +765,7 @@ export class ClothSceneController {
     }
 
     this.simulationSystem.notifyPointer(this.pointer.position)
+    this.updateOverlayDebug()
     // overlay pointer updated elsewhere
   }
 
@@ -644,6 +775,36 @@ export class ClothSceneController {
     this.pointer.velocity.set(0, 0)
     this.overlayState?.pointer.set(0, 0)
     // overlay pointer updated elsewhere
+  }
+
+  private updateOverlayDebug() {
+    if (!this.overlayState) return
+    // Static AABBs
+    const aabbs = this.collisionSystem.getStaticAABBs().map((b) => ({
+      min: { x: b.min.x, y: b.min.y },
+      max: { x: b.max.x, y: b.max.y },
+    }))
+    this.overlayState.aabbs = aabbs
+    // Simulation snapshot (sleeping/awake)
+    try {
+      const snapshot = this.simulationSystem.getSnapshot()
+      this.overlayState.simSnapshot = this.isSimSnapshot(snapshot) ? snapshot : undefined
+    } catch (error) {
+      console.error('Failed to capture simulation snapshot for overlay', error)
+      this.overlayState.simSnapshot = undefined
+    }
+    // Pin markers from active cloth adapters
+    const pins: Array<{ x: number; y: number }> = []
+    for (const item of this.items.values()) {
+      if (!item.isActive || !item.adapter) continue
+      const pts = item.adapter.getPinnedWorldPositions()
+      for (const p of pts) pins.push(p)
+    }
+    this.overlayState.pinMarkers = pins
+  }
+
+  private isSimSnapshot(value: unknown): value is import('./simWorld').SimWorldSnapshot {
+    return Boolean(value && typeof value === 'object' && Array.isArray((value as import('./simWorld').SimWorldSnapshot).bodies))
   }
 
   private getBodyId(element: HTMLElement) {
@@ -772,7 +933,7 @@ export class ClothSceneController {
       const element = item.element
       tasks.push(
         pool
-          .prepare(element, clamped)
+          .prepare(element, this.computeAutoSegments(element.getBoundingClientRect(), clamped))
           .then(() => {
             pool.mount(element)
             item.record = pool.getRecord(element)

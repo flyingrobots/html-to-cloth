@@ -50,6 +50,14 @@ export class CollisionSystem {
     this.staticBodies = []
   }
 
+  /** Returns a snapshot of static body AABBs (canonical units). */
+  getStaticAABBs(): Array<{ min: THREE.Vector2; max: THREE.Vector2 }> {
+    return this.staticBodies.map((b) => ({
+      min: b.min.clone(),
+      max: b.max.clone(),
+    }))
+  }
+
   private rectMin(rect: DOMRect) {
     return new THREE.Vector2(
       edgeToCanonicalX(rect.left, this.viewportWidth),

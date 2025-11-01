@@ -4,7 +4,11 @@
 
 const HTML2CANVAS_IFRAME_CLASS = 'html2canvas-container'
 
-type PatchedRecord = { loadDispatched: boolean; originalWrite?: (this: Document, ...args: any[]) => any; originalWriteln?: (this: Document, ...args: any[]) => any }
+type PatchedRecord = {
+  loadDispatched: boolean
+  originalWrite?: (this: Document, ...args: string[]) => void
+  originalWriteln?: (this: Document, ...args: string[]) => void
+}
 const patchedDocuments = new WeakMap<Document, PatchedRecord>()
 
 let documentWritePatched = false
@@ -20,14 +24,14 @@ declare global {
 
 const scheduleMicrotask = (fn: () => void) => {
   if (typeof queueMicrotask === 'function') return queueMicrotask(fn)
-  Promise.resolve().then(fn).catch(() => {})
+  Promise.resolve().then(fn).catch(() => { void 0 })
 }
 
-const shouldInterceptDocumentWrite = (target: any): target is Document => {
+const shouldInterceptDocumentWrite = (target: unknown): target is Document => {
   if (!target || typeof target !== 'object') return false
   const defaultView: Window | null | undefined = (target as Document).defaultView
   if (!defaultView) return false
-  const frameElement: Element | null | undefined = (defaultView as any).frameElement
+  const frameElement: Element | null | undefined = (defaultView as Window).frameElement
   if (!frameElement || frameElement.tagName !== 'IFRAME') return false
   return (frameElement as Element).classList?.contains(HTML2CANVAS_IFRAME_CLASS) ?? false
 }
@@ -57,9 +61,9 @@ const replaceDocumentContents = (targetDocument: Document, htmlText: string, rec
       record.loadDispatched = true
       scheduleMicrotask(() => {
         const view = targetDocument.defaultView
-        try { view?.dispatchEvent(new Event('load')) } catch {}
-        const frame = (view as any)?.frameElement
-        try { frame?.dispatchEvent(new Event('load')) } catch {}
+        try { view?.dispatchEvent(new Event('load')) } catch { /* no-op */ }
+        const frame = view?.frameElement ?? null
+        try { frame?.dispatchEvent(new Event('load')) } catch { /* no-op */ }
       })
     }
     return true
@@ -79,8 +83,8 @@ const getRecord = (doc: Document) => {
 
 const handleDocumentWrite = (
   targetDocument: Document,
-  originalFn: ((this: Document, ...args: any[]) => any) | null,
-  args: any[],
+  originalFn: ((this: Document, ...args: string[]) => void) | null,
+  args: string[],
   appendNewline: boolean,
 ) => {
   if (!shouldInterceptDocumentWrite(targetDocument)) {
@@ -94,14 +98,14 @@ const handleDocumentWrite = (
   return undefined
 }
 
-const patchDocumentInstance = (doc: Document) => {
-  if (!doc || (doc as any).__html2canvasPatched) return
+const patchDocumentInstance = (doc: Document & { __html2canvasPatched?: boolean }) => {
+  if (!doc || doc.__html2canvasPatched) return
   const record = getRecord(doc)
   const originalWrite = typeof doc.write === 'function' ? doc.write.bind(doc) : null
   const originalWriteln = typeof doc.writeln === 'function' ? doc.writeln.bind(doc) : null
-  ;(doc as any).write = (...args: any[]) => handleDocumentWrite(doc, originalWrite, args, false)
-  ;(doc as any).writeln = (...args: any[]) => handleDocumentWrite(doc, originalWriteln, args, true)
-  ;(doc as any).__html2canvasPatched = true
+  ;(doc as unknown as { write: (...args: string[]) => void }).write = (...args: string[]) => handleDocumentWrite(doc, originalWrite, args, false)
+  ;(doc as unknown as { writeln: (...args: string[]) => void }).writeln = (...args: string[]) => handleDocumentWrite(doc, originalWriteln, args, true)
+  doc.__html2canvasPatched = true
   record.originalWrite = originalWrite ?? undefined
   record.originalWriteln = originalWriteln ?? undefined
 }
@@ -111,16 +115,16 @@ export const ensureHtml2CanvasInterception = () => {
   if (!documentWritePatched && typeof Document !== 'undefined') {
     originalDocumentWrite = Document.prototype.write
     originalDocumentWriteln = Document.prototype.writeln
-    Document.prototype.write = function (...args: any[]) {
+    Document.prototype.write = function (...args: string[]) {
       return handleDocumentWrite(this, originalDocumentWrite, args, false)
     }
-    Document.prototype.writeln = function (...args: any[]) {
+    Document.prototype.writeln = function (...args: string[]) {
       return handleDocumentWrite(this, originalDocumentWriteln, args, true)
     }
     documentWritePatched = true
   }
   // Patch the current document instance so writes here are also safe
-  try { patchDocumentInstance(document) } catch {}
+  try { patchDocumentInstance(document) } catch { /* no-op */ }
   // Patch iframe contentWindow getter so html2canvas clone documents are pre‑patched
   if (!iframeContentWindowPatched && typeof HTMLIFrameElement !== 'undefined') {
     const descriptor = Object.getOwnPropertyDescriptor(HTMLIFrameElement.prototype, 'contentWindow')
@@ -130,8 +134,8 @@ export const ensureHtml2CanvasInterception = () => {
         configurable: true,
         enumerable: descriptor.enumerable,
         get: function () {
-          const win = (descriptor.get as any).call(this) as Window | null
-          try { if (win?.document) patchDocumentInstance(win.document) } catch {}
+          const win = descriptor.get!.call(this as unknown as HTMLIFrameElement) as Window | null
+          try { if (win?.document) patchDocumentInstance(win.document as Document & { __html2canvasPatched?: boolean }) } catch { /* no-op */ }
           return win
         },
       })
@@ -145,15 +149,14 @@ export const restoreHtml2CanvasInterception = () => {
     try {
       Document.prototype.write = originalDocumentWrite
       Document.prototype.writeln = originalDocumentWriteln
-    } catch {}
+    } catch { /* no-op */ }
     documentWritePatched = false
   }
   if (iframeContentWindowPatched && originalIframeContentWindowDescriptor) {
     try {
       Object.defineProperty(HTMLIFrameElement.prototype, 'contentWindow', originalIframeContentWindowDescriptor)
-    } catch {}
+    } catch { /* no-op */ }
     iframeContentWindowPatched = false
     originalIframeContentWindowDescriptor = null
   }
 }
-

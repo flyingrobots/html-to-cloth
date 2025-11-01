@@ -151,6 +151,7 @@ vi.mock('../collisionSystem', () => {
     setViewportDimensions = vi.fn((w: number, h: number) => collisionMocks.setViewportDimensions(w, h))
     refresh = vi.fn(() => collisionMocks.refresh())
     clear = vi.fn(() => collisionMocks.clear())
+    getStaticAABBs = vi.fn(() => [])
   }
 
   return { CollisionSystem: MockCollisionSystem }
@@ -219,6 +220,7 @@ vi.mock('../clothPhysics', () => {
     public relaxConstraints = vi.fn()
     public setSleepThresholds = vi.fn()
     public isSleeping = vi.fn(() => false)
+    public getPinnedVertexPositions = vi.fn(() => [])
 
     constructor(public mesh: THREE.Mesh) {
       clothMocks.instances.push(this)
@@ -593,7 +595,10 @@ describe('ClothSceneController DOM integration', () => {
     await (webgl as any).setTessellationSegments(12)
 
     const button = document.getElementById('cta') as HTMLElement
-    expect(poolMocks.prepare).toHaveBeenCalledWith(button, 12)
+    // Auto tessellation scales with element size; ensure it stays within [6, 12]
+    const calledSegments = poolMocks.prepare.mock.calls[0][1]
+    expect(calledSegments).toBeGreaterThanOrEqual(6)
+    expect(calledSegments).toBeLessThanOrEqual(12)
     expect(poolMocks.mount).toHaveBeenCalledWith(button)
 
     webgl.dispose()
