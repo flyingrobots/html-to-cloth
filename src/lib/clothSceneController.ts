@@ -85,6 +85,7 @@ class ClothBodyAdapter implements SimBody, Component {
   private _worldSleepFrameThreshold = 60
   private _worldSleepGuardEnabled = true
   private _warnedAboutMissingBoundingSphere = false
+  private _lastRadius = 0
   // Keep newly activated cloth awake for a short grace window to avoid
   // immediate sleep when pins prevent initial center motion.
   private _activationGraceFrames = 20
@@ -119,7 +120,6 @@ class ClothBodyAdapter implements SimBody, Component {
     // can sag under gravity before world-space stillness is evaluated.
     if (this._worldSleepGuardEnabled && this._activationGraceFrames > 0) {
       cloth.wake()
-      this._activationGraceFrames -= 1
     }
 
     if (this.pointer.needsImpulse) {
@@ -133,6 +133,12 @@ class ClothBodyAdapter implements SimBody, Component {
     }
 
     cloth.update(dt)
+
+    // During activation grace, ensure local sleep cannot latch this frame
+    if (this._worldSleepGuardEnabled && this._activationGraceFrames > 0) {
+      cloth.wake()
+      this._activationGraceFrames -= 1
+    }
     this.collisionSystem.apply(cloth)
 
     let boundary = -CANONICAL_HEIGHT_METERS
@@ -146,7 +152,8 @@ class ClothBodyAdapter implements SimBody, Component {
       type MaybeGS = { getBoundingSphere?: () => { center: { x: number; y: number } } }
       const maybe = cloth as unknown as MaybeGS
       if (typeof maybe.getBoundingSphere === 'function') {
-        const localCenter = maybe.getBoundingSphere().center
+        const bs = maybe.getBoundingSphere() as { center: { x: number; y: number }; radius?: number }
+        const localCenter = bs.center
       let worldCenter = this._tmpLocalV2
       if (worldBody) {
         const w = worldBody.localToWorldPoint(
@@ -161,9 +168,10 @@ class ClothBodyAdapter implements SimBody, Component {
       const dx = worldCenter.x - this._lastWorldCenter.x
       const dy = worldCenter.y - this._lastWorldCenter.y
       const deltaSq = dx * dx + dy * dy
+      const dRadius = Math.abs(((bs.radius as number) ?? 0) - this._lastRadius)
       // scale threshold by dt to approximate velocity threshold per frame
       const v = this._worldSleepVelThreshold * Math.max(1e-6, dt)
-      if (deltaSq >= v * v) {
+      if (deltaSq >= v * v || dRadius >= v) {
         this._worldStillFrames = 0
         cloth.wake()
       } else {
@@ -174,6 +182,7 @@ class ClothBodyAdapter implements SimBody, Component {
         }
       }
       this._lastWorldCenter.copy(worldCenter)
+      this._lastRadius = ((bs.radius as number) ?? this._lastRadius)
       } else {
         if (!this._warnedAboutMissingBoundingSphere) {
           console.warn(`ClothBodyAdapter ${this.id}: getBoundingSphere not available, world sleep guard disabled`)
