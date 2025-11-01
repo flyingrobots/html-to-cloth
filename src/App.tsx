@@ -152,7 +152,7 @@ function DebugPalette(props: DebugProps) {
           </Stack>
           {/* Compact status row */}
           <Paper withBorder radius="sm" p="xs">
-            <Group gap="xs" justify="space-between" wrap>
+            <Group gap="xs" justify="space-between" wrap="wrap">
               <Text size="xs">Real-Time: {realTime ? 'ON' : 'OFF'}</Text>
               <Text size="xs">g: {gravity.toFixed(2)} m/s²</Text>
               <Text size="xs">Substeps: {substeps}</Text>
