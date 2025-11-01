@@ -74,6 +74,8 @@ type DebugProps = {
   onPinModeChange: (value: PinMode) => void
   onStep: () => void
   onReset: () => void
+  // Optional helper passed by parent to clothify the panel element
+  clothifyElement?: (el: HTMLElement) => Promise<void>
 }
 
 function DebugPalette(props: DebugProps) {
@@ -130,7 +132,7 @@ function DebugPalette(props: DebugProps) {
     <Affix position={{ top: 16, right: 16 }} zIndex={2100}>
       <Paper
         ref={panelRef}
-        className="cloth-enabled"
+        // Do NOT mark as 'cloth-enabled' at init; we clothify on demand via Hide.
         withBorder
         shadow="lg"
         p="md"
@@ -359,8 +361,9 @@ function DebugPalette(props: DebugProps) {
                 // Clothify the panel and drop it; keep clicks confined to this action
                 try {
                   const el = panelRef.current
-                  if (el && controllerRef.current?.clothify) {
-                    await controllerRef.current.clothify(el, { activate: true, addClickHandler: false })
+                  // Delegate to parent to avoid referencing controllerRef here
+                  if (el && props.clothifyElement) {
+                    await props.clothifyElement(el)
                   }
                 } catch (err) {
                   console.warn('Debug panel clothify failed', err)
@@ -408,9 +411,10 @@ function Demo() {
   const [pinMode, setPinMode] = useState<PinMode>('none')
 
   useEffect(() => {
+    let reduced = false
     if (typeof window !== 'undefined') {
       const mql = window.matchMedia('(prefers-reduced-motion: reduce)')
-      if (mql.matches) return
+      reduced = !!mql.matches
     }
 
     const controller = new ClothSceneController()
@@ -438,6 +442,10 @@ function Demo() {
         actionsRef.current.setConstraintIterations(constraintIterations)
         controller.setSleepConfig({ velocityThreshold: sleepVelocity, frameThreshold: sleepFrames })
         actionsRef.current.setSleepConfig(sleepVelocity, sleepFrames)
+        if (reduced) {
+          actionsRef.current.setRealTime(false)
+          setRealTime(false)
+        }
       } catch (err) {
         if (import.meta?.env?.MODE !== 'test') {
           console.warn('EngineActions init failed:', err)
@@ -670,6 +678,13 @@ function Demo() {
           setWorldSleepGuard(true)
           controllerRef.current?.setSleepConfig({ velocityThreshold: 0.001, frameThreshold: 60 })
           actionsRef.current?.setSleepConfig(0.001, 60)
+        }}
+        clothifyElement={async (el: HTMLElement) => {
+          try {
+            await controllerRef.current?.clothify?.(el, { activate: true, addClickHandler: false })
+          } catch (err) {
+            console.warn('clothifyElement failed', err)
+          }
         }}
       />
     </>
