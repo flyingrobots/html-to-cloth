@@ -51,7 +51,7 @@ export class CollisionSystem {
   }
 
   /** Returns a snapshot of static body AABBs (canonical units). */
-  getStaticAABBs() {
+  getStaticAABBs(): Array<{ min: THREE.Vector2; max: THREE.Vector2 }> {
     return this.staticBodies.map((b) => ({
       min: b.min.clone(),
       max: b.max.clone(),

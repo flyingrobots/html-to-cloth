@@ -1,4 +1,10 @@
 import * as THREE from 'three'
+import type { SimWorldSnapshot as SimSnapshot } from '../../lib/simWorld'
+
+export type CollisionAABB = {
+  min: { x: number; y: number }
+  max: { x: number; y: number }
+}
 
 /** Shared state read by DebugOverlaySystem and writable from UI/controller. */
 export class DebugOverlayState {
@@ -15,9 +21,9 @@ export class DebugOverlayState {
   /** Whether to draw pin markers when visible. */
   drawPins = false
   /** Static collision AABBs (canonical coordinates). */
-  aabbs: Array<{ min: { x: number; y: number }; max: { x: number; y: number } }> = []
+  aabbs: CollisionAABB[] = []
   /** Simulation snapshot for sleeping/awake coloring of gizmos. */
-  simSnapshot?: { bodies: Array<{ id: string; center: { x: number; y: number }; radius: number; sleeping: boolean }> }
+  simSnapshot?: Readonly<SimSnapshot>
   /** World-space pin markers (small crosses). */
   pinMarkers: Array<{ x: number; y: number }> = []
 }

@@ -102,7 +102,7 @@ class ClothBodyAdapter implements SimBody, Component {
     this.record = record
     this.debug = debug
     // Initialize world sleep thresholds from controller defaults
-    this._worldSleepVelThreshold = (window as any).__clothWorldSleepVel ?? 0.001
+    this._worldSleepVelThreshold = window.__clothWorldSleepVel ?? 0.001
   }
 
   update(dt: number) {
@@ -131,8 +131,11 @@ class ClothBodyAdapter implements SimBody, Component {
       boundary = this._tmpLocalV3.y
     }
     // World-space sleep guard: keep cloth awake until it remains still in world space
-    if (this._worldSleepGuardEnabled && typeof (cloth as any).getBoundingSphere === 'function') {
-      const localCenter = (cloth as any).getBoundingSphere().center as { x: number; y: number }
+    if (this._worldSleepGuardEnabled) {
+      type MaybeGS = { getBoundingSphere?: () => { center: { x: number; y: number } } }
+      const maybe = cloth as unknown as MaybeGS
+      if (typeof maybe.getBoundingSphere === 'function') {
+        const localCenter = maybe.getBoundingSphere().center
       let worldCenter = this._tmpLocalV2
       if (worldBody) {
         const w = worldBody.localToWorldPoint(
@@ -160,6 +163,7 @@ class ClothBodyAdapter implements SimBody, Component {
         }
       }
       this._lastWorldCenter.copy(worldCenter)
+      }
     }
 
     if (cloth.isOffscreen(boundary)) {
@@ -501,17 +505,32 @@ export class ClothSceneController {
   }
 
   private computeAutoSegments(rect: DOMRect, maxCap = this.debug.tessellationSegments) {
-    // If auto is disabled, use the exact configured segments
-    if (!this.debug.autoTessellation) return Math.max(1, Math.min(48, Math.round(this.debug.tessellationSegments)))
+    const clamp = (val: number, min: number, max: number) => Math.max(min, Math.min(max, val))
+    const round = (n: number) => Math.round(n)
+
+    // Auto off → return the exact configured segments (clamped)
+    if (!this.debug.autoTessellation) {
+      return clamp(round(this.debug.tessellationSegments), 1, 48)
+    }
+
     const viewport = this.domToWebGL!.getViewportPixels()
-    const area = Math.max(1, rect.width * rect.height)
-    const screenArea = Math.max(1, viewport.width * viewport.height)
-    const s = Math.sqrt(area / screenArea) // linearize by diagonal proportion
-    const MIN = Math.max(1, Math.min(40, Math.round(this.debug.tessellationMin)))
-    const MAX_CAP = Math.max(MIN + 2, Math.min(48, Math.round(maxCap)))
-    const MAX = Math.max(MIN + 2, Math.min(48, Math.round(this.debug.tessellationMax)))
-    const upper = Math.min(MAX, MAX_CAP)
-    return Math.max(MIN, Math.min(upper, Math.round(MIN + s * (upper - MIN))))
+    const rectW = Number.isFinite(rect.width) ? rect.width : 0
+    const rectH = Number.isFinite(rect.height) ? rect.height : 0
+    const vpW = Number.isFinite(viewport.width) ? viewport.width : 0
+    const vpH = Number.isFinite(viewport.height) ? viewport.height : 0
+
+    const area = Math.max(1, rectW * rectH)
+    const screenArea = Math.max(1, vpW * vpH)
+    const s = Math.sqrt(area / screenArea) // proportion of screen by diagonal
+
+    const MIN_SEGMENTS = clamp(round(this.debug.tessellationMin ?? 6), 1, 40)
+    const MAX_TESSELLATION_CAP = 48
+    const rawMax = round(maxCap)
+    const maxUser = clamp(round(this.debug.tessellationMax ?? maxCap), MIN_SEGMENTS + 2, MAX_TESSELLATION_CAP)
+    const MAX = Math.min(clamp(rawMax, MIN_SEGMENTS + 2, MAX_TESSELLATION_CAP), maxUser)
+
+    const desired = round(MIN_SEGMENTS + s * (MAX - MIN_SEGMENTS))
+    return clamp(desired, MIN_SEGMENTS, MAX)
   }
 
   private async prepareElements(elements: HTMLElement[]) {
@@ -776,8 +795,12 @@ export class ClothSceneController {
     this.overlayState.aabbs = aabbs
     // Simulation snapshot (sleeping/awake)
     try {
-      this.overlayState.simSnapshot = this.simulationSystem.getSnapshot() as any
-    } catch {}
+      const snapshot = this.simulationSystem.getSnapshot()
+      this.overlayState.simSnapshot = this.isSimSnapshot(snapshot) ? snapshot : undefined
+    } catch (error) {
+      console.error('Failed to capture simulation snapshot for overlay', error)
+      this.overlayState.simSnapshot = undefined
+    }
     // Pin markers from active cloth adapters
     const pins: Array<{ x: number; y: number }> = []
     for (const item of this.items.values()) {
@@ -798,6 +821,10 @@ export class ClothSceneController {
       break
     }
     this.overlayState.pointerRadius = r
+  }
+
+  private isSimSnapshot(value: unknown): value is import('./simWorld').SimWorldSnapshot {
+    return Boolean(value && typeof value === 'object' && Array.isArray((value as import('./simWorld').SimWorldSnapshot).bodies))
   }
 
   private getBodyId(element: HTMLElement) {

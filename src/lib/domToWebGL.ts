@@ -41,8 +41,9 @@ export class DOMToWebGL {
 
   constructor(container: HTMLElement, options: DOMToWebGLOptions = {}) {
     this.container = container
-    const envMode = (typeof import.meta !== 'undefined' && (import.meta as any).env?.VITE_H2C_INTERCEPT) || undefined
-    this.interceptMode = (options.interceptHtml2CanvasWrites as any) || envMode || 'on'
+    const envObj = (typeof import.meta !== 'undefined' ? (import.meta as unknown as { env?: Record<string, string | undefined> }).env : undefined)
+    const envMode = envObj?.VITE_H2C_INTERCEPT as 'on' | 'off' | 'auto' | undefined
+    this.interceptMode = (options.interceptHtml2CanvasWrites ?? envMode ?? 'on')
     this.scene = new THREE.Scene()
     this.camera = new THREE.OrthographicCamera()
     this.renderer = new THREE.WebGLRenderer({ alpha: true, antialias: true })
@@ -58,7 +59,8 @@ export class DOMToWebGL {
     this.renderer.domElement.style.pointerEvents = 'none'
     this.renderer.domElement.style.width = '100vw'
     this.renderer.domElement.style.height = '100vh'
-    // Keep WebGL overlay above page DOM but below debug UI drawers/modals
+    // Layering: keep the WebGL overlay above page DOM but below the debug Drawer.
+    // The Drawer in App uses zIndex=2100, so 1000 keeps this safely underneath.
     this.renderer.domElement.style.zIndex = '1000'
 
     this.rootGroup = new THREE.Group()
@@ -79,7 +81,7 @@ export class DOMToWebGL {
       this.renderer.domElement.parentElement.removeChild(this.renderer.domElement)
     }
     // Restore global monkey patches to be a good citizen during hot reloads/tests.
-    try { restoreHtml2CanvasInterception() } catch {}
+    try { restoreHtml2CanvasInterception() } catch { /* no-op */ }
   }
 
   resize() {
@@ -95,7 +97,7 @@ export class DOMToWebGL {
   async captureElement(element: HTMLElement) {
     const html2canvas = await this.ensureHtml2Canvas()
     if (this.interceptMode !== 'off') {
-      try { ensureHtml2CanvasInterception() } catch {}
+      try { ensureHtml2CanvasInterception() } catch { /* no-op */ }
     }
 
     // Ensure the element is visible during capture to avoid transparent textures

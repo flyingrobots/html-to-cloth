@@ -14,20 +14,16 @@ import {
   Title,
   Divider,
   Select,
+  Kbd,
 } from "@mantine/core"
+import type { DebugOverlayState } from './engine/render/DebugOverlayState'
 
 import { ClothSceneController, type PinMode } from "./lib/clothSceneController"
 import { EngineActions } from "./engine/debug/engineActions"
 import type { CameraSnapshot } from './engine/camera/CameraSystem'
 import { PRESETS, getPreset } from "./app/presets"
 
-function Kbd({ children }: { children: React.ReactNode }) {
-  return (
-    <Paper withBorder radius="sm" px={6} py={2} component="span" style={{ fontFamily: 'monospace', fontSize: 12 }}>
-      {children}
-    </Paper>
-  )
-}
+// Use Mantine's native Kbd component (no inline styles)
 
 type DebugProps = {
   open: boolean
@@ -365,18 +361,23 @@ function Demo() {
   const [pinMode, setPinMode] = useState<PinMode>('none')
 
   useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const mql = window.matchMedia('(prefers-reduced-motion: reduce)')
+      if (mql.matches) return
+    }
+
     const controller = new ClothSceneController()
     controllerRef.current = controller
     controller.init().then(() => {
       try {
-        const getRS = (controller as any).getRenderSettingsState?.bind(controller)
+        const rs = controller.getRenderSettingsState?.()
         const actions = new EngineActions({
           runner: controller.getRunner(),
           world: controller.getEngine(),
           camera: controller.getCameraSystem() ?? undefined,
           simulation: controller.getSimulationSystem() ?? undefined,
           overlay: controller.getOverlayState() ?? undefined,
-          renderSettings: (typeof getRS === 'function' ? getRS() : undefined) ?? undefined,
+          renderSettings: rs ?? undefined,
           setTessellation: (segments: number) => controller.setTessellationSegments(segments),
           setPinMode: (mode) => controller.setPinMode(mode),
         })
@@ -435,9 +436,9 @@ function Demo() {
   useEffect(() => {
     const actions = actionsRef.current
     if (!actions) return
-    // Only toggle overlay visibility when the drawer opens/closes; do not alter real-time here.
+    // Toggle overlay visibility; hide while the drawer is open to avoid overlap.
     actions.setPointerOverlayVisible(debugOpen ? false : pointerColliderVisible)
-  }, [debugOpen])
+  }, [debugOpen, pointerColliderVisible])
 
   useEffect(() => {
     actionsRef.current?.setGravityScalar(gravity)
@@ -506,29 +507,19 @@ function Demo() {
   }, [pointerColliderVisible])
 
   useEffect(() => {
-    const overlay = controllerRef.current?.getOverlayState?.() as any
+    const overlay = controllerRef.current?.getOverlayState?.() as DebugOverlayState | null
     if (overlay) overlay.drawAABBs = drawAABBs
   }, [drawAABBs])
 
   useEffect(() => {
-    const overlay = controllerRef.current?.getOverlayState?.() as any
+    const overlay = controllerRef.current?.getOverlayState?.() as DebugOverlayState | null
     if (overlay) overlay.drawSleep = drawSleep
   }, [drawSleep])
 
   useEffect(() => {
-    const overlay = controllerRef.current?.getOverlayState?.() as any
+    const overlay = controllerRef.current?.getOverlayState?.() as DebugOverlayState | null
     if (overlay) overlay.drawPins = drawPins
   }, [drawPins])
-
-  useEffect(() => {
-    const overlay = controllerRef.current?.getOverlayState?.() as any
-    if (overlay) overlay.drawAABBs = drawAABBs
-  }, [drawAABBs])
-
-  useEffect(() => {
-    const overlay = controllerRef.current?.getOverlayState?.() as any
-    if (overlay) overlay.drawSleep = drawSleep
-  }, [drawSleep])
 
   useEffect(() => {
     actionsRef.current?.setPinMode(pinMode)
@@ -548,8 +539,8 @@ function Demo() {
           <Button className="cloth-enabled" size="lg">Peel Back</Button>
         </Stack>
       </Group>
-      <Affix position={{ bottom: 24, left: '50%' as any }}>
-        <Paper radius="xl" px="md" py={8} withBorder>
+      <Affix position={{ bottom: 24, left: 0, right: 0 }}>
+        <Paper radius="xl" px="md" py={8} withBorder mx="auto" w="max-content">
           <Group gap={6} align="center">
             <Text size="sm">Press</Text>
             <Kbd>{modifierKey}</Kbd>
