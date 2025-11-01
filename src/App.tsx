@@ -61,6 +61,7 @@ type DebugProps = {
   cameraZoomActual: number
   onWarmStartNow?: () => void
   onPresetSelect?: (name: string) => void
+  presetValue?: string | null
   pointerColliderVisible: boolean
   onPointerColliderVisibleChange: (value: boolean) => void
   drawAABBs: boolean
@@ -112,6 +113,7 @@ function DebugPalette(props: DebugProps) {
     cameraZoomActual,
     onWarmStartNow,
     onPresetSelect,
+    presetValue,
     pointerColliderVisible,
     onPointerColliderVisibleChange,
     pinMode,
@@ -148,7 +150,11 @@ function DebugPalette(props: DebugProps) {
                 placeholder="Choose preset"
                 data={PRESETS.map((p) => ({ value: p.name, label: p.name }))}
                 comboboxProps={{ withinPortal: true, zIndex: 2300 }}
-                onChange={(v) => v && onPresetSelect?.(v)}
+                value={presetValue ?? null}
+                onChange={(v) => {
+                  if (!v) return
+                  onPresetSelect?.(v)
+                }}
               />
             </Stack>
             <Group justify="space-between">
@@ -354,6 +360,7 @@ function Demo() {
   const [warmStartPasses, setWarmStartPasses] = useState(2)
   const [cameraZoom, setCameraZoom] = useState(1)
   const [cameraZoomActual, setCameraZoomActual] = useState(1)
+  const [selectedPreset, setSelectedPreset] = useState<string | null>(null)
   const [pointerColliderVisible, setPointerColliderVisible] = useState(false)
   const [drawAABBs, setDrawAABBs] = useState(false)
   const [drawSleep, setDrawSleep] = useState(false)
@@ -436,9 +443,9 @@ function Demo() {
   useEffect(() => {
     const actions = actionsRef.current
     if (!actions) return
-    // Toggle overlay visibility; hide while the drawer is open to avoid overlap.
-    actions.setPointerOverlayVisible(debugOpen ? false : pointerColliderVisible)
-  }, [debugOpen, pointerColliderVisible])
+    // Non-modal debug: keep overlay visibility tied to the toggle regardless of Drawer state.
+    actions.setPointerOverlayVisible(pointerColliderVisible)
+  }, [pointerColliderVisible])
 
   useEffect(() => {
     actionsRef.current?.setGravityScalar(gravity)
@@ -588,11 +595,13 @@ function Demo() {
         onPresetSelect={(name: string) => {
           const p = getPreset(name)
           if (!p) return
+          setSelectedPreset(name)
           setConstraintIterations(p.iterations)
           setSleepVelocity(p.sleepVelocity)
           setSleepFrames(p.sleepFrames)
           setWarmStartPasses(p.warmStartPasses)
         }}
+        presetValue={selectedPreset}
         pointerColliderVisible={pointerColliderVisible}
         onPointerColliderVisibleChange={setPointerColliderVisible}
         drawAABBs={drawAABBs}
