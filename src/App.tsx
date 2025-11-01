@@ -2,8 +2,6 @@ import { useEffect, useRef, useState } from "react"
 import {
   MantineProvider,
   Button,
-  Drawer,
-  Card,
   Text,
   Group,
   Stack,
@@ -125,17 +123,8 @@ function DebugPalette(props: DebugProps) {
   // (labels kept close to Select entries)
 
   return (
-    <Drawer
-      opened={open}
-      onClose={() => onOpenChange(false)}
-      position="right"
-      size={380}
-      withCloseButton
-      // Keep dropdowns and overlay content inside the drawer layer
-      withinPortal
-      zIndex={2100}
-    >
-      <Card withBorder shadow="sm">
+    <Affix position={{ top: 16, right: 16 }} zIndex={2100} hidden={!open}>
+      <Paper withBorder shadow="lg" p="md" w={380} style={{ maxHeight: 'calc(100vh - 32px)', overflowY: 'auto' }}>
         <Stack gap="md">
           <Stack gap={0}
           >
@@ -330,12 +319,12 @@ function DebugPalette(props: DebugProps) {
           </Stack>
           <Divider />
           <Group justify="flex-end">
-            <Button variant="default" onClick={() => onOpenChange(false)}>Close</Button>
+            <Button variant="default" onClick={() => onOpenChange(false)}>Hide</Button>
             <Button variant="outline" onClick={onReset}>Reset</Button>
           </Group>
         </Stack>
-      </Card>
-    </Drawer>
+      </Paper>
+    </Affix>
   )
 }
 
