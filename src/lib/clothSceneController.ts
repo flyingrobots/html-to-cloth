@@ -85,6 +85,9 @@ class ClothBodyAdapter implements SimBody, Component {
   private _worldSleepFrameThreshold = 60
   private _worldSleepGuardEnabled = true
   private _warnedAboutMissingBoundingSphere = false
+  // Keep newly activated cloth awake for a short grace window to avoid
+  // immediate sleep when pins prevent initial center motion.
+  private _activationGraceFrames = 20
 
   constructor(
     id: string,
@@ -111,6 +114,13 @@ class ClothBodyAdapter implements SimBody, Component {
     if (!cloth) return
 
     const worldBody = this.record.worldBody
+
+    // Activation grace: force awake for the first ~0.3s at 60 fps so pinned cloth
+    // can sag under gravity before world-space stillness is evaluated.
+    if (this._worldSleepGuardEnabled && this._activationGraceFrames > 0) {
+      cloth.wake()
+      this._activationGraceFrames -= 1
+    }
 
     if (this.pointer.needsImpulse) {
       const worldRadius = this.getImpulseRadius()

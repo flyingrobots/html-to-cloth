@@ -196,7 +196,7 @@ function DebugPalette(props: DebugProps) {
                     <Text fw={600}>Pin Mode</Text>
                     <Text size="sm" c="dimmed">Choose pinned vertices</Text>
                   </Stack>
-                  <Menu withinPortal position="bottom-end" shadow="sm">
+                  <Menu withinPortal position="bottom-end" shadow="sm" zIndex={2300}>
                     <Menu.Target>
                       <Button variant="default">{pinMode.charAt(0).toUpperCase() + pinMode.slice(1)}</Button>
                     </Menu.Target>
