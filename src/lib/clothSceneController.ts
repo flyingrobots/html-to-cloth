@@ -32,11 +32,12 @@ type DebugSettings = {
   constraintIterations: number
   substeps: number
   tessellationSegments: number
-  autoTessellation?: boolean
-  tessellationMin?: number
-  tessellationMax?: number
+  autoTessellation: boolean
+  tessellationMin: number
+  tessellationMax: number
   pointerCollider: boolean
   pinMode: PinMode
+  worldSleepGuardEnabled: boolean
 }
 
 type PointerState = {
@@ -82,6 +83,12 @@ class ClothBodyAdapter implements SimBody, Component {
   private _worldStillFrames = 0
   private _worldSleepVelThreshold = 0.001
   private _worldSleepFrameThreshold = 60
+  private _worldSleepGuardEnabled = true
+  private _warnedAboutMissingBoundingSphere = false
+  private _lastRadius = 0
+  // Keep newly activated cloth awake for a short grace window to avoid
+  // immediate sleep when pins prevent initial center motion.
+  private _activationGraceFrames = 20
 
   constructor(
     id: string,
@@ -109,6 +116,12 @@ class ClothBodyAdapter implements SimBody, Component {
 
     const worldBody = this.record.worldBody
 
+    // Activation grace: force awake for the first ~0.3s at 60 fps so pinned cloth
+    // can sag under gravity before world-space stillness is evaluated.
+    if (this._worldSleepGuardEnabled && this._activationGraceFrames > 0) {
+      cloth.wake()
+    }
+
     if (this.pointer.needsImpulse) {
       const worldRadius = this.getImpulseRadius()
       const localRadius = this.getLocalImpulseRadius(worldRadius)
@@ -120,6 +133,12 @@ class ClothBodyAdapter implements SimBody, Component {
     }
 
     cloth.update(dt)
+
+    // During activation grace, ensure local sleep cannot latch this frame
+    if (this._worldSleepGuardEnabled && this._activationGraceFrames > 0) {
+      cloth.wake()
+      this._activationGraceFrames -= 1
+    }
     this.collisionSystem.apply(cloth)
 
     let boundary = -CANONICAL_HEIGHT_METERS
@@ -129,17 +148,12 @@ class ClothBodyAdapter implements SimBody, Component {
       boundary = this._tmpLocalV3.y
     }
     // World-space sleep guard: keep cloth awake until it remains still in world space
-    {
+    if (this._worldSleepGuardEnabled) {
       type MaybeGS = { getBoundingSphere?: () => { center: { x: number; y: number } } }
       const maybe = cloth as unknown as MaybeGS
-      if (typeof maybe.getBoundingSphere !== 'function') {
-        // Tests/mocks may omit this; skip world-space guard in that case.
-        if (cloth.isOffscreen(boundary)) {
-          this.offscreenCallback()
-        }
-        return
-      }
-      const localCenter = maybe.getBoundingSphere().center
+      if (typeof maybe.getBoundingSphere === 'function') {
+        const bs = maybe.getBoundingSphere() as { center: { x: number; y: number }; radius?: number }
+        const localCenter = bs.center
       let worldCenter = this._tmpLocalV2
       if (worldBody) {
         const w = worldBody.localToWorldPoint(
@@ -154,9 +168,10 @@ class ClothBodyAdapter implements SimBody, Component {
       const dx = worldCenter.x - this._lastWorldCenter.x
       const dy = worldCenter.y - this._lastWorldCenter.y
       const deltaSq = dx * dx + dy * dy
+      const dRadius = Math.abs(((bs.radius as number) ?? 0) - this._lastRadius)
       // scale threshold by dt to approximate velocity threshold per frame
       const v = this._worldSleepVelThreshold * Math.max(1e-6, dt)
-      if (deltaSq >= v * v) {
+      if (deltaSq >= v * v || dRadius >= v) {
         this._worldStillFrames = 0
         cloth.wake()
       } else {
@@ -167,6 +182,13 @@ class ClothBodyAdapter implements SimBody, Component {
         }
       }
       this._lastWorldCenter.copy(worldCenter)
+      this._lastRadius = ((bs.radius as number) ?? this._lastRadius)
+      } else {
+        if (!this._warnedAboutMissingBoundingSphere) {
+          console.warn(`ClothBodyAdapter ${this.id}: getBoundingSphere not available, world sleep guard disabled`)
+          this._warnedAboutMissingBoundingSphere = true
+        }
+      }
     }
 
     if (cloth.isOffscreen(boundary)) {
@@ -199,6 +221,10 @@ class ClothBodyAdapter implements SimBody, Component {
     // Keep adapter thresholds in sync for world-space sleep guarding
     this._worldSleepVelThreshold = config.velocityThreshold
     this._worldSleepFrameThreshold = config.frameThreshold
+  }
+
+  setWorldSleepGuardEnabled(enabled: boolean) {
+    this._worldSleepGuardEnabled = !!enabled
   }
 
   setConstraintIterations(iterations: number) {
@@ -369,8 +395,12 @@ export class ClothSceneController {
     constraintIterations: 4,
     substeps: 1,
     tessellationSegments: 24,
+    autoTessellation: true,
+    tessellationMin: 6,
+    tessellationMax: 24,
     pointerCollider: false,
-    pinMode: 'top',
+    pinMode: 'none',
+    worldSleepGuardEnabled: true,
   }
   private onPointerMove = (event: PointerEvent) => this.handlePointerMove(event)
   private onPointerLeave = () => this.resetPointer()
@@ -518,10 +548,11 @@ export class ClothSceneController {
     const screenArea = Math.max(1, vpW * vpH)
     const s = Math.sqrt(area / screenArea) // proportion of screen by diagonal
 
-    const MIN_SEGMENTS = clamp(round(this.debug.tessellationMin ?? 6), 1, 40)
+    const MIN_SEGMENTS = clamp(round(this.debug.tessellationMin ?? 6), 1, 46)
     const MAX_TESSELLATION_CAP = 48
     const rawMax = round(maxCap)
     const maxUser = clamp(round(this.debug.tessellationMax ?? maxCap), MIN_SEGMENTS + 2, MAX_TESSELLATION_CAP)
+    // Effective max is the lesser of: user-configured max and the provided cap, both bounded by global limits
     const MAX = Math.min(clamp(rawMax, MIN_SEGMENTS + 2, MAX_TESSELLATION_CAP), maxUser)
 
     const desired = round(MIN_SEGMENTS + s * (MAX - MIN_SEGMENTS))
@@ -567,6 +598,40 @@ export class ClothSceneController {
     }
   }
 
+  /**
+   * Prepares an arbitrary DOM element for cloth capture and (optionally) activates it immediately.
+   * Useful for elements that are not present or not cloth-enabled during initial init() capture.
+   */
+  async clothify(element: HTMLElement, options: { activate?: boolean; addClickHandler?: boolean } = {}) {
+    const { activate = true, addClickHandler = true } = options
+    const bridge = this.domToWebGL
+    const pool = this.pool
+    if (!bridge || !pool) return
+    const rect = element.getBoundingClientRect()
+    const seg = this.computeAutoSegments(rect, this.debug.tessellationSegments)
+    await pool.prepare(element, seg)
+    pool.mount(element)
+    const record = pool.getRecord(element)
+    const originalOpacity = element.style.opacity
+    element.style.opacity = '0'
+    const clickHandler = (event: MouseEvent) => {
+      event.preventDefault()
+      this.activate(element)
+    }
+    if (addClickHandler) {
+      element.addEventListener('click', clickHandler)
+    }
+    this.collisionSystem.addStaticBody(element)
+    this.items.set(element, {
+      element,
+      originalOpacity,
+      clickHandler,
+      isActive: false,
+      record,
+    })
+    if (activate) this.activate(element)
+  }
+
   private activate(element: HTMLElement) {
     if (!this.domToWebGL || !this.pool) return
 
@@ -580,6 +645,9 @@ export class ClothSceneController {
     const record = this.pool.getRecord(element)
     if (!record) return
 
+    // Keep using the currently mounted mesh; just flip flags. Avoid recycle/add to
+    // prevent duplicate attachments or geometry resets that can cause size drift.
+    // Reset geometry to a clean state (positions/tangents) before switching to cloth.
     this.pool.resetGeometry(element)
 
     const cloth = new ClothPhysics(record.mesh, {
@@ -594,15 +662,12 @@ export class ClothSceneController {
     const gravityVector = new THREE.Vector3(0, -this.debug.gravity, 0)
     cloth.setGravity(gravityVector)
 
-    // Seed a small, size-relative perturbation to avoid perfectly rigid start.
-    // Using a fixed 0.06 meters overwhelmed tiny meshes on some viewports.
+    // Seed a very small, size-relative perturbation to avoid perfectly rigid start
+    // without causing a visible crumple/pop.
     const sizeHint = Math.max(0.0005, Math.min(record.widthMeters, record.heightMeters))
-    const jitter = Math.min(0.02, sizeHint * 0.2)
+    const jitter = Math.min(0.004, sizeHint * 0.05)
     cloth.addTurbulence(jitter)
-    item.releasePinsTimeout = window.setTimeout(() => {
-      cloth.releaseAllPins()
-      delete item.releasePinsTimeout
-    }, 900)
+    // Do not auto-release pins; keep according to selected Pin Mode for predictable behavior.
 
     item.cloth = cloth
     item.record = record
@@ -621,6 +686,7 @@ export class ClothSceneController {
       record,
       this.debug
     )
+    adapter.setWorldSleepGuardEnabled(this.debug.worldSleepGuardEnabled)
     // Mark mesh as cloth for render settings system.
     const meshObj = record.mesh as unknown as { userData?: Record<string, unknown> }
     meshObj.userData = { ...(meshObj.userData || {}), isCloth: true, isStatic: false }
@@ -635,6 +701,48 @@ export class ClothSceneController {
     element.removeEventListener('click', item.clickHandler)
     // Refresh debug overlay data (pins, snapshot) immediately after activation
     this.updateOverlayDebug()
+  }
+
+  /** Public: convert an active cloth element back to a static DOM-backed mesh. */
+  async restoreElement(element: HTMLElement) {
+    const item = this.items.get(element)
+    if (!item) return
+    // If not active, ensure it's mounted and visible
+    if (!item.isActive) {
+      this.pool?.mount(element)
+      element.style.opacity = '1'
+      this.collisionSystem.addStaticBody(element)
+      return
+    }
+    // Remove from simulation and entity manager
+    if (item.adapter) {
+      this.simulationSystem.removeBody(item.adapter.id)
+    }
+    if (item.entity) {
+      item.entity.destroy()
+      item.entity = undefined
+    }
+    // Mark mesh as static again for render settings system
+    const mesh = item.record?.mesh
+    if (mesh) {
+      const obj = mesh as unknown as { userData?: Record<string, unknown> }
+      obj.userData = { ...(obj.userData || {}), isCloth: false, isStatic: true }
+    }
+    // Recycle and remount the DOM mesh in static mode
+    if (this.pool) {
+      this.pool.recycle(element)
+      this.pool.resetGeometry(element)
+      this.pool.mount(element)
+    }
+    element.style.opacity = '1'
+    // Re-add the click handler to allow re-activation
+    if (item.clickHandler) {
+      element.addEventListener('click', item.clickHandler)
+    }
+    this.collisionSystem.addStaticBody(element)
+    item.isActive = false
+    item.cloth = undefined
+    item.adapter = undefined
   }
 
   private animate() {
@@ -773,7 +881,7 @@ export class ClothSceneController {
     this.pointer.active = false
     this.pointer.needsImpulse = false
     this.pointer.velocity.set(0, 0)
-    this.overlayState?.pointer.set(0, 0)
+    // Keep overlay pointer at last known position to avoid visual teleport
     // overlay pointer updated elsewhere
   }
 
@@ -801,6 +909,42 @@ export class ClothSceneController {
       for (const p of pts) pins.push(p)
     }
     this.overlayState.pinMarkers = pins
+    // Pointer collider radius: derive using shared helper; prefer first active item, else first available
+    let r = 0.01
+    let found = false
+    for (const item of this.items.values()) {
+      if (!item.isActive) continue
+      r = this.computePointerRadiusFor(item)
+      found = true
+      break
+    }
+    if (!found) {
+      for (const item of this.items.values()) {
+        r = this.computePointerRadiusFor(item)
+        found = true
+        break
+      }
+    }
+    this.overlayState.pointerRadius = r
+  }
+
+  /** Computes pointer collider radius in meters mirroring ClothBodyAdapter.getImpulseRadius logic. */
+  private computePointerRadiusFor(item: ClothItem) {
+    const attr = item.element.dataset.clothImpulseRadius
+    const parsed = attr ? Number.parseFloat(attr) : NaN
+    if (!Number.isNaN(parsed) && parsed > 0) {
+      return parsed
+    }
+    const record = item.record
+    const widthMeters = record?.widthMeters ?? 0
+    const heightMeters = record?.heightMeters ?? 0
+    const base = Math.min(widthMeters, heightMeters)
+    const MIN_POINTER_RADIUS = 0.0006
+    const DEFAULT_POINTER_RADIUS = 0.0012
+    if (base > 0) {
+      return Math.max(MIN_POINTER_RADIUS, base / 12)
+    }
+    return DEFAULT_POINTER_RADIUS
   }
 
   private isSimSnapshot(value: unknown): value is import('./simWorld').SimWorldSnapshot {
@@ -860,7 +1004,9 @@ export class ClothSceneController {
   setGravity(gravity: number) {
     this.debug.gravity = gravity
     for (const item of this.items.values()) {
-      item.cloth?.setGravity(new THREE.Vector3(0, -gravity, 0))
+      if (!item.cloth) continue
+      item.cloth.setGravity(new THREE.Vector3(0, -gravity, 0))
+      item.cloth.wake()
     }
   }
 
@@ -919,11 +1065,19 @@ export class ClothSceneController {
     }
   }
 
-  async setTessellationSegments(segments: number) {
+  /** Enables/disables world-space sleep guard on all active adapters and future bodies. */
+  setWorldSleepGuardEnabled(enabled: boolean) {
+    this.debug.worldSleepGuardEnabled = !!enabled
+    for (const item of this.items.values()) {
+      item.adapter?.setWorldSleepGuardEnabled(this.debug.worldSleepGuardEnabled)
+    }
+  }
+
+  async setTessellationSegments(segments: number, force = false) {
     const pool = this.pool
     if (!pool) return
     const clamped = Math.max(1, Math.min(segments, 32))
-    if (this.debug.tessellationSegments === clamped) return
+    if (!force && this.debug.tessellationSegments === clamped) return
     this.debug.tessellationSegments = clamped
 
     const tasks: Promise<void>[] = []
@@ -947,6 +1101,25 @@ export class ClothSceneController {
 
     await Promise.all(tasks)
     this.collisionSystem.refresh()
+  }
+
+  /** Enables/disables automatic tessellation based on on-screen size. */
+  setTessellationAutoEnabled(enabled: boolean) {
+    this.debug.autoTessellation = !!enabled
+    if (this.debug.autoTessellation) {
+      void this.setTessellationSegments(this.debug.tessellationSegments, true)
+    }
+  }
+
+  /** Sets the min/max caps used by auto tessellation. */
+  setTessellationMinMax(min: number, max: number) {
+    const mi = Math.max(1, Math.min(46, Math.round(min)))
+    const ma = Math.max(mi + 2, Math.min(48, Math.round(max)))
+    this.debug.tessellationMin = mi
+    this.debug.tessellationMax = ma
+    if (this.debug.autoTessellation) {
+      void this.setTessellationSegments(this.debug.tessellationSegments, true)
+    }
   }
 
   // setPointerColliderVisible removed in favour of DebugOverlaySystem

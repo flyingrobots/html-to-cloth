@@ -44,14 +44,21 @@ const replaceDocumentContents = (targetDocument: Document, htmlText: string, rec
     const parsed = parser.parseFromString(markup, 'text/html')
     // Clear
     while (targetDocument.firstChild) targetDocument.removeChild(targetDocument.firstChild)
-    // Doctype
-    if (parsed.doctype && targetDocument.implementation?.createDocumentType) {
-      const dt = targetDocument.implementation.createDocumentType(
-        parsed.doctype.name,
-        parsed.doctype.publicId,
-        parsed.doctype.systemId,
-      )
-      targetDocument.appendChild(dt)
+    // Doctype: ensure No-Quirks mode in the clone. If the source markup provides
+    // a doctype, mirror it; otherwise synthesize an HTML5 doctype.
+    if (targetDocument.implementation?.createDocumentType) {
+      if (parsed.doctype) {
+        const dt = targetDocument.implementation.createDocumentType(
+          parsed.doctype.name,
+          parsed.doctype.publicId,
+          parsed.doctype.systemId,
+        )
+        targetDocument.appendChild(dt)
+      } else {
+        // HTML5 doctype (<!DOCTYPE html>)
+        const dt = targetDocument.implementation.createDocumentType('html', '', '')
+        targetDocument.appendChild(dt)
+      }
     }
     const imported = targetDocument.importNode
       ? targetDocument.importNode(parsed.documentElement, true)
