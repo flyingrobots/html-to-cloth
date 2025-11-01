@@ -236,8 +236,9 @@ export class DebugOverlaySystem implements EngineSystem {
       }
       const geom = new THREE.BufferGeometry()
       geom.setAttribute('position', new THREE.Float32BufferAttribute(verts, 3))
+      // Color scheme: green = awake, red = asleep
       const mat = new THREE.LineBasicMaterial({
-        color: body.sleeping ? 0x55cc55 : 0xff8844,
+        color: body.sleeping ? 0xcc5555 : 0x55cc55,
         transparent: true,
         opacity: 0.9,
       })

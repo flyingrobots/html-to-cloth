@@ -86,6 +86,7 @@ class ClothBodyAdapter implements SimBody, Component {
   private _worldSleepGuardEnabled = true
   private _warnedAboutMissingBoundingSphere = false
   private _lastRadius = 0
+  private _worldSleeping = false
   // Keep newly activated cloth awake for a short grace window to avoid
   // immediate sleep when pins prevent initial center motion.
   private _activationGraceFrames = 20
@@ -174,11 +175,15 @@ class ClothBodyAdapter implements SimBody, Component {
       if (deltaSq >= v * v || dRadius >= v) {
         this._worldStillFrames = 0
         cloth.wake()
+        this._worldSleeping = false
       } else {
         this._worldStillFrames += 1
         // Guard: keep cloth awake until world-still for N frames
         if (this._worldStillFrames < this._worldSleepFrameThreshold) {
           cloth.wake()
+          this._worldSleeping = false
+        } else {
+          this._worldSleeping = true
         }
       }
       this._lastWorldCenter.copy(worldCenter)
@@ -197,12 +202,11 @@ class ClothBodyAdapter implements SimBody, Component {
   }
 
   isSleeping() {
-    const cloth = this.item.cloth
-    if (!cloth) return true
-    return cloth.isSleeping()
+    return this._worldSleeping
   }
 
   wake() {
+    this._worldSleeping = false
     this.item.cloth?.wake()
   }
 
@@ -255,10 +259,20 @@ class ClothBodyAdapter implements SimBody, Component {
     const cloth = this.item.cloth
     if (cloth) {
       const sphere = cloth.getBoundingSphere()
-      return {
-        center: new THREE.Vector2(sphere.center.x, sphere.center.y),
-        radius: sphere.radius,
+      const worldBody = this.record.worldBody
+      if (worldBody) {
+        // Transform center to world space
+        const world = worldBody.localToWorldPoint(
+          this._tmpLocalV3.set(sphere.center.x, sphere.center.y, 0),
+          this._tmpWorldV3
+        )
+        // Approximate radius under non-uniform scale by averaging axis lengths
+        const wx = worldBody.localToWorldVector(this._tmpLocalV3.set(sphere.radius, 0, 0), this._tmpWorldV3B).length()
+        const wy = worldBody.localToWorldVector(this._tmpLocalV3.set(0, sphere.radius, 0), this._tmpWorldV3B).length()
+        const r = Number.isFinite(wx) && Number.isFinite(wy) ? (wx + wy) * 0.5 : sphere.radius
+        return { center: new THREE.Vector2(world.x, world.y), radius: r }
       }
+      return { center: new THREE.Vector2(sphere.center.x, sphere.center.y), radius: sphere.radius }
     }
 
     const center = this.record.mesh.position
