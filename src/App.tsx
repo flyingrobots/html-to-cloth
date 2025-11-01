@@ -150,6 +150,15 @@ function DebugPalette(props: DebugProps) {
             <Title order={3}>Debug Settings</Title>
             <Text c="dimmed" size="sm">Control simulation parameters</Text>
           </Stack>
+          {/* Compact status row */}
+          <Paper withBorder radius="sm" p="xs">
+            <Group gap="xs" justify="space-between" wrap>
+              <Text size="xs">Real-Time: {realTime ? 'ON' : 'OFF'}</Text>
+              <Text size="xs">g: {gravity.toFixed(2)} m/s²</Text>
+              <Text size="xs">Substeps: {substeps}</Text>
+              <Text size="xs">Iterations: {constraintIterations}</Text>
+            </Group>
+          </Paper>
           <Accordion multiple chevronPosition="right" defaultValue={["presets", "physics", "sleep", "view"]} variant="contained">
             <Accordion.Item value="presets">
               <Accordion.Control>Presets</Accordion.Control>
