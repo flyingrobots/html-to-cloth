@@ -82,14 +82,21 @@ export class DebugOverlaySystem implements EngineSystem {
       // Try to compensate for orthographic anisotropy; fall back to uniform if anything is invalid.
       const cam = this.view.camera as THREE.Camera & Partial<THREE.OrthographicCamera>
       const maybeOrtho = cam as Partial<THREE.OrthographicCamera>
-      const left = Number((maybeOrtho.left as unknown) ?? NaN)
-      const right = Number((maybeOrtho.right as unknown) ?? NaN)
-      const top = Number((maybeOrtho.top as unknown) ?? NaN)
-      const bottom = Number((maybeOrtho.bottom as unknown) ?? NaN)
+      const left = typeof maybeOrtho.left === 'number' ? maybeOrtho.left : NaN
+      const right = typeof maybeOrtho.right === 'number' ? maybeOrtho.right : NaN
+      const top = typeof maybeOrtho.top === 'number' ? maybeOrtho.top : NaN
+      const bottom = typeof maybeOrtho.bottom === 'number' ? maybeOrtho.bottom : NaN
       const hasOrthoExtents = [left, right, top, bottom].every((v) => Number.isFinite(v))
       if (hasOrthoExtents) {
-        const worldWidth = Math.max(1e-6, right - left)
-        const worldHeight = Math.max(1e-6, top - bottom)
+        const rawWidth = right - left
+        const rawHeight = top - bottom
+        const worldWidth = Math.max(1e-6, Math.abs(rawWidth))
+        const worldHeight = Math.max(1e-6, Math.abs(rawHeight))
+        // Guard: inverted extents → uniform scale fallback
+        if (rawWidth <= 0 || rawHeight <= 0) {
+          mesh.scale.set(r, r, 1)
+          return
+        }
         let viewportWidth = 1
         let viewportHeight = 1
         const anyView = this.view as unknown as { getViewportPixels?: () => { width: number; height: number } }

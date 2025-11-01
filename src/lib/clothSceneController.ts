@@ -374,7 +374,7 @@ export class ClothSceneController {
     tessellationMin: 6,
     tessellationMax: 24,
     pointerCollider: false,
-    pinMode: 'top',
+    pinMode: 'none',
     worldSleepGuardEnabled: true,
   }
   private onPointerMove = (event: PointerEvent) => this.handlePointerMove(event)
@@ -523,7 +523,7 @@ export class ClothSceneController {
     const screenArea = Math.max(1, vpW * vpH)
     const s = Math.sqrt(area / screenArea) // proportion of screen by diagonal
 
-    const MIN_SEGMENTS = clamp(round(this.debug.tessellationMin ?? 6), 1, 40)
+    const MIN_SEGMENTS = clamp(round(this.debug.tessellationMin ?? 6), 1, 46)
     const MAX_TESSELLATION_CAP = 48
     const rawMax = round(maxCap)
     const maxUser = clamp(round(this.debug.tessellationMax ?? maxCap), MIN_SEGMENTS + 2, MAX_TESSELLATION_CAP)
@@ -825,18 +825,42 @@ export class ClothSceneController {
       for (const p of pts) pins.push(p)
     }
     this.overlayState.pinMarkers = pins
-    // Pointer collider radius: derive from first available record (active or static) to approximate
+    // Pointer collider radius: derive using shared helper; prefer first active item, else first available
     let r = 0.01
+    let found = false
     for (const item of this.items.values()) {
-      const record = item.record
-      if (!record) continue
-      const base = Math.min(record.widthMeters || 0, record.heightMeters || 0)
-      const MIN = 0.0006
-      const DEFAULT = 0.0012
-      r = base > 0 ? Math.max(MIN, base / 12) : DEFAULT
+      if (!item.isActive) continue
+      r = this.computePointerRadiusFor(item)
+      found = true
       break
     }
+    if (!found) {
+      for (const item of this.items.values()) {
+        r = this.computePointerRadiusFor(item)
+        found = true
+        break
+      }
+    }
     this.overlayState.pointerRadius = r
+  }
+
+  /** Computes pointer collider radius in meters mirroring ClothBodyAdapter.getImpulseRadius logic. */
+  private computePointerRadiusFor(item: ClothItem) {
+    const attr = item.element.dataset.clothImpulseRadius
+    const parsed = attr ? Number.parseFloat(attr) : NaN
+    if (!Number.isNaN(parsed) && parsed > 0) {
+      return parsed
+    }
+    const record = item.record
+    const widthMeters = record?.widthMeters ?? 0
+    const heightMeters = record?.heightMeters ?? 0
+    const base = Math.min(widthMeters, heightMeters)
+    const MIN_POINTER_RADIUS = 0.0006
+    const DEFAULT_POINTER_RADIUS = 0.0012
+    if (base > 0) {
+      return Math.max(MIN_POINTER_RADIUS, base / 12)
+    }
+    return DEFAULT_POINTER_RADIUS
   }
 
   private isSimSnapshot(value: unknown): value is import('./simWorld').SimWorldSnapshot {
