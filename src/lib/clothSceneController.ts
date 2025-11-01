@@ -85,8 +85,8 @@ class ClothBodyAdapter implements SimBody, Component {
   private _worldSleepFrameThreshold = 60
   private _worldSleepGuardEnabled = true
   private _warnedAboutMissingBoundingSphere = false
-  private _lastRadius = 0
   private _worldSleeping = false
+  private _modelRadius = 0
   // Keep newly activated cloth awake for a short grace window to avoid
   // immediate sleep when pins prevent initial center motion.
   private _activationGraceFrames = 20
@@ -109,6 +109,32 @@ class ClothBodyAdapter implements SimBody, Component {
     this.debug = debug
     // Initialize world sleep thresholds from controller defaults
     this._worldSleepVelThreshold = window.__clothWorldSleepVel ?? 0.001
+    // Precompute constant model-space bounding-sphere radius:
+    // radius = max extent along any axis in model space (centered at origin)
+    try {
+      const geom = this.record.mesh.geometry
+      if (!geom.boundingBox) geom.computeBoundingBox()
+      const bb = geom.boundingBox
+      if (bb) {
+        const hx = (bb.max.x - bb.min.x) * 0.5
+        const hy = (bb.max.y - bb.min.y) * 0.5
+        const hz = (bb.max.z - bb.min.z) * 0.5
+        this._modelRadius = Math.max(hx, hy, hz)
+      } else {
+        const w = this.record.widthMeters ?? 0
+        const h = this.record.heightMeters ?? 0
+        this._modelRadius = 0.5 * Math.max(w, h, 0)
+      }
+      if (!Number.isFinite(this._modelRadius) || this._modelRadius <= 0) {
+        const w = this.record.widthMeters ?? 0
+        const h = this.record.heightMeters ?? 0
+        this._modelRadius = 0.5 * Math.max(w, h, 0.001)
+      }
+    } catch {
+      const w = this.record.widthMeters ?? 0
+      const h = this.record.heightMeters ?? 0
+      this._modelRadius = 0.5 * Math.max(w, h, 0.001)
+    }
   }
 
   update(dt: number) {
@@ -153,8 +179,8 @@ class ClothBodyAdapter implements SimBody, Component {
       type MaybeGS = { getBoundingSphere?: () => { center: { x: number; y: number } } }
       const maybe = cloth as unknown as MaybeGS
       if (typeof maybe.getBoundingSphere === 'function') {
-        const bs = maybe.getBoundingSphere() as { center: { x: number; y: number }; radius?: number }
-        const localCenter = bs.center
+        // Use world-space center derived from model origin
+        const localCenter = { x: 0, y: 0 }
       let worldCenter = this._tmpLocalV2
       if (worldBody) {
         const w = worldBody.localToWorldPoint(
@@ -169,10 +195,9 @@ class ClothBodyAdapter implements SimBody, Component {
       const dx = worldCenter.x - this._lastWorldCenter.x
       const dy = worldCenter.y - this._lastWorldCenter.y
       const deltaSq = dx * dx + dy * dy
-      const dRadius = Math.abs(((bs.radius as number) ?? 0) - this._lastRadius)
       // scale threshold by dt to approximate velocity threshold per frame
       const v = this._worldSleepVelThreshold * Math.max(1e-6, dt)
-      if (deltaSq >= v * v || dRadius >= v) {
+      if (deltaSq >= v * v) {
         this._worldStillFrames = 0
         cloth.wake()
         this._worldSleeping = false
@@ -187,7 +212,7 @@ class ClothBodyAdapter implements SimBody, Component {
         }
       }
       this._lastWorldCenter.copy(worldCenter)
-      this._lastRadius = ((bs.radius as number) ?? this._lastRadius)
+      // Radius is constant; no need to update here
       } else {
         if (!this._warnedAboutMissingBoundingSphere) {
           console.warn(`ClothBodyAdapter ${this.id}: getBoundingSphere not available, world sleep guard disabled`)
@@ -258,21 +283,20 @@ class ClothBodyAdapter implements SimBody, Component {
   getBoundingSphere(): ReturnType<SimBody['getBoundingSphere']> {
     const cloth = this.item.cloth
     if (cloth) {
-      const sphere = cloth.getBoundingSphere()
+      // Model-space center fixed at origin, radius is precomputed constant
+      const sphere = { center: new THREE.Vector2(0, 0), radius: this._modelRadius }
       const worldBody = this.record.worldBody
       if (worldBody) {
         // Transform center to world space
-        const world = worldBody.localToWorldPoint(
-          this._tmpLocalV3.set(sphere.center.x, sphere.center.y, 0),
-          this._tmpWorldV3
-        )
-        // Approximate radius under non-uniform scale by averaging axis lengths
+        const world = worldBody.localToWorldPoint(this._tmpLocalV3.set(0, 0, 0), this._tmpWorldV3)
+        // Transform radius using the maximum world scaling along axes
         const wx = worldBody.localToWorldVector(this._tmpLocalV3.set(sphere.radius, 0, 0), this._tmpWorldV3B).length()
         const wy = worldBody.localToWorldVector(this._tmpLocalV3.set(0, sphere.radius, 0), this._tmpWorldV3B).length()
-        const r = Number.isFinite(wx) && Number.isFinite(wy) ? (wx + wy) * 0.5 : sphere.radius
+        const wz = worldBody.localToWorldVector(this._tmpLocalV3.set(0, 0, sphere.radius), this._tmpWorldV3B).length()
+        const r = Math.max(wx, wy, wz)
         return { center: new THREE.Vector2(world.x, world.y), radius: r }
       }
-      return { center: new THREE.Vector2(sphere.center.x, sphere.center.y), radius: sphere.radius }
+      return { center: new THREE.Vector2(0, 0), radius: this._modelRadius }
     }
 
     const center = this.record.mesh.position
