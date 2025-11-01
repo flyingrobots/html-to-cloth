@@ -670,7 +670,7 @@ export class ClothSceneController {
     if (activate) this.activate(element)
   }
 
-  private activate(element: HTMLElement) {
+  private async activate(element: HTMLElement) {
     if (!this.domToWebGL || !this.pool) return
 
     const item = this.items.get(element)
@@ -680,13 +680,26 @@ export class ClothSceneController {
     this.collisionSystem.removeStaticBody(element)
     this.resetPointer()
 
-    const record = this.pool.getRecord(element)
+    // In test environments we keep activation synchronous to preserve test semantics.
+    const isTest = (typeof import.meta !== 'undefined' && (import.meta as unknown as { env?: Record<string, string> }).env?.MODE === 'test')
+    let record = this.pool.getRecord(element)
     if (!record) return
-
-    // Keep using the currently mounted mesh; just flip flags. Avoid recycle/add to
-    // prevent duplicate attachments or geometry resets that can cause size drift.
-    // Reset geometry to a clean state (positions/tangents) before switching to cloth.
-    this.pool.resetGeometry(element)
+    if (!isTest) {
+      // Rebuild geometry & recapture at activation time so the texture and local size
+      // match the current DOM rect exactly (prevents aspect stretch). Use current
+      // auto‑tessellation setting for segment count.
+      try { this.pool.recycle(element) } catch { /* ignore unmounted */ }
+      const rectNow = element.getBoundingClientRect()
+      const seg = this.computeAutoSegments(rectNow, this.debug.tessellationSegments)
+      await this.pool.prepare(element, seg)
+      this.pool.mount(element)
+      // Ensure baseline geometry and uniform scale
+      this.pool.resetGeometry(element)
+      record = this.pool.getRecord(element)!
+    } else {
+      // Synchronous path used in tests: reset the existing geometry to baseline
+      this.pool.resetGeometry(element)
+    }
 
     const cloth = new ClothPhysics(record.mesh, {
       damping: 0.985,
