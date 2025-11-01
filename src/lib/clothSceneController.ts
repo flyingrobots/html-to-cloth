@@ -414,6 +414,10 @@ export class ClothSceneController {
     this.syncStaticMeshes()
     this.collisionSystem.refresh()
   }
+  // Layout-observer debounce timers for deferred recapture/rebuild
+  private recaptureTimers = new Map<HTMLElement, number>()
+  private layoutObserver: ResizeObserver | null = null
+  private static readonly LAYOUT_COOL_OFF_MS = 300
   private pointer: PointerState = {
     position: new THREE.Vector2(),
     previous: new THREE.Vector2(),
@@ -489,6 +493,16 @@ export class ClothSceneController {
 
     await this.prepareElements(clothElements)
     this.updateOverlayDebug()
+
+    // Observe per-element layout changes to recapture once layout settles.
+    try {
+      if (!(import.meta as unknown as { env?: Record<string, string> }).env || (import.meta as unknown as { env?: Record<string, string> }).env?.MODE !== 'test') {
+        this.installLayoutObserver(clothElements)
+      }
+    } catch {
+      // best effort; ignore in environments without import.meta
+      this.installLayoutObserver(clothElements)
+    }
 
     window.addEventListener('resize', this.onResize, { passive: true })
     window.addEventListener('scroll', this.onScroll, { passive: true })
@@ -1219,5 +1233,46 @@ export class ClothSceneController {
   /** Returns the simulation system for debug actions. */
   getSimulationSystem() {
     return this.simulationSystem
+  }
+
+  private installLayoutObserver(elements: HTMLElement[]) {
+    if (this.layoutObserver) return
+    try {
+      this.layoutObserver = new ResizeObserver((entries) => {
+        for (const entry of entries) {
+          const el = entry.target as HTMLElement
+          if (!this.items.has(el)) continue
+          // schedule a deferred recapture/rebuild after layout settles
+          const existing = this.recaptureTimers.get(el)
+          if (existing) clearTimeout(existing)
+          const timer = window.setTimeout(() => {
+            // bail if controller disposed
+            if (this.disposed) return
+            // compute segments using current auto-tessellation
+            const rect = el.getBoundingClientRect()
+            const seg = this.computeAutoSegments(rect, this.debug.tessellationSegments)
+            // force=true to rebuild even if segment count unchanged
+            this.pool?.prepare(el, seg, { force: true })
+              .then(() => {
+                if (this.disposed) return
+                this.pool?.mount(el)
+                this.pool?.resetGeometry(el)
+                // Update transforms to current rect and refresh overlay
+                this.domToWebGL?.updateMeshTransform(el, this.pool!.getRecord(el)!)
+                this.collisionSystem.refresh()
+                this.updateOverlayDebug()
+              })
+              .catch(() => { /* ignore capture failures */ })
+              .finally(() => {
+                this.recaptureTimers.delete(el)
+              })
+          }, ClothSceneController.LAYOUT_COOL_OFF_MS)
+          this.recaptureTimers.set(el, timer)
+        }
+      })
+      for (const el of elements) this.layoutObserver.observe(el)
+    } catch {
+      // ResizeObserver not available; skip auto-recapture
+    }
   }
 }

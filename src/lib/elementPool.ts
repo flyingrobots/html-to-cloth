@@ -17,9 +17,9 @@ export class ElementPool {
     this.domBridge = domBridge
   }
 
-  async prepare(element: HTMLElement, segments = 24) {
+  async prepare(element: HTMLElement, segments = 24, options: { force?: boolean } = {}) {
     const existing = this.elements.get(element)
-    if (existing && existing.segments === segments) return
+    if (existing && existing.segments === segments && !options.force) return
 
     if (existing) {
       this.destroy(element)
