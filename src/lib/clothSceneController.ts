@@ -579,6 +579,40 @@ export class ClothSceneController {
     }
   }
 
+  /**
+   * Prepares an arbitrary DOM element for cloth capture and (optionally) activates it immediately.
+   * Useful for elements that are not present or not cloth-enabled during initial init() capture.
+   */
+  async clothify(element: HTMLElement, options: { activate?: boolean; addClickHandler?: boolean } = {}) {
+    const { activate = true, addClickHandler = true } = options
+    const bridge = this.domToWebGL
+    const pool = this.pool
+    if (!bridge || !pool) return
+    const rect = element.getBoundingClientRect()
+    const seg = this.computeAutoSegments(rect, this.debug.tessellationSegments)
+    await pool.prepare(element, seg)
+    pool.mount(element)
+    const record = pool.getRecord(element)
+    const originalOpacity = element.style.opacity
+    element.style.opacity = '0'
+    const clickHandler = (event: MouseEvent) => {
+      event.preventDefault()
+      this.activate(element)
+    }
+    if (addClickHandler) {
+      element.addEventListener('click', clickHandler)
+    }
+    this.collisionSystem.addStaticBody(element)
+    this.items.set(element, {
+      element,
+      originalOpacity,
+      clickHandler,
+      isActive: false,
+      record,
+    })
+    if (activate) this.activate(element)
+  }
+
   private activate(element: HTMLElement) {
     if (!this.domToWebGL || !this.pool) return
 

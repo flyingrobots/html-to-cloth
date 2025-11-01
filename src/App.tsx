@@ -124,9 +124,25 @@ function DebugPalette(props: DebugProps) {
 
   // (labels kept close to Select entries)
 
+  const panelRef = useRef<HTMLDivElement | null>(null)
+
   return (
-    <Affix position={{ top: 16, right: 16 }} zIndex={2100} hidden={!open}>
-      <Paper withBorder shadow="lg" p="md" w={380} style={{ maxHeight: 'calc(100vh - 32px)', overflowY: 'auto' }}>
+    <Affix position={{ top: 16, right: 16 }} zIndex={2100}>
+      <Paper
+        ref={panelRef}
+        className="cloth-enabled"
+        withBorder
+        shadow="lg"
+        p="md"
+        w={380}
+        style={{
+          maxHeight: 'calc(100vh - 32px)',
+          overflowY: 'auto',
+          // Hide via visual opacity to keep element capturable by html2canvas when needed
+          opacity: open ? 1 : 0,
+          pointerEvents: open ? 'auto' : 'none',
+        }}
+      >
         <Stack gap="md">
           <Stack gap={0}>
             <Title order={3}>Debug Settings</Title>
@@ -337,7 +353,24 @@ function DebugPalette(props: DebugProps) {
           <Divider />
           <Group justify="flex-end">
             {!realTime ? <Button variant="default" onClick={onStep}>Step (Space)</Button> : null}
-            <Button variant="default" onClick={() => onOpenChange(false)}>Hide</Button>
+            <Button
+              variant="default"
+              onClick={async () => {
+                // Clothify the panel and drop it; keep clicks confined to this action
+                try {
+                  const el = panelRef.current
+                  if (el && controllerRef.current?.clothify) {
+                    await controllerRef.current.clothify(el, { activate: true, addClickHandler: false })
+                  }
+                } catch (err) {
+                  console.warn('Debug panel clothify failed', err)
+                } finally {
+                  onOpenChange(false)
+                }
+              }}
+            >
+              Hide
+            </Button>
             <Button variant="outline" onClick={onReset}>Reset</Button>
           </Group>
         </Stack>
