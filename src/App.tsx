@@ -455,6 +455,8 @@ function Demo() {
           setPinMode: (mode) => controller.setPinMode(mode),
         })
         actionsRef.current = actions
+        // Preview wireframe on static meshes too in the playground for clarity
+        if (rs) rs.applyToStatic = true
         actionsRef.current.setCameraTargetZoom(cameraZoom)
         const snap = actionsRef.current.getCameraSnapshot?.()
         if (snap && typeof snap.zoom === 'number') {

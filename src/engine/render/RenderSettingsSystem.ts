@@ -43,9 +43,10 @@ export class RenderSettingsSystem implements EngineSystem {
       const mesh = obj as THREE.Mesh
       const mat = (mesh.material as THREE.Material | undefined) as THREE.MeshBasicMaterial | undefined
       if (!mat) return
-      // We only toggle for cloth meshes flagged by the controller.
-      const flag = (mesh as unknown as { userData?: Record<string, unknown> }).userData?.['isCloth']
-      if (flag) {
+      const userData = (mesh as unknown as { userData?: Record<string, unknown> }).userData || {}
+      const isCloth = !!userData['isCloth']
+      const isStatic = !!userData['isStatic']
+      if (isCloth || (isStatic && this.state.applyToStatic)) {
         mat.wireframe = this.state.wireframe
       }
     })
