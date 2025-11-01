@@ -13,6 +13,8 @@ import {
   Divider,
   Select,
   Kbd,
+  Accordion,
+  Menu,
 } from "@mantine/core"
 import type { DebugOverlayState } from './engine/render/DebugOverlayState'
 
@@ -126,199 +128,215 @@ function DebugPalette(props: DebugProps) {
     <Affix position={{ top: 16, right: 16 }} zIndex={2100} hidden={!open}>
       <Paper withBorder shadow="lg" p="md" w={380} style={{ maxHeight: 'calc(100vh - 32px)', overflowY: 'auto' }}>
         <Stack gap="md">
-          <Stack gap={0}
-          >
+          <Stack gap={0}>
             <Title order={3}>Debug Settings</Title>
             <Text c="dimmed" size="sm">Control simulation parameters</Text>
           </Stack>
-          <Stack gap="md">
-            <Stack gap={6}>
-              <Text fw={600}>Presets</Text>
-              <Select
-                aria-label="Presets"
-                placeholder="Choose preset"
-                data={PRESETS.map((p) => ({ value: p.name, label: p.name }))}
-                comboboxProps={{ withinPortal: true, zIndex: 2300 }}
-                value={presetValue ?? null}
-                onChange={(v) => {
-                  if (!v) return
-                  onPresetSelect?.(v)
-                }}
-              />
-            </Stack>
-            <Group justify="space-between">
-              <Stack gap={0}
-              >
-                <Text fw={600}>Wireframe</Text>
-                <Text size="sm" c="dimmed">Toggle mesh rendering as wireframe</Text>
-              </Stack>
-              <Switch aria-label="Wireframe" checked={wireframe} onChange={(e) => onWireframeChange(e.currentTarget.checked)} />
-            </Group>
-            <Group justify="space-between">
-              <Stack gap={0}
-              >
-                <Text fw={600}>Real-Time</Text>
-                <Text size="sm" c="dimmed">Pause simulation to step manually</Text>
-              </Stack>
-              <Switch aria-label="Real-Time" checked={realTime} onChange={(e) => onRealTimeChange(e.currentTarget.checked)} />
-            </Group>
-            <Group justify="space-between">
-              <Stack gap={0}
-              >
-                <Text fw={600}>Pointer Collider</Text>
-                <Text size="sm" c="dimmed">Visualize the pointer collision sphere</Text>
-              </Stack>
-              <Switch aria-label="Pointer Collider" checked={pointerColliderVisible} onChange={(e) => onPointerColliderVisibleChange(e.currentTarget.checked)} />
-            </Group>
-            <Group justify="space-between">
-              <Stack gap={0}
-              >
-                <Text fw={600}>Debug AABBs</Text>
-                <Text size="sm" c="dimmed">Draw static collision bounds</Text>
-              </Stack>
-              <Switch aria-label="Debug AABBs" checked={props.drawAABBs} onChange={(e) => props.onDrawAABBsChange(e.currentTarget.checked)} />
-            </Group>
-            <Group justify="space-between">
-              <Stack gap={0}
-              >
-                <Text fw={600}>Sleep State</Text>
-                <Text size="sm" c="dimmed">Color centers (awake vs sleeping)</Text>
-              </Stack>
-              <Switch aria-label="Sleep State" checked={props.drawSleep} onChange={(e) => props.onDrawSleepChange(e.currentTarget.checked)} />
-            </Group>
-            <Group justify="space-between">
-              <Stack gap={0}
-              >
-                <Text fw={600}>Pin Markers</Text>
-                <Text size="sm" c="dimmed">Draw markers on pinned vertices</Text>
-              </Stack>
-              <Switch aria-label="Pin Markers" checked={props.drawPins} onChange={(e) => props.onDrawPinsChange(e.currentTarget.checked)} />
-            </Group>
-            <Stack gap={4}
-            >
-              <Group justify="space-between">
-                <Text fw={500}>Gravity</Text>
-                <Text c="dimmed">{gravity.toFixed(2)} m/s²</Text>
-              </Group>
-              <Slider aria-label="Gravity" value={gravity} min={0} max={30} step={0.5} onChange={onGravityChange} />
-            </Stack>
-            <Stack gap={4}
-            >
-              <Group justify="space-between">
-                <Text fw={500}>Impulse Multiplier</Text>
-                <Text c="dimmed">{impulseMultiplier.toFixed(2)}</Text>
-              </Group>
-              <Slider aria-label="Impulse Multiplier" value={impulseMultiplier} min={0.1} max={3} step={0.1} onChange={onImpulseMultiplierChange} />
-            </Stack>
-            <Stack gap={4}
-            >
-              <Group justify="space-between">
-                <Text fw={500}>Tessellation</Text>
-                <Text c="dimmed">{tessellationSegments} × {tessellationSegments}</Text>
-              </Group>
-              <Slider aria-label="Tessellation" value={tessellationSegments} min={1} max={32} step={1} onChange={(v) => onTessellationChange(Math.round(v))} />
-              <Group justify="space-between">
-                <Stack gap={0}>
-                  <Text fw={600}>Auto Tessellation</Text>
-                  <Text size="sm" c="dimmed">Scale segments by on-screen size</Text>
-                </Stack>
-                <Switch aria-label="Auto Tessellation" checked={!!autoTessellation} onChange={(e) => onAutoTessellationChange?.(e.currentTarget.checked)} />
-              </Group>
-              {autoTessellation ? (
-                <>
+          <Accordion multiple chevronPosition="right" defaultValue={["presets", "physics", "sleep", "view"]} variant="contained">
+            <Accordion.Item value="presets">
+              <Accordion.Control>Presets</Accordion.Control>
+              <Accordion.Panel>
+                <Select
+                  aria-label="Presets"
+                  placeholder="Choose preset"
+                  data={PRESETS.map((p) => ({ value: p.name, label: p.name }))}
+                  comboboxProps={{ withinPortal: true, zIndex: 2300 }}
+                  value={presetValue ?? null}
+                  onChange={(v) => { if (v) onPresetSelect?.(v) }}
+                />
+                <Group justify="space-between" mt="sm">
+                  <Stack gap={0}>
+                    <Text fw={600}>Wireframe</Text>
+                    <Text size="sm" c="dimmed">Toggle mesh rendering as wireframe</Text>
+                  </Stack>
+                  <Switch aria-label="Wireframe" checked={wireframe} onChange={(e) => onWireframeChange(e.currentTarget.checked)} />
+                </Group>
+                <Group justify="space-between" mt="sm">
+                  <Stack gap={0}>
+                    <Text fw={600}>Pin Mode</Text>
+                    <Text size="sm" c="dimmed">Choose pinned vertices</Text>
+                  </Stack>
+                  <Menu withinPortal position="bottom-end" shadow="sm">
+                    <Menu.Target>
+                      <Button variant="default">{pinMode.charAt(0).toUpperCase() + pinMode.slice(1)}</Button>
+                    </Menu.Target>
+                    <Menu.Dropdown>
+                      <Menu.Item onClick={() => onPinModeChange('none')}>None</Menu.Item>
+                      <Menu.Item onClick={() => onPinModeChange('top')}>Top</Menu.Item>
+                      <Menu.Item onClick={() => onPinModeChange('bottom')}>Bottom</Menu.Item>
+                      <Menu.Item onClick={() => onPinModeChange('corners')}>Corners</Menu.Item>
+                    </Menu.Dropdown>
+                  </Menu>
+                </Group>
+              </Accordion.Panel>
+            </Accordion.Item>
+
+            <Accordion.Item value="physics">
+              <Accordion.Control>Physics</Accordion.Control>
+              <Accordion.Panel>
+                <Group justify="space-between">
+                  <Stack gap={0}>
+                    <Text fw={600}>Real-Time</Text>
+                    <Text size="sm" c="dimmed">Pause simulation to step manually</Text>
+                  </Stack>
+                  <Switch aria-label="Real-Time" checked={realTime} onChange={(e) => onRealTimeChange(e.currentTarget.checked)} />
+                </Group>
+                <Stack gap={4} mt="sm">
                   <Group justify="space-between">
-                    <Text fw={500}>Min Segments</Text>
-                    <Text c="dimmed">{tessellationMin}</Text>
+                    <Text fw={500}>Gravity</Text>
+                    <Text c="dimmed">{gravity.toFixed(2)} m/s²</Text>
                   </Group>
-                  <Slider aria-label="Tessellation Min" value={tessellationMin ?? 6} min={1} max={46} step={1} onChange={(v) => onTessellationMinChange?.(Math.round(v))} />
-                  <Group justify="space-between">
-                    <Text fw={500}>Max Segments</Text>
-                    <Text c="dimmed">{tessellationMax}</Text>
-                  </Group>
-                  <Slider aria-label="Tessellation Max" value={tessellationMax ?? 24} min={(tessellationMin ?? 6) + 2} max={48} step={1} onChange={(v) => onTessellationMaxChange?.(Math.round(v))} />
-                </>
-              ) : null}
-            </Stack>
-            <Stack gap={4}
-            >
-              <Group justify="space-between">
-                <Text fw={500}>Constraint Iterations</Text>
-                <Text c="dimmed">{constraintIterations}</Text>
-              </Group>
-              <Slider aria-label="Constraint Iterations" value={constraintIterations} min={1} max={12} step={1} onChange={(v) => onConstraintIterationsChange(Math.round(v))} />
-            </Stack>
-            <Stack gap={4}
-            >
-              <Group justify="space-between">
-                <Text fw={500}>Substeps</Text>
-                <Text c="dimmed">{substeps}</Text>
-              </Group>
-              <Slider aria-label="Substeps" value={substeps} min={1} max={8} step={1} onChange={(v) => onSubstepsChange(Math.round(v))} />
-            </Stack>
-            <Stack gap={4}
-            >
-              <Group justify="space-between">
-                <Text fw={500}>Sleep Velocity Threshold</Text>
-                <Text c="dimmed">{sleepVelocity.toExponential(2)}</Text>
-              </Group>
-              <Slider aria-label="Sleep Velocity Threshold" value={sleepVelocity} min={0} max={0.01} step={0.0005} onChange={(v) => onSleepVelocityChange(Number(v))} />
-            </Stack>
-            <Stack gap={4}
-            >
-              <Group justify="space-between">
-                <Text fw={500}>Sleep Frame Threshold</Text>
-                <Text c="dimmed">{sleepFrames}f</Text>
-              </Group>
-              <Slider aria-label="Sleep Frame Threshold" value={sleepFrames} min={10} max={240} step={10} onChange={(v) => onSleepFramesChange(Math.round(v))} />
-              <Group justify="space-between">
-                <Stack gap={0}>
-                  <Text fw={600}>World Sleep Guard</Text>
-                  <Text size="sm" c="dimmed">Delay sleep until world-space still</Text>
+                  <Slider aria-label="Gravity" value={gravity} min={0} max={30} step={0.5} onChange={onGravityChange} />
                 </Stack>
-                <Switch aria-label="World Sleep Guard" checked={!!worldSleepGuard} onChange={(e) => onWorldSleepGuardChange?.(e.currentTarget.checked)} />
-              </Group>
-            </Stack>
-            <Stack gap={4}
-            >
-              <Group justify="space-between">
-                <Text fw={500}>Warm Start Passes</Text>
-                <Text c="dimmed">{warmStartPasses}</Text>
-              </Group>
-              <Slider aria-label="Warm Start Passes" value={warmStartPasses} min={0} max={6} step={1} onChange={(v) => onWarmStartPassesChange(Math.round(v))} />
-              <Button variant="default" onClick={() => onWarmStartNow?.()}>Warm Start Now</Button>
-            </Stack>
-            <Stack gap={4}
-            >
-              <Group justify="space-between">
-                <Text fw={500}>Camera Zoom</Text>
-                <Text c="dimmed">{cameraZoom.toFixed(2)}×</Text>
-              </Group>
-              <Slider aria-label="Camera Zoom" value={cameraZoom} min={0.5} max={3} step={0.1} onChange={onCameraZoomChange} />
-            </Stack>
-            <Group justify="space-between">
-              <Text fw={500}>Camera Zoom (Actual)</Text>
-              <Text c="dimmed">{cameraZoomActual.toFixed(2)}×</Text>
-            </Group>
-            <Stack gap={6}>
-              <Text fw={500}>Pin Mode</Text>
-              <Select
-                aria-label="Pin Mode"
-                placeholder="Choose pin"
-                data={[
-                  { value: 'top', label: 'Top Edge' },
-                  { value: 'bottom', label: 'Bottom Edge' },
-                  { value: 'corners', label: 'Corners' },
-                  { value: 'none', label: 'None' },
-                ]}
-                value={pinMode}
-                comboboxProps={{ withinPortal: true, zIndex: 2300 }}
-                onChange={(v) => v && onPinModeChange(v as PinMode)}
-              />
-            </Stack>
-            {!realTime ? <Button variant="default" onClick={onStep}>Step (Space)</Button> : null}
-          </Stack>
+                <Stack gap={4} mt="sm">
+                  <Group justify="space-between">
+                    <Text fw={500}>Impulse Multiplier</Text>
+                    <Text c="dimmed">{impulseMultiplier.toFixed(2)}</Text>
+                  </Group>
+                  <Slider aria-label="Impulse Multiplier" value={impulseMultiplier} min={0.1} max={3} step={0.1} onChange={onImpulseMultiplierChange} />
+                </Stack>
+                <Stack gap={4} mt="sm">
+                  <Group justify="space-between">
+                    <Text fw={500}>Constraint Iterations</Text>
+                    <Text c="dimmed">{constraintIterations}</Text>
+                  </Group>
+                  <Slider aria-label="Constraint Iterations" value={constraintIterations} min={1} max={12} step={1} onChange={(v) => onConstraintIterationsChange(Math.round(v))} />
+                </Stack>
+                <Stack gap={4} mt="sm">
+                  <Group justify="space-between">
+                    <Text fw={500}>Substeps</Text>
+                    <Text c="dimmed">{substeps}</Text>
+                  </Group>
+                  <Slider aria-label="Substeps" value={substeps} min={1} max={8} step={1} onChange={(v) => onSubstepsChange(Math.round(v))} />
+                </Stack>
+              </Accordion.Panel>
+            </Accordion.Item>
+
+            <Accordion.Item value="tessellation">
+              <Accordion.Control>Tessellation</Accordion.Control>
+              <Accordion.Panel>
+                <Stack gap={4}>
+                  <Group justify="space-between">
+                    <Text fw={500}>Tessellation</Text>
+                    <Text c="dimmed">{tessellationSegments} × {tessellationSegments}</Text>
+                  </Group>
+                  <Slider aria-label="Tessellation" value={tessellationSegments} min={1} max={32} step={1} onChange={(v) => onTessellationChange(Math.round(v))} />
+                  <Group justify="space-between">
+                    <Stack gap={0}>
+                      <Text fw={600}>Auto Tessellation</Text>
+                      <Text size="sm" c="dimmed">Scale segments by on-screen size</Text>
+                    </Stack>
+                    <Switch aria-label="Auto Tessellation" checked={!!autoTessellation} onChange={(e) => onAutoTessellationChange?.(e.currentTarget.checked)} />
+                  </Group>
+                  {autoTessellation ? (
+                    <>
+                      <Group justify="space-between">
+                        <Text fw={500}>Min Segments</Text>
+                        <Text c="dimmed">{tessellationMin}</Text>
+                      </Group>
+                      <Slider aria-label="Tessellation Min" value={tessellationMin ?? 6} min={1} max={46} step={1} onChange={(v) => onTessellationMinChange?.(Math.round(v))} />
+                      <Group justify="space-between">
+                        <Text fw={500}>Max Segments</Text>
+                        <Text c="dimmed">{tessellationMax}</Text>
+                      </Group>
+                      <Slider aria-label="Tessellation Max" value={tessellationMax ?? 24} min={(tessellationMin ?? 6) + 2} max={48} step={1} onChange={(v) => onTessellationMaxChange?.(Math.round(v))} />
+                    </>
+                  ) : null}
+                </Stack>
+              </Accordion.Panel>
+            </Accordion.Item>
+
+            <Accordion.Item value="sleep">
+              <Accordion.Control>Sleep & Warm Start</Accordion.Control>
+              <Accordion.Panel>
+                <Stack gap={6}>
+                  <Stack gap={4}>
+                    <Group justify="space-between">
+                      <Text fw={500}>Sleep Velocity Threshold</Text>
+                      <Text c="dimmed">{sleepVelocity.toExponential(2)}</Text>
+                    </Group>
+                    <Slider aria-label="Sleep Velocity Threshold" value={sleepVelocity} min={0} max={0.01} step={0.0005} onChange={(v) => onSleepVelocityChange(Number(v))} />
+                  </Stack>
+                  <Stack gap={4}>
+                    <Group justify="space-between">
+                      <Text fw={500}>Sleep Frame Threshold</Text>
+                      <Text c="dimmed">{sleepFrames}f</Text>
+                    </Group>
+                    <Slider aria-label="Sleep Frame Threshold" value={sleepFrames} min={10} max={240} step={10} onChange={(v) => onSleepFramesChange(Math.round(v))} />
+                  </Stack>
+                  <Group justify="space-between">
+                    <Stack gap={0}>
+                      <Text fw={600}>World Sleep Guard</Text>
+                      <Text size="sm" c="dimmed">Delay sleep until world-space still</Text>
+                    </Stack>
+                    <Switch aria-label="World Sleep Guard" checked={!!worldSleepGuard} onChange={(e) => onWorldSleepGuardChange?.(e.currentTarget.checked)} />
+                  </Group>
+                  <Stack gap={4}>
+                    <Group justify="space-between">
+                      <Text fw={500}>Warm Start Passes</Text>
+                      <Text c="dimmed">{warmStartPasses}</Text>
+                    </Group>
+                    <Slider aria-label="Warm Start Passes" value={warmStartPasses} min={0} max={6} step={1} onChange={(v) => onWarmStartPassesChange(Math.round(v))} />
+                    <Button variant="default" onClick={() => onWarmStartNow?.()}>Warm Start Now</Button>
+                  </Stack>
+                </Stack>
+              </Accordion.Panel>
+            </Accordion.Item>
+
+            <Accordion.Item value="overlays">
+              <Accordion.Control>Overlays</Accordion.Control>
+              <Accordion.Panel>
+                <Group justify="space-between">
+                  <Stack gap={0}>
+                    <Text fw={600}>Pointer Collider</Text>
+                    <Text size="sm" c="dimmed">Visualize the pointer collision sphere</Text>
+                  </Stack>
+                  <Switch aria-label="Pointer Collider" checked={pointerColliderVisible} onChange={(e) => onPointerColliderVisibleChange(e.currentTarget.checked)} />
+                </Group>
+                <Group justify="space-between" mt="sm">
+                  <Stack gap={0}>
+                    <Text fw={600}>Debug AABBs</Text>
+                    <Text size="sm" c="dimmed">Draw static collision bounds</Text>
+                  </Stack>
+                  <Switch aria-label="Debug AABBs" checked={props.drawAABBs} onChange={(e) => props.onDrawAABBsChange(e.currentTarget.checked)} />
+                </Group>
+                <Group justify="space-between" mt="sm">
+                  <Stack gap={0}>
+                    <Text fw={600}>Sleep State</Text>
+                    <Text size="sm" c="dimmed">Color centers (awake vs sleeping)</Text>
+                  </Stack>
+                  <Switch aria-label="Sleep State" checked={props.drawSleep} onChange={(e) => props.onDrawSleepChange(e.currentTarget.checked)} />
+                </Group>
+                <Group justify="space-between" mt="sm">
+                  <Stack gap={0}>
+                    <Text fw={600}>Pin Markers</Text>
+                    <Text size="sm" c="dimmed">Draw markers on pinned vertices</Text>
+                  </Stack>
+                  <Switch aria-label="Pin Markers" checked={props.drawPins} onChange={(e) => props.onDrawPinsChange(e.currentTarget.checked)} />
+                </Group>
+              </Accordion.Panel>
+            </Accordion.Item>
+
+            <Accordion.Item value="view">
+              <Accordion.Control>View</Accordion.Control>
+              <Accordion.Panel>
+                <Stack gap={4}>
+                  <Group justify="space-between">
+                    <Text fw={500}>Camera Zoom</Text>
+                    <Text c="dimmed">{cameraZoom.toFixed(2)}×</Text>
+                  </Group>
+                  <Slider aria-label="Camera Zoom" value={cameraZoom} min={0.5} max={3} step={0.1} onChange={onCameraZoomChange} />
+                  <Group justify="space-between">
+                    <Text fw={500}>Camera Zoom (Actual)</Text>
+                    <Text c="dimmed">{cameraZoomActual.toFixed(2)}×</Text>
+                  </Group>
+                </Stack>
+              </Accordion.Panel>
+            </Accordion.Item>
+          </Accordion>
           <Divider />
           <Group justify="flex-end">
+            {!realTime ? <Button variant="default" onClick={onStep}>Step (Space)</Button> : null}
             <Button variant="default" onClick={() => onOpenChange(false)}>Hide</Button>
             <Button variant="outline" onClick={onReset}>Reset</Button>
           </Group>
