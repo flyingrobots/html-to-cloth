@@ -502,6 +502,8 @@ function Demo() {
 
   useEffect(() => {
     actionsRef.current?.setWireframe(wireframe)
+    // Also update controller-side debug flag so newly activated cloth picks up the value immediately
+    controllerRef.current?.setWireframe?.(wireframe)
   }, [wireframe])
 
   useEffect(() => {

@@ -626,28 +626,10 @@ export class ClothSceneController {
     const record = this.pool.getRecord(element)
     if (!record) return
 
-    // Defensive: recycle static mount before switching the mesh into "cloth" mode to avoid any
-    // possibility of a duplicate staying behind due to external mounts.
-    try {
-      this.pool.recycle(element)
-    } catch (e) {
-      // Non-fatal: log and continue activation path
-      console.warn('ClothSceneController: failed to recycle static mesh before activation', {
-        elementId: element.id,
-        error: e,
-      })
-    }
+    // Keep using the currently mounted mesh; just flip flags. Avoid recycle/add to
+    // prevent duplicate attachments or geometry resets that can cause size drift.
+    // Reset geometry to a clean state (positions/tangents) before switching to cloth.
     this.pool.resetGeometry(element)
-    // Re-attach the same mesh explicitly so the scene contains exactly one instance.
-    try {
-      this.domToWebGL.addMesh(record.mesh)
-    } catch (e) {
-      // Non-fatal: log and continue; the mesh may already be attached
-      console.warn('ClothSceneController: failed to add mesh after recycle during activation', {
-        elementId: element.id,
-        error: e,
-      })
-    }
 
     const cloth = new ClothPhysics(record.mesh, {
       damping: 0.985,
