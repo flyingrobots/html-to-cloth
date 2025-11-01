@@ -587,10 +587,26 @@ export class ClothSceneController {
 
     // Defensive: recycle static mount before switching the mesh into "cloth" mode to avoid any
     // possibility of a duplicate staying behind due to external mounts.
-    try { this.pool.recycle(element) } catch {}
+    try {
+      this.pool.recycle(element)
+    } catch (e) {
+      // Non-fatal: log and continue activation path
+      console.warn('ClothSceneController: failed to recycle static mesh before activation', {
+        elementId: element.id,
+        error: e,
+      })
+    }
     this.pool.resetGeometry(element)
     // Re-attach the same mesh explicitly so the scene contains exactly one instance.
-    try { this.domToWebGL.addMesh(record.mesh) } catch {}
+    try {
+      this.domToWebGL.addMesh(record.mesh)
+    } catch (e) {
+      // Non-fatal: log and continue; the mesh may already be attached
+      console.warn('ClothSceneController: failed to add mesh after recycle during activation', {
+        elementId: element.id,
+        error: e,
+      })
+    }
 
     const cloth = new ClothPhysics(record.mesh, {
       damping: 0.985,
@@ -949,11 +965,11 @@ export class ClothSceneController {
     }
   }
 
-  async setTessellationSegments(segments: number) {
+  async setTessellationSegments(segments: number, force = false) {
     const pool = this.pool
     if (!pool) return
     const clamped = Math.max(1, Math.min(segments, 32))
-    if (this.debug.tessellationSegments === clamped) return
+    if (!force && this.debug.tessellationSegments === clamped) return
     this.debug.tessellationSegments = clamped
 
     const tasks: Promise<void>[] = []
@@ -982,6 +998,9 @@ export class ClothSceneController {
   /** Enables/disables automatic tessellation based on on-screen size. */
   setTessellationAutoEnabled(enabled: boolean) {
     this.debug.autoTessellation = !!enabled
+    if (this.debug.autoTessellation) {
+      void this.setTessellationSegments(this.debug.tessellationSegments, true)
+    }
   }
 
   /** Sets the min/max caps used by auto tessellation. */
@@ -990,6 +1009,9 @@ export class ClothSceneController {
     const ma = Math.max(mi + 2, Math.min(48, Math.round(max)))
     this.debug.tessellationMin = mi
     this.debug.tessellationMax = ma
+    if (this.debug.autoTessellation) {
+      void this.setTessellationSegments(this.debug.tessellationSegments, true)
+    }
   }
 
   // setPointerColliderVisible removed in favour of DebugOverlaySystem

@@ -491,15 +491,15 @@ function Demo() {
   }, [tessellationSegments])
 
   useEffect(() => {
-    ;(controllerRef.current as any)?.setTessellationAutoEnabled?.(autoTessellation)
+    controllerRef.current?.setTessellationAutoEnabled?.(autoTessellation)
   }, [autoTessellation])
 
   useEffect(() => {
-    ;(controllerRef.current as any)?.setTessellationMinMax?.(tessellationMin, tessellationMax)
+    controllerRef.current?.setTessellationMinMax?.(tessellationMin, tessellationMax)
   }, [tessellationMin, tessellationMax])
 
   useEffect(() => {
-    ;(controllerRef.current as any)?.setWorldSleepGuardEnabled?.(worldSleepGuard)
+    controllerRef.current?.setWorldSleepGuardEnabled?.(worldSleepGuard)
   }, [worldSleepGuard])
 
   useEffect(() => {
@@ -614,7 +614,7 @@ function Demo() {
           setSubsteps(1)
           setCameraZoom(1)
           setPointerColliderVisible(false)
-          setPinMode("top")
+          setPinMode("none")
           controllerRef.current?.setSleepConfig({ velocityThreshold: 0.001, frameThreshold: 60 })
           actionsRef.current?.setSleepConfig(0.001, 60)
         }}
