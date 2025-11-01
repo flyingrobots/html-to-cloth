@@ -90,13 +90,14 @@ export class DebugOverlaySystem implements EngineSystem {
       if (hasOrthoExtents) {
         const rawWidth = right - left
         const rawHeight = top - bottom
-        const worldWidth = Math.max(1e-6, Math.abs(rawWidth))
-        const worldHeight = Math.max(1e-6, Math.abs(rawHeight))
-        // Guard: inverted extents → uniform scale fallback
+        // Guard: inverted or non-positive extents → uniform scale fallback
         if (rawWidth <= 0 || rawHeight <= 0) {
           mesh.scale.set(r, r, 1)
           return
         }
+        // Clamp tiny dimensions to a small epsilon to avoid divide-by-zero
+        const safeWidth = Math.max(1e-6, rawWidth)
+        const safeHeight = Math.max(1e-6, rawHeight)
         let viewportWidth = 1
         let viewportHeight = 1
         const anyView = this.view as unknown as { getViewportPixels?: () => { width: number; height: number } }
@@ -107,8 +108,8 @@ export class DebugOverlaySystem implements EngineSystem {
             viewportHeight = vp.height
           }
         } catch { /* no-op */ }
-        const pxPerMeterX = viewportWidth / worldWidth
-        const pxPerMeterY = viewportHeight / worldHeight
+        const pxPerMeterX = viewportWidth / safeWidth
+        const pxPerMeterY = viewportHeight / safeHeight
         const k = pxPerMeterX / pxPerMeterY
         if (Number.isFinite(k) && k > 0) {
           mesh.scale.set(r, r * k, 1)

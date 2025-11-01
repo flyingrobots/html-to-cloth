@@ -84,6 +84,7 @@ class ClothBodyAdapter implements SimBody, Component {
   private _worldSleepVelThreshold = 0.001
   private _worldSleepFrameThreshold = 60
   private _worldSleepGuardEnabled = true
+  private _warnedAboutMissingBoundingSphere = false
 
   constructor(
     id: string,
@@ -163,6 +164,11 @@ class ClothBodyAdapter implements SimBody, Component {
         }
       }
       this._lastWorldCenter.copy(worldCenter)
+      } else {
+        if (!this._warnedAboutMissingBoundingSphere) {
+          console.warn(`ClothBodyAdapter ${this.id}: getBoundingSphere not available, world sleep guard disabled`)
+          this._warnedAboutMissingBoundingSphere = true
+        }
       }
     }
 
@@ -527,6 +533,7 @@ export class ClothSceneController {
     const MAX_TESSELLATION_CAP = 48
     const rawMax = round(maxCap)
     const maxUser = clamp(round(this.debug.tessellationMax ?? maxCap), MIN_SEGMENTS + 2, MAX_TESSELLATION_CAP)
+    // Effective max is the lesser of: user-configured max and the provided cap, both bounded by global limits
     const MAX = Math.min(clamp(rawMax, MIN_SEGMENTS + 2, MAX_TESSELLATION_CAP), maxUser)
 
     const desired = round(MIN_SEGMENTS + s * (MAX - MIN_SEGMENTS))
