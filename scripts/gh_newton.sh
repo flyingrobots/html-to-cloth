@@ -3,13 +3,19 @@ set -euo pipefail
 
 MILESTONE="PROJECT: Newton"
 
-# Create milestone (idempotent if exists)
+# Create milestone (idempotent if exists); omit due date for cross-platform
 gh api repos/:owner/:repo/milestones \
   --method POST \
   -f title="$MILESTONE" \
   -f state=open \
-  -f description='Physics lab milestone: collisions/observability/UX (Mantine + GSAP)' \
-  -F due_on="$(date -u -d "+14 days" +%Y-%m-%dT%H:%M:%SZ)" || true
+  -f description='Physics lab milestone: collisions/observability/UX (Mantine + GSAP)' || true
+
+# Ensure project:newton label exists
+gh label create project:newton --color 5319e7 --description "PROJECT: Newton tracking" 2>/dev/null || true
+# Common labels used across Newton issues
+for L in ui overlay good-first-pr gsap physics collision sat high-priority attrs config observability events behavior polish inspector devtools demo ux performance; do
+  gh label create "$L" --color FFFFFF 2>/dev/null || true
+done
 
 create_issue() {
   local title="$1"; shift
@@ -32,4 +38,3 @@ create_issue "Demo polish: Clothify All Visible + Panel Hide handoff" docs/issue
 create_issue "Performance budgets & perf meter overlay" docs/issues/perf-budget.md --label performance,observability || true
 
 echo "Created milestone + issues for $MILESTONE"
-
