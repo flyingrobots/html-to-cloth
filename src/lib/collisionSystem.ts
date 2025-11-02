@@ -1,11 +1,13 @@
 import * as THREE from 'three'
-import { edgeToCanonicalX, edgeToCanonicalY } from './units'
 import { ClothPhysics } from './clothPhysics'
+import { WorldBody } from './WorldBody'
+import { toCanonicalWidthMeters, toCanonicalHeightMeters, toCanonicalX, toCanonicalY } from './units'
 
 type StaticBody = {
   element: HTMLElement
-  min: THREE.Vector2
-  max: THREE.Vector2
+  widthMeters: number
+  heightMeters: number
+  worldBody: WorldBody
 }
 
 export class CollisionSystem {
@@ -21,11 +23,14 @@ export class CollisionSystem {
 
   addStaticBody(element: HTMLElement) {
     const rect = element.getBoundingClientRect()
-    this.staticBodies.push({
-      element,
-      min: this.rectMin(rect),
-      max: this.rectMax(rect),
-    })
+    const widthMeters = toCanonicalWidthMeters(rect.width, this.viewportWidth)
+    const heightMeters = toCanonicalHeightMeters(rect.height, this.viewportHeight)
+    const centerX = rect.left + rect.width / 2
+    const centerY = rect.top + rect.height / 2
+    const x = toCanonicalX(centerX, this.viewportWidth)
+    const y = toCanonicalY(centerY, this.viewportHeight)
+    const worldBody = new WorldBody({ position: new THREE.Vector3(x, y, 0) })
+    this.staticBodies.push({ element, widthMeters, heightMeters, worldBody })
   }
 
   removeStaticBody(element: HTMLElement) {
@@ -35,14 +40,22 @@ export class CollisionSystem {
   refresh() {
     for (const body of this.staticBodies) {
       const rect = body.element.getBoundingClientRect()
-      body.min = this.rectMin(rect)
-      body.max = this.rectMax(rect)
+      body.widthMeters = toCanonicalWidthMeters(rect.width, this.viewportWidth)
+      body.heightMeters = toCanonicalHeightMeters(rect.height, this.viewportHeight)
+      const centerX = rect.left + rect.width / 2
+      const centerY = rect.top + rect.height / 2
+      const x = toCanonicalX(centerX, this.viewportWidth)
+      const y = toCanonicalY(centerY, this.viewportHeight)
+      body.worldBody.setPositionComponents(x, y, 0)
+      body.worldBody.setScaleComponents(1, 1, 1)
+      body.worldBody.applyToMesh()
     }
   }
 
   apply(cloth: ClothPhysics) {
     for (const body of this.staticBodies) {
-      cloth.constrainWithinAABB(body.min, body.max)
+      const aabb = this.computeAABB(body)
+      cloth.constrainWithinAABB(aabb.min, aabb.max)
     }
   }
 
@@ -52,23 +65,29 @@ export class CollisionSystem {
 
   /** Returns a snapshot of static body AABBs (canonical units). */
   getStaticAABBs(): Array<{ min: THREE.Vector2; max: THREE.Vector2 }> {
-    return this.staticBodies.map((b) => ({
-      min: b.min.clone(),
-      max: b.max.clone(),
-    }))
+    return this.staticBodies.map((b) => this.computeAABB(b))
   }
 
-  private rectMin(rect: DOMRect) {
-    return new THREE.Vector2(
-      edgeToCanonicalX(rect.left, this.viewportWidth),
-      edgeToCanonicalY(rect.bottom, this.viewportHeight)
-    )
-  }
-
-  private rectMax(rect: DOMRect) {
-    return new THREE.Vector2(
-      edgeToCanonicalX(rect.right, this.viewportWidth),
-      edgeToCanonicalY(rect.top, this.viewportHeight)
-    )
+  private computeAABB(body: StaticBody): { min: THREE.Vector2; max: THREE.Vector2 } {
+    const hw = (body.widthMeters || 0) / 2
+    const hh = (body.heightMeters || 0) / 2
+    const corners: THREE.Vector3[] = [
+      new THREE.Vector3(-hw, -hh, 0),
+      new THREE.Vector3(hw, -hh, 0),
+      new THREE.Vector3(hw, hh, 0),
+      new THREE.Vector3(-hw, hh, 0),
+    ]
+    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity
+    for (const c of corners) {
+      const w = body.worldBody.localToWorldPoint(c)
+      if (w.x < minX) minX = w.x
+      if (w.y < minY) minY = w.y
+      if (w.x > maxX) maxX = w.x
+      if (w.y > maxY) maxY = w.y
+    }
+    return {
+      min: new THREE.Vector2(minX, minY),
+      max: new THREE.Vector2(maxX, maxY),
+    }
   }
 }
