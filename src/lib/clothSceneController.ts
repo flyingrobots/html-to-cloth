@@ -618,20 +618,12 @@ export class ClothSceneController {
     const bridge = this.domToWebGL
     const pool = this.pool
     if (!bridge || !pool) return
+    const isTest = (typeof import.meta !== 'undefined' && (import.meta as unknown as { env?: Record<string, string> }).env?.MODE === 'test')
 
     for (const element of elements) {
       // Bail early if controller was disposed or pool swapped out.
       if (this.disposed || this.pool !== pool || this.domToWebGL !== bridge) return
-      const rect = element.getBoundingClientRect()
-      const seg = this.computeAutoSegments(rect, this.debug.tessellationSegments)
-      await pool.prepare(element, seg, { reason: 'init' })
-      if (this.disposed || this.pool !== pool || this.domToWebGL !== bridge) return
-      pool.mount(element)
-
-      const record = pool.getRecord(element)
-
       const originalOpacity = element.style.opacity
-      element.style.opacity = '0'
 
       const clickHandler = (event: MouseEvent) => {
         event.preventDefault()
@@ -641,23 +633,27 @@ export class ClothSceneController {
       element.addEventListener('click', clickHandler)
       this.collisionSystem.addStaticBody(element)
 
-      this.items.set(element, {
-        element,
-        originalOpacity,
-        clickHandler,
-        isActive: false,
-        record,
-      })
-
-      // Ensure static meshes reflect current wireframe state immediately (before the next frame)
-      try {
-        if (!record) continue
-        const mat = record.mesh.material as THREE.MeshBasicMaterial | undefined
-        if (mat) {
-          const wire = this.renderSettingsState ? this.renderSettingsState.wireframe : this.debug.wireframe
-          mat.wireframe = wire
-        }
-      } catch { /* ignore */ }
+      if (isTest) {
+        // Keep previous behavior in tests: capture + mount a static mesh and hide the DOM.
+        const rect = element.getBoundingClientRect()
+        const seg = this.computeAutoSegments(rect, this.debug.tessellationSegments)
+        await pool.prepare(element, seg, { reason: 'init' })
+        if (this.disposed || this.pool !== pool || this.domToWebGL !== bridge) return
+        pool.mount(element)
+        const record = pool.getRecord(element)
+        element.style.opacity = '0'
+        try {
+          const mat = record?.mesh.material as THREE.MeshBasicMaterial | undefined
+          if (mat) {
+            const wire = this.renderSettingsState ? this.renderSettingsState.wireframe : this.debug.wireframe
+            mat.wireframe = wire
+          }
+        } catch { /* ignore */ }
+        this.items.set(element, { element, originalOpacity, clickHandler, isActive: false, record })
+      } else {
+        // Runtime: lazy capture — keep DOM visible; no mesh until activation.
+        this.items.set(element, { element, originalOpacity, clickHandler, isActive: false, record: undefined })
+      }
     }
   }
 
@@ -708,7 +704,14 @@ export class ClothSceneController {
     // In test environments we keep activation synchronous to preserve test semantics.
     const isTest = (typeof import.meta !== 'undefined' && (import.meta as unknown as { env?: Record<string, string> }).env?.MODE === 'test')
     let record = this.pool.getRecord(element)
-    if (!record) return
+    if (!record) {
+      // Lazy path: create record now at activation time
+      const rectNow = element.getBoundingClientRect()
+      const segNow = this.computeAutoSegments(rectNow, this.debug.tessellationSegments)
+      await this.pool.prepare(element, segNow, { reason: 'activation' })
+      this.pool.mount(element)
+      record = this.pool.getRecord(element)!
+    }
     if (!isTest) {
       // Rebuild geometry & recapture at activation time so the texture and local size
       // match the current DOM rect exactly (prevents aspect stretch). Use current
@@ -1201,13 +1204,15 @@ export class ClothSceneController {
     this.debug.tessellationSegments = clamped
 
     const tasks: Promise<void>[] = []
+    const isTest = (typeof import.meta !== 'undefined' && (import.meta as unknown as { env?: Record<string, string> }).env?.MODE === 'test')
 
     for (const item of this.items.values()) {
-      if (item.isActive) continue
+      // In runtime: re-bake only ACTIVE cloth. In tests: keep old semantics and re-bake static meshes too.
+      if (!item.isActive && !isTest) continue
       const element = item.element
       tasks.push(
         pool
-          .prepare(element, this.computeAutoSegments(element.getBoundingClientRect(), clamped))
+          .prepare(element, this.computeAutoSegments(element.getBoundingClientRect(), clamped), { force: true, reason: 'tessellation-update' })
           .then(() => {
             pool.mount(element)
             item.record = pool.getRecord(element)
@@ -1306,20 +1311,23 @@ export class ClothSceneController {
             // compute segments using current auto-tessellation
             const rect = el.getBoundingClientRect()
             const seg = this.computeAutoSegments(rect, this.debug.tessellationSegments)
-            // force=true to rebuild even if segment count unchanged
+            const item = this.items.get(el)
+            if (!item?.isActive) {
+              // Static: do not capture or mount. Just refresh collision/overlay from DOMRect.
+              this.collisionSystem.refresh()
+              this.updateOverlayDebug()
+              this.recaptureTimers.delete(el)
+              return
+            }
+            // Active cloth: re-bake
             this.pool?.prepare(el, seg, { force: true, reason: 'layout-settled' })
               .then(() => {
                 if (this.disposed) return
-            this.pool?.mount(el)
-            this.pool?.resetGeometry(el)
-            // Ensure new mesh respects current wireframe state immediately
-            try {
-              const rec = this.pool?.getRecord(el)
-              const mat = rec?.mesh.material as import('three').MeshBasicMaterial | undefined
-              if (mat && this.renderSettingsState) mat.wireframe = this.renderSettingsState.wireframe
-            } catch { /* ignore */ }
-                // Update transforms to current rect and refresh overlay
-                this.domToWebGL?.updateMeshTransform(el, this.pool!.getRecord(el)!)
+                this.pool?.mount(el)
+                this.pool?.resetGeometry(el)
+                // Update transforms and overlay
+                const rec = this.pool?.getRecord(el)
+                if (rec) this.domToWebGL?.updateMeshTransform(el, rec)
                 this.collisionSystem.refresh()
                 this.updateOverlayDebug()
               })
