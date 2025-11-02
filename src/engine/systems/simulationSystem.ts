@@ -6,6 +6,7 @@ import type {
   SimWorldSnapshot,
   SimWarmStartConfig,
   SimSleepConfig,
+  SimBroadphaseMode,
 } from '../../lib/simWorld'
 import type { EngineWorld } from '../world'
 import type { EngineLogger, EngineSystem } from '../types'
@@ -118,6 +119,14 @@ export class SimulationSystem implements EngineSystem<EngineWorld> {
     this.simWorld.clear()
     this.bodies.clear()
     this.snapshot = freezeSnapshot({ bodies: [] })
+  }
+
+  setBroadphaseMode(mode: SimBroadphaseMode) {
+    this.simWorld.setBroadphaseMode(mode)
+  }
+
+  setBroadphaseMargins(baseMargin: number, velocityFudge: number) {
+    this.simWorld.setBroadphaseMargins(baseMargin, velocityFudge)
   }
 
   /** Queues a warm-start configuration to be applied on the next fixed update. */

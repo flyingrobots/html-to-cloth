@@ -66,6 +66,10 @@ export class SimWorld {
     if (Number.isFinite(velocityFudge) && velocityFudge >= 0) this.velocityFudge = velocityFudge
   }
 
+  getBroadphaseConfig(): { mode: SimBroadphaseMode; baseMargin: number; velocityFudge: number } {
+    return { mode: this.broadphaseMode, baseMargin: this.baseMargin, velocityFudge: this.velocityFudge }
+  }
+
   /** Registers a body with the internal scheduler and snapshot state. */
   addBody(body: SimBody) {
     if (this.bodies.has(body.id)) {

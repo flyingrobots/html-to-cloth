@@ -74,6 +74,10 @@ type DebugProps = {
   onDrawSpheresChange?: (value: boolean) => void
   showPanelBounds?: boolean
   onShowPanelBoundsChange?: (value: boolean) => void
+  broadphaseMode?: 'sphere' | 'fatAABB'
+  onBroadphaseModeChange?: (m: 'sphere' | 'fatAABB') => void
+  drawFatAABBs?: boolean
+  onDrawFatAABBsChange?: (v: boolean) => void
   pinMode: PinMode
   onPinModeChange: (value: PinMode) => void
   onStep: () => void
@@ -327,6 +331,21 @@ function DebugPalette(props: DebugProps) {
                     <Slider aria-label="Warm Start Passes" value={warmStartPasses} min={0} max={6} step={1} onChange={(v) => onWarmStartPassesChange(Math.round(v))} />
                     <Button variant="default" onClick={() => onWarmStartNow?.()}>Warm Start Now</Button>
                   </Stack>
+                  <Divider my="sm" />
+                  <Group justify="space-between" align="center">
+                    <Stack gap={0}>
+                      <Text fw={600}>Broad-phase</Text>
+                      <Text size="sm" c="dimmed">Choose wake strategy for sleeping bodies</Text>
+                    </Stack>
+                  <Select
+                      aria-label="Broad-phase Mode"
+                      data={[{ value: 'fatAABB', label: 'Fat AABB' }, { value: 'sphere', label: 'Sphere' }]}
+                      value={props.broadphaseMode ?? 'fatAABB'}
+                      onChange={(v) => v && props.onBroadphaseModeChange?.(v as 'sphere' | 'fatAABB')}
+                      comboboxProps={{ withinPortal: true, zIndex: 2300 }}
+                      w={160}
+                    />
+                  </Group>
                 </Stack>
               </Accordion.Panel>
             </Accordion.Item>
@@ -375,6 +394,13 @@ function DebugPalette(props: DebugProps) {
                     <Text size="sm" c="dimmed">Draw AABB/sphere for the debug panel while open</Text>
                   </Stack>
                   <Switch aria-label="Show Panel Bounds" checked={!!props.showPanelBounds} onChange={(e) => props.onShowPanelBoundsChange?.(e.currentTarget.checked)} />
+                </Group>
+                <Group justify="space-between" mt="sm">
+                  <Stack gap={0}>
+                    <Text fw={600}>Draw Fat AABBs</Text>
+                    <Text size="sm" c="dimmed">Visualize inflated bounds used for waking</Text>
+                  </Stack>
+                  <Switch aria-label="Draw Fat AABBs" checked={!!props.drawFatAABBs} onChange={(e) => props.onDrawFatAABBsChange?.(e.currentTarget.checked)} />
                 </Group>
               </Accordion.Panel>
             </Accordion.Item>
@@ -454,6 +480,8 @@ function Demo() {
   const [drawPins, setDrawPins] = useState(false)
   const [drawSpheres, setDrawSpheres] = useState(false)
   const [showPanelBounds, setShowPanelBounds] = useState(true)
+  const [broadphaseMode, setBroadphaseMode] = useState<'sphere' | 'fatAABB'>('fatAABB')
+  const [drawFatAABBs, setDrawFatAABBs] = useState(false)
   const [pinMode, setPinMode] = useState<PinMode>('none')
 
   useEffect(() => {
@@ -608,6 +636,12 @@ function Demo() {
   }, [worldSleepGuard])
 
   useEffect(() => {
+    // Wire broad-phase mode
+    actionsRef.current?.setBroadphaseMode?.(broadphaseMode)
+    controllerRef.current?.setBroadphaseMode?.(broadphaseMode)
+  }, [broadphaseMode])
+
+  useEffect(() => {
     actionsRef.current?.setPointerOverlayVisible(pointerColliderVisible)
   }, [pointerColliderVisible])
 
@@ -625,6 +659,11 @@ function Demo() {
     const overlay = controllerRef.current?.getOverlayState?.() as DebugOverlayState | null
     if (overlay) overlay.drawPins = drawPins
   }, [drawPins])
+
+  useEffect(() => {
+    const overlay = controllerRef.current?.getOverlayState?.() as DebugOverlayState | null
+    if (overlay) overlay.drawFatAABBs = drawFatAABBs
+  }, [drawFatAABBs])
 
   useEffect(() => {
     const overlay = controllerRef.current?.getOverlayState?.() as DebugOverlayState | null
@@ -717,6 +756,10 @@ function Demo() {
         onDrawSpheresChange={setDrawSpheres}
         showPanelBounds={showPanelBounds}
         onShowPanelBoundsChange={setShowPanelBounds}
+        broadphaseMode={broadphaseMode}
+        onBroadphaseModeChange={setBroadphaseMode}
+        drawFatAABBs={drawFatAABBs}
+        onDrawFatAABBsChange={setDrawFatAABBs}
         pinMode={pinMode}
         onPinModeChange={setPinMode}
         onStep={() => actionsRef.current?.stepOnce()}

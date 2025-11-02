@@ -962,6 +962,16 @@ export class ClothSceneController {
     return this.renderSettingsState
   }
 
+  /** Sets SimWorld broad-phase mode. */
+  setBroadphaseMode(mode: 'sphere' | 'fatAABB') {
+    this.simWorld.setBroadphaseMode(mode)
+  }
+
+  /** Sets SimWorld broad-phase margins. */
+  setBroadphaseMargins(baseMargin: number, velocityFudge: number) {
+    this.simWorld.setBroadphaseMargins(baseMargin, velocityFudge)
+  }
+
   /** Add a non-captured DOM element to static collision so its AABB/sphere render in the overlay. */
   addStaticOverlayElement(element: HTMLElement) {
     this.collisionSystem.addStaticBody(element)
@@ -1050,6 +1060,30 @@ export class ClothSceneController {
       console.error('Failed to capture simulation snapshot for overlay', error)
       this.overlayState.simSnapshot = undefined
     }
+    // Active cloth AABBs and fat AABBs (approximate: base margin only)
+    const simAABBs: Array<{ min: { x: number; y: number }; max: { x: number; y: number } }> = []
+    const simFatAABBs: Array<{ min: { x: number; y: number }; max: { x: number; y: number } }> = []
+    const cfg = this.simWorld.getBroadphaseConfig?.() ?? { mode: 'fatAABB', baseMargin: 0.006, velocityFudge: 1.25 }
+    const idToItem = new Map<string, ClothItem>()
+    for (const item of this.items.values()) {
+      if (item.isActive && item.adapter) idToItem.set(item.adapter.id, item)
+    }
+    const bodies = this.overlayState.simSnapshot?.bodies ?? []
+    for (const body of bodies) {
+      const item = idToItem.get(body.id)
+      if (!item?.adapter) continue
+      const box = item.adapter.getAABB()
+      simAABBs.push({ min: { x: box.min.x, y: box.min.y }, max: { x: box.max.x, y: box.max.y } })
+      if (cfg.mode === 'fatAABB') {
+        const pad = cfg.baseMargin
+        simFatAABBs.push({
+          min: { x: box.min.x - pad, y: box.min.y - pad },
+          max: { x: box.max.x + pad, y: box.max.y + pad },
+        })
+      }
+    }
+    this.overlayState.simAABBs = simAABBs
+    this.overlayState.simFatAABBs = simFatAABBs
     // Pin markers from active cloth adapters
     const pins: Array<{ x: number; y: number }> = []
     for (const item of this.items.values()) {

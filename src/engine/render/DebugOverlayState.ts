@@ -31,6 +31,12 @@ export class DebugOverlayState {
   aabbs: CollisionAABB[] = []
   /** Static world-space spheres (derived from AABBs). */
   staticSpheres: WorldSphere[] = []
+  /** Draw broad-phase 'fat' AABBs for sleeping bodies (approximate visualization). */
+  drawFatAABBs = false
+  /** Active cloth AABBs (world space). */
+  simAABBs: CollisionAABB[] = []
+  /** Active cloth fat AABBs (world space, expanded by base margin). */
+  simFatAABBs: CollisionAABB[] = []
   /** Simulation snapshot for sleeping/awake coloring of gizmos. */
   simSnapshot?: Readonly<SimSnapshot>
   /** World-space pin markers (small crosses). */

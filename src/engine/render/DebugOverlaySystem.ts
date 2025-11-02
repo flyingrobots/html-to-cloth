@@ -26,6 +26,7 @@ export class DebugOverlaySystem implements EngineSystem {
   private circleGroup?: THREE.Group
   private pinGroup?: THREE.Group
   private sphereGroup?: THREE.Group
+  private simAabbGroup?: THREE.Group
 
   constructor(options: DebugOverlayOptions) {
     this.view = options.view
@@ -126,6 +127,7 @@ export class DebugOverlaySystem implements EngineSystem {
     this.drawSimCircles(!!this.state.drawSleep)
     this.drawStaticSpheres(!!this.state.drawSpheres)
     this.drawPins(!!this.state.drawPins)
+    this.drawSimAABBs(!!this.state.drawFatAABBs)
   }
 
   private ensurePointer() {
@@ -188,6 +190,39 @@ export class DebugOverlaySystem implements EngineSystem {
       const lines = new THREE.LineSegments(geom, mat)
       this.aabbGroup.add(lines)
     }
+  }
+
+  private drawSimAABBs(visible: boolean) {
+    if (!this.view.scene) return
+    if (!this.simAabbGroup) {
+      this.simAabbGroup = new THREE.Group()
+      this.simAabbGroup.renderOrder = 998
+      this.view.scene.add(this.simAabbGroup)
+    }
+    this.simAabbGroup.visible = visible
+    if (!visible) return
+    this.clearOverlayGroup(this.simAabbGroup)
+    const colorBase = new THREE.Color(0xffcc66)
+    const colorFat = new THREE.Color(0xff8866)
+    const addBox = (box: { min: { x: number; y: number }; max: { x: number; y: number } }, color: THREE.Color) => {
+      const geom = new THREE.BufferGeometry()
+      const min = box.min, max = box.max
+      const verts = new Float32Array([
+        min.x, min.y, 0.02,
+        max.x, min.y, 0.02,
+        max.x, min.y, 0.02,
+        max.x, max.y, 0.02,
+        max.x, max.y, 0.02,
+        min.x, max.y, 0.02,
+        min.x, max.y, 0.02,
+        min.x, min.y, 0.02,
+      ])
+      geom.setAttribute('position', new THREE.BufferAttribute(verts, 3))
+      const mat = new THREE.LineBasicMaterial({ color, transparent: true, opacity: 0.6, depthTest: false })
+      this.simAabbGroup!.add(new THREE.LineSegments(geom, mat))
+    }
+    for (const box of this.state.simAABBs) addBox(box, colorBase)
+    for (const box of this.state.simFatAABBs) addBox(box, colorFat)
   }
 
   private drawPins(visible: boolean) {
