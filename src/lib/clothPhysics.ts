@@ -442,6 +442,7 @@ export class ClothPhysics {
     positions.needsUpdate = true
     this.mesh.geometry.computeVertexNormals()
     this.mesh.geometry.computeBoundingSphere()
+    this.mesh.geometry.computeBoundingBox()
   }
 
   private index(x: number, y: number) {

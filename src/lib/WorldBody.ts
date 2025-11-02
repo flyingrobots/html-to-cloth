@@ -53,6 +53,19 @@ export class WorldBody {
     this.scale.set(x, y, z)
   }
 
+  /** Sets rotation from Euler angles (radians). */
+  setRotationEuler(x: number, y: number, z: number) {
+    if (!this.rotation) this.rotation = new THREE.Quaternion()
+    const e = new THREE.Euler(x, y, z)
+    this.rotation.setFromEuler(e)
+  }
+
+  /** Sets rotation directly from a quaternion. */
+  setRotationQuaternion(q: THREE.Quaternion) {
+    if (!this.rotation) this.rotation = new THREE.Quaternion()
+    this.rotation.copy(q)
+  }
+
   /** Applies current transform to the attached mesh (if any). */
   applyToMesh() {
     if (!this.mesh) return
@@ -71,10 +84,12 @@ export class WorldBody {
       quaternion?: { copy?: (q: THREE.Quaternion) => void }
       rotation?: { setFromQuaternion?: (q: THREE.Quaternion) => void }
     }
-    if (this.rotation && typeof meshQuatRot.quaternion?.copy === 'function') {
-      meshQuatRot.quaternion!.copy(this.rotation)
-    } else if (this.rotation && typeof meshQuatRot.rotation?.setFromQuaternion === 'function') {
-      meshQuatRot.rotation!.setFromQuaternion(this.rotation)
+    if (this.rotation) {
+      if (typeof meshQuatRot.quaternion?.copy === 'function') {
+        meshQuatRot.quaternion!.copy(this.rotation)
+      } else if (typeof meshQuatRot.rotation?.setFromQuaternion === 'function') {
+        meshQuatRot.rotation!.setFromQuaternion(this.rotation)
+      }
     }
 
     const scaleUnknown = (this.mesh as THREE.Object3D).scale as unknown
@@ -96,34 +111,44 @@ export class WorldBody {
   /** Converts a point from local/model space to world space. */
   localToWorldPoint(local: THREE.Vector3, target = new THREE.Vector3()) {
     // world = local * scale + position
-    return target
-      .set(local.x * this.scale.x, local.y * this.scale.y, local.z * this.scale.z)
-      .add(this.position)
+    target.set(local.x * this.scale.x, local.y * this.scale.y, local.z * this.scale.z)
+    if (this.rotation) target.applyQuaternion(this.rotation)
+    return target.add(this.position)
   }
 
   /** Converts a point from world space to local/model space. */
   worldToLocalPoint(world: THREE.Vector3, target = new THREE.Vector3()) {
     // local = (world - position) / scale
-    return target
-      .set(world.x - this.position.x, world.y - this.position.y, world.z - this.position.z)
-      .set(
-        target.x / (this.scale.x || 1),
-        target.y / (this.scale.y || 1),
-        target.z / (this.scale.z || 1),
-      )
+    target.set(world.x - this.position.x, world.y - this.position.y, world.z - this.position.z)
+    if (this.rotation) {
+      const inv = this.rotation.clone().invert()
+      target.applyQuaternion(inv)
+    }
+    return target.set(
+      target.x / (this.scale.x || 1),
+      target.y / (this.scale.y || 1),
+      target.z / (this.scale.z || 1),
+    )
   }
 
   /** Converts a direction/vector from local to world space (ignores translation). */
   localToWorldVector(local: THREE.Vector3, target = new THREE.Vector3()) {
-    return target.set(local.x * this.scale.x, local.y * this.scale.y, local.z * this.scale.z)
+    target.set(local.x * this.scale.x, local.y * this.scale.y, local.z * this.scale.z)
+    if (this.rotation) target.applyQuaternion(this.rotation)
+    return target
   }
 
   /** Converts a direction/vector from world to local space (ignores translation). */
   worldToLocalVector(world: THREE.Vector3, target = new THREE.Vector3()) {
+    target.set(world.x, world.y, world.z)
+    if (this.rotation) {
+      const inv = this.rotation.clone().invert()
+      target.applyQuaternion(inv)
+    }
     return target.set(
-      world.x / (this.scale.x || 1),
-      world.y / (this.scale.y || 1),
-      world.z / (this.scale.z || 1),
+      target.x / (this.scale.x || 1),
+      target.y / (this.scale.y || 1),
+      target.z / (this.scale.z || 1),
     )
   }
 }
