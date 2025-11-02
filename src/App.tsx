@@ -79,7 +79,8 @@ type DebugProps = {
   // Optional helper passed by parent to clothify the panel element
   clothifyElement?: (el: HTMLElement) => Promise<void>
   restoreElement?: (el: HTMLElement) => Promise<void>
-  captureStaticElement?: (el: HTMLElement) => Promise<void>
+  addOverlayElement?: (el: HTMLElement) => void
+  removeOverlayElement?: (el: HTMLElement) => void
 }
 
 function DebugPalette(props: DebugProps) {
@@ -135,17 +136,15 @@ function DebugPalette(props: DebugProps) {
   // If the panel is reopened after being clothified, restore it to static DOM to avoid
   // double images and transparency blending with the cloth copy.
   useEffect(() => {
-    if (!open) return
     const el = panelRef.current
     if (!el) return
-    if (props.restoreElement) {
-      // best effort restore; ignore failures
+    if (open && props.restoreElement) {
+      // Ensure any previously clothified panel is restored to DOM for interactivity
       Promise.resolve(props.restoreElement(el)).catch(() => {})
     }
-    // Ensure the panel is captured as a static mesh so its AABB/sphere/wireframe are visible while open
-    if (props.captureStaticElement) {
-      Promise.resolve(props.captureStaticElement(el)).catch(() => {})
-    }
+    // Register/unregister the panel as a static collider so its AABB/sphere draw in the overlay
+    if (open) props.addOverlayElement?.(el)
+    else props.removeOverlayElement?.(el)
   }, [open, props])
 
   return (
@@ -746,14 +745,8 @@ function Demo() {
             console.warn('restoreElement failed', err)
           }
         }}
-        captureStaticElement={async (el: HTMLElement) => {
-          try {
-            // Capture (or refresh) as static without activation or click handlers
-            await controllerRef.current?.clothify?.(el, { activate: false, addClickHandler: false })
-          } catch (err) {
-            console.warn('captureStaticElement failed', err)
-          }
-        }}
+        addOverlayElement={(el) => controllerRef.current?.addStaticOverlayElement?.(el)}
+        removeOverlayElement={(el) => controllerRef.current?.removeStaticOverlayElement?.(el)}
       />
     </>
   )

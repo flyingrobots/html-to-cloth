@@ -387,10 +387,6 @@ export type ClothSceneControllerOptions = {
  * {@link SimulationRunner} and {@link SimulationSystem} instances.
  */
 export class ClothSceneController {
-  // Overlay temporary vectors (controller scope) to avoid per-frame allocs
-  private _tmpWorldV3 = new THREE.Vector3()
-  private _tmpWorldV3B = new THREE.Vector3()
-  private _tmpLocalV3 = new THREE.Vector3()
   private static readonly SIM_SYSTEM_ID = 'sim-core'
   private static readonly CAMERA_SYSTEM_ID = 'render-camera'
   private static readonly RENDERER_SYSTEM_ID = 'world-renderer'
@@ -937,6 +933,18 @@ export class ClothSceneController {
     return this.renderSettingsState
   }
 
+  /** Add a non-captured DOM element to static collision so its AABB/sphere render in the overlay. */
+  addStaticOverlayElement(element: HTMLElement) {
+    this.collisionSystem.addStaticBody(element)
+    this.updateOverlayDebug()
+  }
+
+  /** Remove a previously added static overlay element. */
+  removeStaticOverlayElement(element: HTMLElement) {
+    this.collisionSystem.removeStaticBody(element)
+    this.updateOverlayDebug()
+  }
+
   private syncStaticMeshes() {
     if (!this.domToWebGL) return
 
@@ -995,20 +1003,15 @@ export class ClothSceneController {
       max: { x: b.max.x, y: b.max.y },
     }))
     this.overlayState.aabbs = aabbs
-    // Static world-space spheres derived from local/model-space spheres
-    const spheres: Array<{ center: { x: number; y: number }; radius: number }> = []
-    for (const item of this.items.values()) {
-      if (item.isActive) continue // only static DOM-backed meshes here
-      const rec = this.pool?.getRecord(item.element)
-      if (!rec || !rec.worldBody) continue
-      const wb = rec.worldBody
-      // World center is model origin transformed by world body
-      const wCenter = wb.localToWorldPoint(this._tmpWorldV3.set(0, 0, 0), this._tmpWorldV3B)
-      // World radius from local radius using world scale along X (uniform expected)
-      const localR = rec.modelRadiusMeters ?? 0.5 * Math.hypot(rec.widthMeters, rec.heightMeters)
-      const worldR = wb.localToWorldVector(this._tmpLocalV3.set(localR, 0, 0), this._tmpWorldV3).length()
-      spheres.push({ center: { x: wCenter.x, y: wCenter.y }, radius: worldR })
-    }
+    // Static world-space spheres derived from AABBs using half-diagonal (true bounding circle for a rectangle)
+    const spheres = aabbs.map((b) => {
+      const cx = (b.min.x + b.max.x) * 0.5
+      const cy = (b.min.y + b.max.y) * 0.5
+      const w = Math.abs(b.max.x - b.min.x)
+      const h = Math.abs(b.max.y - b.min.y)
+      const r = 0.5 * Math.hypot(w, h)
+      return { center: { x: cx, y: cy }, radius: r }
+    })
     this.overlayState.staticSpheres = spheres
     // Simulation snapshot (sleeping/awake)
     try {
