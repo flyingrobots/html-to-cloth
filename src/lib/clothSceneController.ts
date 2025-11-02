@@ -19,6 +19,7 @@ import type { Entity } from '../engine/entity/entity'
 import type { Component } from '../engine/entity/component'
 import type { PinMode } from '../types/pinMode'
 import { SimWorld, type SimBody, type SimWarmStartConfig, type SimSleepConfig } from './simWorld'
+import { RigidBody2D } from './rigidBody2d'
 
 const WARM_START_PASSES = 2
 
@@ -58,6 +59,16 @@ type ClothItem = {
   adapter?: ClothBodyAdapter
   entity?: Entity
   releasePinsTimeout?: number
+}
+
+type RigidItem = {
+  element: HTMLElement
+  originalOpacity: string
+  clickHandler: (event: MouseEvent) => void
+  isActive: boolean
+  record?: DOMMeshRecord
+  adapter?: RigidBodyAdapter
+  entity?: Entity
 }
 
 /**
@@ -399,6 +410,42 @@ class ClothBodyAdapter implements SimBody, Component {
   }
 }
 
+class RigidBodyAdapter implements SimBody, Component {
+  public readonly id: string
+  private collisionSystem: CollisionSystem
+  private worldBody: import('./WorldBody').WorldBody
+  private body: RigidBody2D
+  constructor(id: string, _item: RigidItem, collision: CollisionSystem, record: DOMMeshRecord) {
+    this.id = id
+    this.collisionSystem = collision
+    this.worldBody = record.worldBody
+    const pos = new THREE.Vector2(record.worldBody.position.x, record.worldBody.position.y)
+    this.body = new RigidBody2D({ width: record.widthMeters, height: record.heightMeters, position: pos })
+  }
+  onAttach() {}
+  onDetach() {}
+  update(dt: number) {
+    const aabbs = this.collisionSystem.getStaticAABBs()
+    this.body.update(dt, aabbs)
+    this.worldBody.setPositionComponents(this.body.position.x, this.body.position.y, 0)
+    this.worldBody.setRotationEuler(0, 0, this.body.angle)
+    this.worldBody.applyToMesh()
+  }
+  isSleeping() { return this.body.isSleeping() }
+  wake() { this.body.wake() }
+  wakeIfPointInside(point: THREE.Vector2) {
+    const s = this.body.getBoundingSphere()
+    const dx = point.x - s.center.x
+    const dy = point.y - s.center.y
+    if (dx * dx + dy * dy <= s.radius * s.radius) this.body.wake()
+  }
+  getBoundingSphere() { return this.body.getBoundingSphere() }
+  getAABB() { return this.body.getAABB() }
+  setConstraintIterations() {}
+  setGlobalGravity(g: THREE.Vector3) { this.body.setGravity(g) }
+  configureSleep(config: SimSleepConfig) { this.body.setSleepThresholds(config.velocityThreshold, config.frameThreshold) }
+}
+
 export type ClothSceneControllerOptions = {
   simulationSystem?: SimulationSystem
   simulationRunner?: SimulationRunner
@@ -436,6 +483,7 @@ export class ClothSceneController {
   private overlayState: DebugOverlayState | null = null
   private renderSettingsSystem: RenderSettingsSystem | null = null
   private renderSettingsState: RenderSettingsState | null = null
+  private rigidItems = new Map<HTMLElement, RigidItem>()
   private elementIds = new Map<HTMLElement, string>()
   private onResize = () => this.handleResize()
   private onScroll = () => {
@@ -513,13 +561,18 @@ export class ClothSceneController {
     const viewport = this.domToWebGL.getViewportPixels()
     this.collisionSystem.setViewportDimensions(viewport.width, viewport.height)
 
-    const clothElements = Array.from(
-      document.querySelectorAll<HTMLElement>('.cloth-enabled')
-    )
-
-    if (!clothElements.length) return
+    const clothElements = Array.from(document.querySelectorAll<HTMLElement>('.cloth-enabled'))
+    const rigidDynamics = Array.from(document.querySelectorAll<HTMLElement>('.rigid-dynamic'))
+    const rigidStatics = Array.from(document.querySelectorAll<HTMLElement>('.rigid-static'))
 
     await this.prepareElements(clothElements)
+    for (const el of rigidStatics) this.collisionSystem.addStaticBody(el)
+    for (const element of rigidDynamics) {
+      const originalOpacity = element.style.opacity
+      const clickHandler = (event: MouseEvent) => { event.preventDefault(); this.activateRigid(element) }
+      element.addEventListener('click', clickHandler)
+      this.rigidItems.set(element, { element, originalOpacity, clickHandler, isActive: false })
+    }
     this.updateOverlayDebug()
 
     // Observe per-element layout changes to recapture once layout settles.
@@ -828,6 +881,27 @@ export class ClothSceneController {
       }
       // Refresh debug overlay data (pins, snapshot) immediately after activation
       this.updateOverlayDebug()
+  }
+
+  private async activateRigid(element: HTMLElement) {
+    if (!this.domToWebGL || !this.pool) return
+    const item = this.rigidItems.get(element)
+    if (!item || item.isActive) return
+    item.isActive = true
+    const rect = element.getBoundingClientRect()
+    const seg = this.computeAutoSegments(rect, this.debug.tessellationSegments)
+    await this.pool.prepare(element, seg, { reason: 'rigid-activation', force: true })
+    this.pool.mount(element)
+    const record = this.pool.getRecord(element)!
+    element.style.opacity = '0'
+    const adapterId = this.getBodyId(element) + '-rb'
+    const adapter = new RigidBodyAdapter(adapterId, item, this.collisionSystem, record)
+    const entity = this.entities.createEntity({ id: adapterId, name: element.id })
+    entity.addComponent(adapter)
+    item.adapter = adapter
+    item.entity = entity
+    this.simulationSystem.addBody(adapter, { sleep: this.sleepConfig })
+    this.updateOverlayDebug()
   }
 
   /** Public: convert an active cloth element back to a static DOM-backed mesh. */

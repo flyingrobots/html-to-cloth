@@ -15,6 +15,11 @@ import {
   Kbd,
   Accordion,
   Menu,
+  Container,
+  Image,
+  List,
+  ThemeIcon,
+  TextInput,
 } from "@mantine/core"
 import type { DebugOverlayState } from './engine/render/DebugOverlayState'
 
@@ -679,15 +684,41 @@ function Demo() {
 
   return (
     <>
-      <Group justify="center" style={{ minHeight: '100vh' }}>
-        <Stack align="center" gap="md">
-          <Title order={1}>Cloth Playground</Title>
-          <Text size="sm" maw={560} ta="center">
-            This minimal scene keeps the DOM simple while we tune the cloth overlay. Click the button below to peel it away.
-          </Text>
-          <Button className="cloth-enabled" size="lg">Peel Back</Button>
-        </Stack>
-      </Group>
+      <Container size="md" mt="xl">
+        <Group justify="space-between" align="flex-start" wrap="nowrap">
+          <Stack gap="md" style={{ maxWidth: 520 }}>
+            <Title order={1} className="rigid-static">A modern React components library</Title>
+            <Text c="dimmed" className="rigid-static">
+              Build fully functional accessible web applications faster than ever – Mantine includes more than 120 customizable components and hooks to cover you in any situation
+            </Text>
+            <List spacing="sm" size="sm" className="rigid-static" icon={<ThemeIcon size={20} radius="xl"><span>✓</span></ThemeIcon>}>
+              <List.Item><b>TypeScript based</b> – build type safe applications, all components and hooks export types</List.Item>
+              <List.Item><b>Free and open source</b> – MIT license for any project</List.Item>
+              <List.Item><b>No annoying focus ring</b> – focus ring appears only on keyboard nav</List.Item>
+            </List>
+            <Group>
+              <Button radius="xl" size="md" className="cloth-enabled">Get started</Button>
+              <Button variant="default" radius="xl" size="md" className="rigid-static">Source code</Button>
+            </Group>
+          </Stack>
+          <Image src="/vite.svg" alt="hero" w={280} className="rigid-static"/>
+        </Group>
+
+        <Paper withBorder radius="md" p="xl" mt="xl">
+          <Group align="center" wrap="nowrap">
+            <Stack gap={4} style={{ flex: 1 }}>
+              <Title order={2} className="rigid-static">Wait a minute...</Title>
+              <Text fw={500} className="rigid-static">Subscribe to our newsletter!</Text>
+              <Text size="sm" c="dimmed" className="rigid-static">You will never miss important product updates, latest news and community QA sessions. Our newsletter is once a week, every Sunday.</Text>
+              <Group>
+                <TextInput placeholder="Your email" className="cloth-enabled" radius="md" size="md" style={{ flex: 1 }} />
+                <Button className="rigid-dynamic" radius="md" size="md">Subscribe</Button>
+              </Group>
+            </Stack>
+            <Image src="/vite.svg" alt="banner" w={160} className="rigid-static"/>
+          </Group>
+        </Paper>
+      </Container>
       <Affix position={{ bottom: 24, left: 0, right: 0 }}>
         <Paper radius="xl" px="md" py={8} withBorder mx="auto" w="max-content">
           <Group gap={6} align="center">
