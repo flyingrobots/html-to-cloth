@@ -119,21 +119,22 @@ class ClothBodyAdapter implements SimBody, Component {
         const hx = (bb.max.x - bb.min.x) * 0.5
         const hy = (bb.max.y - bb.min.y) * 0.5
         const hz = (bb.max.z - bb.min.z) * 0.5
-        this._modelRadius = Math.max(hx, hy, hz)
+        // True local-space bounding sphere: max distance from origin (half-diagonal)
+        this._modelRadius = Math.hypot(hx, hy, hz)
       } else {
         const w = this.record.widthMeters ?? 0
         const h = this.record.heightMeters ?? 0
-        this._modelRadius = 0.5 * Math.max(w, h, 0)
+        this._modelRadius = 0.5 * Math.hypot(w, h)
       }
       if (!Number.isFinite(this._modelRadius) || this._modelRadius <= 0) {
         const w = this.record.widthMeters ?? 0
         const h = this.record.heightMeters ?? 0
-        this._modelRadius = 0.5 * Math.max(w, h, 0.001)
+        this._modelRadius = 0.5 * Math.hypot(w, h)
       }
     } catch {
       const w = this.record.widthMeters ?? 0
       const h = this.record.heightMeters ?? 0
-      this._modelRadius = 0.5 * Math.max(w, h, 0.001)
+      this._modelRadius = 0.5 * Math.hypot(w, h)
     }
   }
 
@@ -386,6 +387,10 @@ export type ClothSceneControllerOptions = {
  * {@link SimulationRunner} and {@link SimulationSystem} instances.
  */
 export class ClothSceneController {
+  // Overlay temporary vectors (controller scope) to avoid per-frame allocs
+  private _tmpWorldV3 = new THREE.Vector3()
+  private _tmpWorldV3B = new THREE.Vector3()
+  private _tmpLocalV3 = new THREE.Vector3()
   private static readonly SIM_SYSTEM_ID = 'sim-core'
   private static readonly CAMERA_SYSTEM_ID = 'render-camera'
   private static readonly RENDERER_SYSTEM_ID = 'world-renderer'
@@ -974,21 +979,26 @@ export class ClothSceneController {
 
   private updateOverlayDebug() {
     if (!this.overlayState) return
-    // Static AABBs
+    // Static AABBs (still provided for debugging)
     const aabbs = this.collisionSystem.getStaticAABBs().map((b) => ({
       min: { x: b.min.x, y: b.min.y },
       max: { x: b.max.x, y: b.max.y },
     }))
     this.overlayState.aabbs = aabbs
-    // Derive static world spheres from AABBs (bound by max axis)
-    const spheres = aabbs.map((b) => {
-      const cx = (b.min.x + b.max.x) * 0.5
-      const cy = (b.min.y + b.max.y) * 0.5
-      const w = Math.abs(b.max.x - b.min.x)
-      const h = Math.abs(b.max.y - b.min.y)
-      const r = 0.5 * Math.max(w, h)
-      return { center: { x: cx, y: cy }, radius: r }
-    })
+    // Static world-space spheres derived from local/model-space spheres
+    const spheres: Array<{ center: { x: number; y: number }; radius: number }> = []
+    for (const item of this.items.values()) {
+      if (item.isActive) continue // only static DOM-backed meshes here
+      const rec = this.pool?.getRecord(item.element)
+      if (!rec || !rec.worldBody) continue
+      const wb = rec.worldBody
+      // World center is model origin transformed by world body
+      const wCenter = wb.localToWorldPoint(this._tmpWorldV3.set(0, 0, 0), this._tmpWorldV3B)
+      // World radius from local radius using world scale along X (uniform expected)
+      const localR = rec.modelRadiusMeters ?? 0.5 * Math.hypot(rec.widthMeters, rec.heightMeters)
+      const worldR = wb.localToWorldVector(this._tmpLocalV3.set(localR, 0, 0), this._tmpWorldV3).length()
+      spheres.push({ center: { x: wCenter.x, y: wCenter.y }, radius: worldR })
+    }
     this.overlayState.staticSpheres = spheres
     // Simulation snapshot (sleeping/awake)
     try {

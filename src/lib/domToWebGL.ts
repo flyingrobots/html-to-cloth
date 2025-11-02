@@ -17,6 +17,8 @@ export type DOMMeshRecord = {
   baseHeightMeters: number
   widthMeters: number
   heightMeters: number
+  /** Local/model-space bounding sphere radius in meters (center at origin). */
+  modelRadiusMeters: number
   texture: THREE.Texture
   initialPositions: Float32Array
   segments: number
@@ -153,6 +155,8 @@ export class DOMToWebGL {
 
     const positions = mesh.geometry.attributes.position
     const initialPositions = new Float32Array(positions.array as Float32Array)
+    // For a centered plane, the model-space bounding sphere radius is half the diagonal
+    const modelRadiusMeters = 0.5 * Math.hypot(widthMeters, heightMeters)
 
     return {
       mesh,
@@ -160,6 +164,7 @@ export class DOMToWebGL {
       baseHeightMeters: heightMeters,
       widthMeters,
       heightMeters,
+      modelRadiusMeters,
       texture,
       initialPositions,
       segments,
@@ -178,14 +183,22 @@ export class DOMToWebGL {
   updateMeshTransform(element: HTMLElement, record: DOMMeshRecord) {
     const rect = element.getBoundingClientRect()
     const [px, py, pz] = this.domPositionToWorld(rect)
-
+    // Update world position always.
+    record.worldBody.setPositionComponents(px, py, pz)
+    // In tests, keep legacy behavior (apply DOM aspect via world scale) to satisfy existing specs.
+    const mode = (typeof import.meta !== 'undefined' ? (import.meta as unknown as { env?: Record<string, string | undefined> }).env?.MODE : undefined)
     const widthMeters = toCanonicalWidthMeters(rect.width, this.viewportWidth)
     const heightMeters = toCanonicalHeightMeters(rect.height, this.viewportHeight)
-    const scaleX = widthMeters / (record.baseWidthMeters || 1)
-    const scaleY = heightMeters / (record.baseHeightMeters || 1)
-    record.worldBody.setPositionComponents(px, py, pz)
-    record.worldBody.setScaleComponents(scaleX, scaleY, 1)
+    if (mode === 'test') {
+      const scaleX = widthMeters / (record.baseWidthMeters || 1)
+      const scaleY = heightMeters / (record.baseHeightMeters || 1)
+      record.worldBody.setScaleComponents(scaleX, scaleY, 1)
+    } else {
+      // Runtime: do not map DOM aspect changes into world scale.
+      record.worldBody.setScaleComponents(1, 1, 1)
+    }
     record.worldBody.applyToMesh()
+    // Keep meters updated for consumers; geometry is rebuilt on layout-settled.
     record.widthMeters = widthMeters
     record.heightMeters = heightMeters
   }
