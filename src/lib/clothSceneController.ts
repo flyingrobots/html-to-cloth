@@ -623,7 +623,7 @@ export class ClothSceneController {
       if (this.disposed || this.pool !== pool || this.domToWebGL !== bridge) return
       const rect = element.getBoundingClientRect()
       const seg = this.computeAutoSegments(rect, this.debug.tessellationSegments)
-      await pool.prepare(element, seg)
+      await pool.prepare(element, seg, { reason: 'init' })
       if (this.disposed || this.pool !== pool || this.domToWebGL !== bridge) return
       pool.mount(element)
 
@@ -661,7 +661,7 @@ export class ClothSceneController {
     if (!bridge || !pool) return
     const rect = element.getBoundingClientRect()
     const seg = this.computeAutoSegments(rect, this.debug.tessellationSegments)
-    await pool.prepare(element, seg)
+    await pool.prepare(element, seg, { reason: 'manual' })
     pool.mount(element)
     const record = pool.getRecord(element)
     const originalOpacity = element.style.opacity
@@ -705,7 +705,7 @@ export class ClothSceneController {
       try { this.pool.recycle(element) } catch { /* ignore unmounted */ }
       const rectNow = element.getBoundingClientRect()
       const seg = this.computeAutoSegments(rectNow, this.debug.tessellationSegments)
-      await this.pool.prepare(element, seg)
+      await this.pool.prepare(element, seg, { force: true, reason: 'activation' })
       this.pool.mount(element)
       // Ensure baseline geometry and uniform scale
       this.pool.resetGeometry(element)
@@ -736,21 +736,21 @@ export class ClothSceneController {
 
     item.cloth = cloth
     item.record = record
-    const material = record.mesh.material as THREE.MeshBasicMaterial | undefined
+      const material = record.mesh.material as THREE.MeshBasicMaterial | undefined
     if (material) {
       const wire = this.renderSettingsState ? this.renderSettingsState.wireframe : this.debug.wireframe
       material.wireframe = wire
     }
     const adapterId = this.getBodyId(element)
-    const adapter = new ClothBodyAdapter(
-      adapterId,
-      item,
-      this.pointer,
-      this.collisionSystem,
-      () => this.handleClothOffscreen(item),
-      record,
-      this.debug
-    )
+      const adapter = new ClothBodyAdapter(
+        adapterId,
+        item,
+        this.pointer,
+        this.collisionSystem,
+        () => this.handleClothOffscreen(item),
+        record,
+        this.debug
+      )
     adapter.setWorldSleepGuardEnabled(this.debug.worldSleepGuardEnabled)
     // Mark mesh as cloth for render settings system.
     const meshObj = record.mesh as unknown as { userData?: Record<string, unknown> }
@@ -764,8 +764,30 @@ export class ClothSceneController {
     item.adapter = adapter
     item.entity = entity
     element.removeEventListener('click', item.clickHandler)
-    // Refresh debug overlay data (pins, snapshot) immediately after activation
-    this.updateOverlayDebug()
+      // Emit a browser event for activation and refresh overlays
+      try {
+        if (typeof window !== 'undefined' && 'dispatchEvent' in window) {
+          const detail = {
+            elementId: element.id || null,
+            segments: record.segments,
+            pinMode: this.debug.pinMode,
+            gravity: this.debug.gravity,
+            sleepVelocity: this.sleepConfig.velocityThreshold,
+            sleepFrames: this.sleepConfig.frameThreshold,
+            worldSleepGuard: this.debug.worldSleepGuardEnabled,
+            time: Date.now(),
+          }
+          window.dispatchEvent(new CustomEvent('clothActivated', { detail }))
+          if ((import.meta as unknown as { env?: Record<string, string> }).env?.MODE !== 'test') {
+            // eslint-disable-next-line no-console
+            console.info('[clothActivated]', detail)
+          }
+        }
+      } catch {
+        /* ignore */
+      }
+      // Refresh debug overlay data (pins, snapshot) immediately after activation
+      this.updateOverlayDebug()
   }
 
   /** Public: convert an active cloth element back to a static DOM-backed mesh. */
@@ -958,6 +980,16 @@ export class ClothSceneController {
       max: { x: b.max.x, y: b.max.y },
     }))
     this.overlayState.aabbs = aabbs
+    // Derive static world spheres from AABBs (bound by max axis)
+    const spheres = aabbs.map((b) => {
+      const cx = (b.min.x + b.max.x) * 0.5
+      const cy = (b.min.y + b.max.y) * 0.5
+      const w = Math.abs(b.max.x - b.min.x)
+      const h = Math.abs(b.max.y - b.min.y)
+      const r = 0.5 * Math.max(w, h)
+      return { center: { x: cx, y: cy }, radius: r }
+    })
+    this.overlayState.staticSpheres = spheres
     // Simulation snapshot (sleeping/awake)
     try {
       const snapshot = this.simulationSystem.getSnapshot()
@@ -1252,11 +1284,17 @@ export class ClothSceneController {
             const rect = el.getBoundingClientRect()
             const seg = this.computeAutoSegments(rect, this.debug.tessellationSegments)
             // force=true to rebuild even if segment count unchanged
-            this.pool?.prepare(el, seg, { force: true })
+            this.pool?.prepare(el, seg, { force: true, reason: 'layout-settled' })
               .then(() => {
                 if (this.disposed) return
-                this.pool?.mount(el)
-                this.pool?.resetGeometry(el)
+            this.pool?.mount(el)
+            this.pool?.resetGeometry(el)
+            // Ensure new mesh respects current wireframe state immediately
+            try {
+              const rec = this.pool?.getRecord(el)
+              const mat = rec?.mesh.material as import('three').MeshBasicMaterial | undefined
+              if (mat && this.renderSettingsState) mat.wireframe = this.renderSettingsState.wireframe
+            } catch { /* ignore */ }
                 // Update transforms to current rect and refresh overlay
                 this.domToWebGL?.updateMeshTransform(el, this.pool!.getRecord(el)!)
                 this.collisionSystem.refresh()

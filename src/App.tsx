@@ -70,6 +70,8 @@ type DebugProps = {
   onDrawSleepChange: (value: boolean) => void
   drawPins: boolean
   onDrawPinsChange: (value: boolean) => void
+  drawSpheres?: boolean
+  onDrawSpheresChange?: (value: boolean) => void
   pinMode: PinMode
   onPinModeChange: (value: PinMode) => void
   onStep: () => void
@@ -354,6 +356,13 @@ function DebugPalette(props: DebugProps) {
                   </Stack>
                   <Switch aria-label="Pin Markers" checked={props.drawPins} onChange={(e) => props.onDrawPinsChange(e.currentTarget.checked)} />
                 </Group>
+                <Group justify="space-between" mt="sm">
+                  <Stack gap={0}>
+                    <Text fw={600}>Bounding Spheres</Text>
+                    <Text size="sm" c="dimmed">Draw world-space bounding spheres</Text>
+                  </Stack>
+                  <Switch aria-label="Bounding Spheres" checked={!!props.drawSpheres} onChange={(e) => props.onDrawSpheresChange?.(e.currentTarget.checked)} />
+                </Group>
               </Accordion.Panel>
             </Accordion.Item>
 
@@ -430,6 +439,7 @@ function Demo() {
   const [drawAABBs, setDrawAABBs] = useState(false)
   const [drawSleep, setDrawSleep] = useState(false)
   const [drawPins, setDrawPins] = useState(false)
+  const [drawSpheres, setDrawSpheres] = useState(false)
   const [pinMode, setPinMode] = useState<PinMode>('none')
 
   useEffect(() => {
@@ -603,6 +613,11 @@ function Demo() {
   }, [drawPins])
 
   useEffect(() => {
+    const overlay = controllerRef.current?.getOverlayState?.() as DebugOverlayState | null
+    if (overlay) overlay.drawSpheres = drawSpheres
+  }, [drawSpheres])
+
+  useEffect(() => {
     actionsRef.current?.setPinMode(pinMode)
     if (!actionsRef.current) controllerRef.current?.setPinMode(pinMode)
   }, [pinMode])
@@ -684,6 +699,8 @@ function Demo() {
         onDrawSleepChange={setDrawSleep}
         drawPins={drawPins}
         onDrawPinsChange={setDrawPins}
+        drawSpheres={drawSpheres}
+        onDrawSpheresChange={setDrawSpheres}
         pinMode={pinMode}
         onPinModeChange={setPinMode}
         onStep={() => actionsRef.current?.stepOnce()}

@@ -6,6 +6,11 @@ export type CollisionAABB = {
   max: { x: number; y: number }
 }
 
+export type WorldSphere = {
+  center: { x: number; y: number }
+  radius: number
+}
+
 /** Shared state read by DebugOverlaySystem and writable from UI/controller. */
 export class DebugOverlayState {
   /** World-space pointer position in canonical meters. */
@@ -20,8 +25,12 @@ export class DebugOverlayState {
   drawSleep = false
   /** Whether to draw pin markers when visible. */
   drawPins = false
+  /** Whether to draw world-space bounding spheres (static and/or sim). */
+  drawSpheres = false
   /** Static collision AABBs (canonical coordinates). */
   aabbs: CollisionAABB[] = []
+  /** Static world-space spheres (derived from AABBs). */
+  staticSpheres: WorldSphere[] = []
   /** Simulation snapshot for sleeping/awake coloring of gizmos. */
   simSnapshot?: Readonly<SimSnapshot>
   /** World-space pin markers (small crosses). */

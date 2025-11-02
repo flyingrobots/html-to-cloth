@@ -25,6 +25,7 @@ export class DebugOverlaySystem implements EngineSystem {
   private aabbGroup?: THREE.Group
   private circleGroup?: THREE.Group
   private pinGroup?: THREE.Group
+  private sphereGroup?: THREE.Group
 
   constructor(options: DebugOverlayOptions) {
     this.view = options.view
@@ -123,6 +124,7 @@ export class DebugOverlaySystem implements EngineSystem {
     // Render other gizmos independently of pointer visibility
     this.drawAABBs(!!this.state.drawAABBs)
     this.drawSimCircles(!!this.state.drawSleep)
+    this.drawStaticSpheres(!!this.state.drawSpheres)
     this.drawPins(!!this.state.drawPins)
   }
 
@@ -244,6 +246,34 @@ export class DebugOverlaySystem implements EngineSystem {
       })
       const loop = new THREE.LineLoop(geom, mat)
       this.circleGroup.add(loop)
+    }
+  }
+
+  private drawStaticSpheres(visible: boolean) {
+    if (!this.view.scene) return
+    if (!this.sphereGroup) {
+      this.sphereGroup = new THREE.Group()
+      this.sphereGroup.renderOrder = 1000
+      this.view.scene.add(this.sphereGroup)
+    }
+    this.sphereGroup.visible = visible
+    if (!visible) return
+    this.clearOverlayGroup(this.sphereGroup)
+    const spheres = this.state.staticSpheres
+    if (!spheres?.length) return
+    const color = new THREE.Color(0x66ccff)
+    for (const s of spheres) {
+      const segments = 64
+      const verts: number[] = []
+      for (let i = 0; i < segments; i++) {
+        const t = (i / segments) * Math.PI * 2
+        verts.push(s.center.x + Math.cos(t) * s.radius, s.center.y + Math.sin(t) * s.radius, 0.1)
+      }
+      const geom = new THREE.BufferGeometry()
+      geom.setAttribute('position', new THREE.Float32BufferAttribute(verts, 3))
+      const mat = new THREE.LineBasicMaterial({ color, transparent: true, opacity: 0.8 })
+      const loop = new THREE.LineLoop(geom, mat)
+      this.sphereGroup.add(loop)
     }
   }
 }
