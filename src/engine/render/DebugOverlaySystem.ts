@@ -184,7 +184,7 @@ export class DebugOverlaySystem implements EngineSystem {
         min.x, min.y, 0,
       ])
       geom.setAttribute('position', new THREE.BufferAttribute(vertices, 3))
-      const mat = new THREE.LineBasicMaterial({ color, transparent: true, opacity: 0.6 })
+      const mat = new THREE.LineBasicMaterial({ color, transparent: true, opacity: 0.6, depthTest: false })
       const lines = new THREE.LineSegments(geom, mat)
       this.aabbGroup.add(lines)
     }
@@ -211,7 +211,7 @@ export class DebugOverlaySystem implements EngineSystem {
         p.x, p.y + size, 0.12,
       ])
       geom.setAttribute('position', new THREE.BufferAttribute(verts, 3))
-      const mat = new THREE.LineBasicMaterial({ color, transparent: true, opacity: 0.9 })
+      const mat = new THREE.LineBasicMaterial({ color, transparent: true, opacity: 0.9, depthTest: false })
       const lines = new THREE.LineSegments(geom, mat)
       this.pinGroup.add(lines)
     }
@@ -243,6 +243,7 @@ export class DebugOverlaySystem implements EngineSystem {
         color: body.sleeping ? 0xcc5555 : 0x55cc55,
         transparent: true,
         opacity: 0.9,
+        depthTest: false,
       })
       const loop = new THREE.LineLoop(geom, mat)
       this.circleGroup.add(loop)
@@ -271,7 +272,7 @@ export class DebugOverlaySystem implements EngineSystem {
       }
       const geom = new THREE.BufferGeometry()
       geom.setAttribute('position', new THREE.Float32BufferAttribute(verts, 3))
-      const mat = new THREE.LineBasicMaterial({ color, transparent: true, opacity: 0.8 })
+      const mat = new THREE.LineBasicMaterial({ color, transparent: true, opacity: 0.8, depthTest: false })
       const loop = new THREE.LineLoop(geom, mat)
       this.sphereGroup.add(loop)
     }

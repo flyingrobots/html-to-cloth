@@ -652,6 +652,16 @@ export class ClothSceneController {
         isActive: false,
         record,
       })
+
+      // Ensure static meshes reflect current wireframe state immediately (before the next frame)
+      try {
+        if (!record) continue
+        const mat = record.mesh.material as THREE.MeshBasicMaterial | undefined
+        if (mat) {
+          const wire = this.renderSettingsState ? this.renderSettingsState.wireframe : this.debug.wireframe
+          mat.wireframe = wire
+        }
+      } catch { /* ignore */ }
     }
   }
 

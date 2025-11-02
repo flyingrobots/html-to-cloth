@@ -79,6 +79,7 @@ type DebugProps = {
   // Optional helper passed by parent to clothify the panel element
   clothifyElement?: (el: HTMLElement) => Promise<void>
   restoreElement?: (el: HTMLElement) => Promise<void>
+  captureStaticElement?: (el: HTMLElement) => Promise<void>
 }
 
 function DebugPalette(props: DebugProps) {
@@ -140,6 +141,10 @@ function DebugPalette(props: DebugProps) {
     if (props.restoreElement) {
       // best effort restore; ignore failures
       Promise.resolve(props.restoreElement(el)).catch(() => {})
+    }
+    // Ensure the panel is captured as a static mesh so its AABB/sphere/wireframe are visible while open
+    if (props.captureStaticElement) {
+      Promise.resolve(props.captureStaticElement(el)).catch(() => {})
     }
   }, [open, props])
 
@@ -739,6 +744,14 @@ function Demo() {
             await controllerRef.current?.restoreElement?.(el)
           } catch (err) {
             console.warn('restoreElement failed', err)
+          }
+        }}
+        captureStaticElement={async (el: HTMLElement) => {
+          try {
+            // Capture (or refresh) as static without activation or click handlers
+            await controllerRef.current?.clothify?.(el, { activate: false, addClickHandler: false })
+          } catch (err) {
+            console.warn('captureStaticElement failed', err)
           }
         }}
       />
