@@ -52,6 +52,7 @@ export class SimWorld {
   private broadphaseMode: SimBroadphaseMode = 'fatAABB'
   private baseMargin = 0.006
   private velocityFudge = 1.25
+  private eventBus?: import('../engine/events/EventBus').EventBus
 
   constructor(scheduler?: SimulationScheduler) {
     this.scheduler = scheduler ?? new SimulationScheduler()
@@ -64,6 +65,10 @@ export class SimWorld {
   setBroadphaseMargins(baseMargin: number, velocityFudge: number) {
     if (Number.isFinite(baseMargin) && baseMargin >= 0) this.baseMargin = baseMargin
     if (Number.isFinite(velocityFudge) && velocityFudge >= 0) this.velocityFudge = velocityFudge
+  }
+
+  setEventBus(bus: import('../engine/events/EventBus').EventBus) {
+    this.eventBus = bus
   }
 
   getBroadphaseConfig(): { mode: SimBroadphaseMode; baseMargin: number; velocityFudge: number } {
@@ -191,6 +196,15 @@ export class SimWorld {
 
     if (intersects) {
       target.wake()
+      this.eventBus?.post({
+        type: 'broadphaseWake',
+        id: (target as unknown as { id?: string }).id,
+        payload: {
+          mover: (moving as unknown as { id?: string }).id,
+          mode: this.broadphaseMode,
+        },
+        time: Date.now(),
+      })
     }
   }
 

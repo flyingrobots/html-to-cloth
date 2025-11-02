@@ -20,6 +20,7 @@ import type { Component } from '../engine/entity/component'
 import type { PinMode } from '../types/pinMode'
 import { SimWorld, type SimBody, type SimWarmStartConfig, type SimSleepConfig } from './simWorld'
 import { RigidBody2D } from './rigidBody2d'
+import { EventBus } from '../engine/events/EventBus'
 
 const WARM_START_PASSES = 2
 
@@ -59,6 +60,7 @@ type ClothItem = {
   adapter?: ClothBodyAdapter
   entity?: Entity
   releasePinsTimeout?: number
+  tag?: string | null
 }
 
 type RigidItem = {
@@ -69,6 +71,7 @@ type RigidItem = {
   record?: DOMMeshRecord
   adapter?: RigidBodyAdapter
   entity?: Entity
+  tag?: string | null
 }
 
 /**
@@ -484,6 +487,7 @@ export class ClothSceneController {
   private renderSettingsSystem: RenderSettingsSystem | null = null
   private renderSettingsState: RenderSettingsState | null = null
   private rigidItems = new Map<HTMLElement, RigidItem>()
+  private eventBus = new EventBus()
   private elementIds = new Map<HTMLElement, string>()
   private onResize = () => this.handleResize()
   private onScroll = () => {
@@ -560,6 +564,7 @@ export class ClothSceneController {
     }
     const viewport = this.domToWebGL.getViewportPixels()
     this.collisionSystem.setViewportDimensions(viewport.width, viewport.height)
+    this.simWorld.setEventBus(this.eventBus)
 
     const clothElements = Array.from(document.querySelectorAll<HTMLElement>('.cloth-enabled'))
     const rigidDynamics = Array.from(document.querySelectorAll<HTMLElement>('.rigid-dynamic'))
@@ -571,7 +576,8 @@ export class ClothSceneController {
       const originalOpacity = element.style.opacity
       const clickHandler = (event: MouseEvent) => { event.preventDefault(); this.activateRigid(element) }
       element.addEventListener('click', clickHandler)
-      this.rigidItems.set(element, { element, originalOpacity, clickHandler, isActive: false })
+      const tag = element.dataset.tag || element.dataset.physTag || null
+      this.rigidItems.set(element, { element, originalOpacity, clickHandler, isActive: false, tag })
     }
     this.updateOverlayDebug()
 
@@ -729,10 +735,12 @@ export class ClothSceneController {
             mat.wireframe = wire
           }
         } catch { /* ignore */ }
-        this.items.set(element, { element, originalOpacity, clickHandler, isActive: false, record })
+        const tag = element.dataset.tag || element.dataset.physTag || null
+        this.items.set(element, { element, originalOpacity, clickHandler, isActive: false, record, tag })
       } else {
         // Runtime: lazy capture — keep DOM visible; no mesh until activation.
-        this.items.set(element, { element, originalOpacity, clickHandler, isActive: false, record: undefined })
+        const tag = element.dataset.tag || element.dataset.physTag || null
+        this.items.set(element, { element, originalOpacity, clickHandler, isActive: false, record: undefined, tag })
       }
     }
   }
@@ -836,15 +844,15 @@ export class ClothSceneController {
       material.wireframe = wire
     }
     const adapterId = this.getBodyId(element)
-      const adapter = new ClothBodyAdapter(
-        adapterId,
-        item,
-        this.pointer,
-        this.collisionSystem,
-        () => this.handleClothOffscreen(item),
-        record,
-        this.debug
-      )
+    const adapter = new ClothBodyAdapter(
+      adapterId,
+      item,
+      this.pointer,
+      this.collisionSystem,
+      () => this.handleClothOffscreen(item),
+      record,
+      this.debug
+    )
     adapter.setWorldSleepGuardEnabled(this.debug.worldSleepGuardEnabled)
     // Mark mesh as cloth for render settings system.
     const meshObj = record.mesh as unknown as { userData?: Record<string, unknown> }
@@ -875,6 +883,7 @@ export class ClothSceneController {
           if ((import.meta as unknown as { env?: Record<string, string> }).env?.MODE !== 'test') {
             console.info('[clothActivated]', detail)
           }
+          this.eventBus.post({ type: 'activated', id: adapterId, tag: item.tag ?? null, payload: detail, time: detail.time })
         }
       } catch {
         /* ignore */

@@ -27,6 +27,8 @@ import { ClothSceneController, type PinMode } from "./lib/clothSceneController"
 import { EngineActions } from "./engine/debug/engineActions"
 import type { CameraSnapshot } from './engine/camera/CameraSystem'
 import { PRESETS, getPreset } from "./app/presets"
+import { Drawer, ScrollArea, Table } from '@mantine/core'
+import { IconSearch } from '@tabler/icons-react'
 
 // Use Mantine's native Kbd component (no inline styles)
 
@@ -487,6 +489,22 @@ function Demo() {
   const [showPanelBounds, setShowPanelBounds] = useState(true)
   const [broadphaseMode, setBroadphaseMode] = useState<'sphere' | 'fatAABB'>('fatAABB')
   const [drawFatAABBs, setDrawFatAABBs] = useState(false)
+  const [eventsOpen, setEventsOpen] = useState(false)
+  type EngineEventRow = { time: number; type: string; id?: string; tag?: string | null }
+  const [events, setEvents] = useState<EngineEventRow[]>([])
+  const [eventSearch, setEventSearch] = useState('')
+
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const detail = (e as CustomEvent).detail as EngineEventRow
+      setEvents((prev) => {
+        const next = [detail, ...prev]
+        return next.slice(0, 100)
+      })
+    }
+    window.addEventListener('engineEvent', handler as EventListener)
+    return () => window.removeEventListener('engineEvent', handler as EventListener)
+  }, [])
   const [pinMode, setPinMode] = useState<PinMode>('none')
 
   useEffect(() => {
@@ -727,9 +745,44 @@ function Demo() {
             <Text size="sm">+</Text>
             <Kbd>J</Kbd>
             <Text size="sm">to open the debug palette</Text>
+            <Button size="xs" variant="subtle" onClick={() => setEventsOpen((o) => !o)}>Events</Button>
           </Group>
         </Paper>
       </Affix>
+      <Drawer size="xl" position="bottom" opened={eventsOpen} onClose={() => setEventsOpen(false)} title="Engine Events">
+        <Stack>
+          <TextInput placeholder="Search events" value={eventSearch} onChange={(e) => setEventSearch(e.currentTarget.value)} leftSection={<IconSearch size={16} />} />
+          <ScrollArea h={260}>
+            <Table striped highlightOnHover>
+              <Table.Thead>
+                <Table.Tr>
+                  <Table.Th>Time</Table.Th>
+                  <Table.Th>Type</Table.Th>
+                  <Table.Th>Id</Table.Th>
+                  <Table.Th>Tag</Table.Th>
+                </Table.Tr>
+              </Table.Thead>
+              <Table.Tbody>
+                {events
+                  .filter((e) => {
+                    const q = eventSearch.toLowerCase().trim()
+                    if (!q) return true
+                    const s = `${new Date(e.time).toLocaleTimeString()} ${e.type} ${e.id ?? ''} ${e.tag ?? ''}`.toLowerCase()
+                    return s.includes(q)
+                  })
+                  .map((ev, i) => (
+                    <Table.Tr key={i}>
+                      <Table.Td>{new Date(ev.time).toLocaleTimeString()}</Table.Td>
+                      <Table.Td>{ev.type}</Table.Td>
+                      <Table.Td>{ev.id ?? ''}</Table.Td>
+                      <Table.Td>{ev.tag ?? ''}</Table.Td>
+                    </Table.Tr>
+                  ))}
+              </Table.Tbody>
+            </Table>
+          </ScrollArea>
+        </Stack>
+      </Drawer>
       <DebugPalette
         open={debugOpen}
         onOpenChange={setDebugOpen}
