@@ -127,6 +127,19 @@ export class ClothPhysics {
     }
   }
 
+  getAABB(): { min: THREE.Vector2; max: THREE.Vector2 } {
+    if (!this.mesh.geometry.boundingBox) {
+      this.mesh.geometry.computeBoundingBox()
+    }
+    const box = this.mesh.geometry.boundingBox!
+    const pos = this.mesh.position
+    // Geometry positions are in mesh local space; mesh carries world translation (scale=1, no rotation)
+    return {
+      min: new THREE.Vector2(box.min.x + pos.x, box.min.y + pos.y),
+      max: new THREE.Vector2(box.max.x + pos.x, box.max.y + pos.y),
+    }
+  }
+
   applyPointForce(
     center: THREE.Vector2,
     velocity: THREE.Vector2,

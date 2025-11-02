@@ -308,6 +308,33 @@ class ClothBodyAdapter implements SimBody, Component {
     }
   }
 
+  getAABB(): { min: THREE.Vector2; max: THREE.Vector2 } {
+    const cloth = this.item.cloth
+    const worldBody = this.record.worldBody
+    if (cloth && worldBody) {
+      const box = cloth.getAABB()
+      return { min: box.min.clone(), max: box.max.clone() }
+    }
+    // Fallback for static/uncaptured: derive from local rectangle passed through WorldBody
+    const hw = (this.record.widthMeters || 0) * 0.5
+    const hh = (this.record.heightMeters || 0) * 0.5
+    const corners = [
+      this._tmpLocalV3.set(-hw, -hh, 0),
+      this._tmpLocalV3B.set(hw, -hh, 0),
+      this._tmpLocalV3.set(hw, hh, 0),
+      this._tmpLocalV3B.set(-hw, hh, 0),
+    ]
+    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity
+    for (const c of corners) {
+      const w = this.record.worldBody.localToWorldPoint(c, this._tmpWorldV3)
+      if (w.x < minX) minX = w.x
+      if (w.y < minY) minY = w.y
+      if (w.x > maxX) maxX = w.x
+      if (w.y > maxY) maxY = w.y
+    }
+    return { min: new THREE.Vector2(minX, minY), max: new THREE.Vector2(maxX, maxY) }
+  }
+
   private getImpulseRadius() {
     const attr = this.item.element.dataset.clothImpulseRadius
     const parsed = attr ? Number.parseFloat(attr) : NaN

@@ -8,6 +8,8 @@ export type BoundingSphere = {
 
 export interface SimBody extends SleepableBody {
   getBoundingSphere: () => BoundingSphere
+  /** Optional world-space AABB for fat-AABB broad-phase. */
+  getAABB?: () => { min: THREE.Vector2; max: THREE.Vector2 }
   warmStart?: (config: SimWarmStartConfig) => void
   configureSleep?: (config: SimSleepConfig) => void
   /** Optional debug hooks for broadcast configuration. */
@@ -36,6 +38,8 @@ export type SimWorldSnapshot = {
   bodies: SimBodySnapshot[]
 }
 
+export type SimBroadphaseMode = 'sphere' | 'fatAABB'
+
 /**
  * Manages simulated bodies participating in the cloth scene. Handles broad-phase wake checks,
  * pointer notifications, and keeps track of the previous positions required for sweep tests.
@@ -45,9 +49,21 @@ export class SimWorld {
   private bodies = new Map<string, SimBody>()
   private previousCenters = new Map<string, { x: number; y: number }>()
   private snapshot: SimWorldSnapshot = { bodies: [] }
+  private broadphaseMode: SimBroadphaseMode = 'fatAABB'
+  private baseMargin = 0.006
+  private velocityFudge = 1.25
 
   constructor(scheduler?: SimulationScheduler) {
     this.scheduler = scheduler ?? new SimulationScheduler()
+  }
+
+  setBroadphaseMode(mode: SimBroadphaseMode) {
+    this.broadphaseMode = mode
+  }
+
+  setBroadphaseMargins(baseMargin: number, velocityFudge: number) {
+    if (Number.isFinite(baseMargin) && baseMargin >= 0) this.baseMargin = baseMargin
+    if (Number.isFinite(velocityFudge) && velocityFudge >= 0) this.velocityFudge = velocityFudge
   }
 
   /** Registers a body with the internal scheduler and snapshot state. */
@@ -152,12 +168,22 @@ export class SimWorld {
     const currentSphere = moving.getBoundingSphere()
     const targetSphere = target.getBoundingSphere()
 
-    const intersects = this.segmentIntersectsSphere(
-      prev,
-      currentSphere.center,
-      targetSphere.center,
-      currentSphere.radius + targetSphere.radius
-    )
+    let intersects = false
+    if (this.broadphaseMode === 'sphere' || !target.getAABB) {
+      intersects = this.segmentIntersectsSphere(
+        prev,
+        currentSphere.center,
+        targetSphere.center,
+        currentSphere.radius + targetSphere.radius
+      )
+    } else {
+      const aabb = target.getAABB()
+      const dx = currentSphere.center.x - prev.x
+      const dy = currentSphere.center.y - prev.y
+      const displacement = Math.hypot(dx, dy)
+      const pad = currentSphere.radius + this.baseMargin + displacement * this.velocityFudge
+      intersects = this.segmentIntersectsFatAABB(prev, currentSphere.center, aabb.min, aabb.max, pad)
+    }
 
     if (intersects) {
       target.wake()
@@ -182,5 +208,48 @@ export class SimWorld {
     const t = THREE.MathUtils.clamp(ac.dot(ab) / abLengthSq, 0, 1)
     const closest = startVec.clone().add(ab.multiplyScalar(t))
     return closest.distanceToSquared(center) <= radius * radius
+  }
+
+  private segmentIntersectsFatAABB(
+    start: { x: number; y: number },
+    end: THREE.Vector2,
+    min: THREE.Vector2,
+    max: THREE.Vector2,
+    pad: number
+  ) {
+    // Expand rectangle by pad on all sides
+    const rminX = min.x - pad
+    const rminY = min.y - pad
+    const rmaxX = max.x + pad
+    const rmaxY = max.y + pad
+
+    const sx = start.x
+    const sy = start.y
+    const dx = end.x - sx
+    const dy = end.y - sy
+
+    let t0 = 0
+    let t1 = 1
+
+    const clip = (p: number, q: number) => {
+      if (p === 0) return q >= 0
+      const t = q / p
+      if (p < 0) {
+        if (t > t1) return false
+        if (t > t0) t0 = t
+      } else {
+        if (t < t0) return false
+        if (t < t1) t1 = t
+      }
+      return true
+    }
+
+    // Liang–Barsky clipping
+    if (!clip(-dx, sx - rminX)) return false
+    if (!clip(dx, rmaxX - sx)) return false
+    if (!clip(-dy, sy - rminY)) return false
+    if (!clip(dy, rmaxY - sy)) return false
+
+    return t0 <= t1
   }
 }
