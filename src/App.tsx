@@ -72,6 +72,8 @@ type DebugProps = {
   onDrawPinsChange: (value: boolean) => void
   drawSpheres?: boolean
   onDrawSpheresChange?: (value: boolean) => void
+  showPanelBounds?: boolean
+  onShowPanelBoundsChange?: (value: boolean) => void
   pinMode: PinMode
   onPinModeChange: (value: PinMode) => void
   onStep: () => void
@@ -143,9 +145,9 @@ function DebugPalette(props: DebugProps) {
       Promise.resolve(props.restoreElement(el)).catch(() => {})
     }
     // Register/unregister the panel as a static collider so its AABB/sphere draw in the overlay
-    if (open) props.addOverlayElement?.(el)
+    if (open && props.showPanelBounds) props.addOverlayElement?.(el)
     else props.removeOverlayElement?.(el)
-  }, [open, props])
+  }, [open, props, props.showPanelBounds])
 
   return (
     <Affix position={{ top: 16, right: 16 }} zIndex={2100}>
@@ -367,6 +369,13 @@ function DebugPalette(props: DebugProps) {
                   </Stack>
                   <Switch aria-label="Bounding Spheres" checked={!!props.drawSpheres} onChange={(e) => props.onDrawSpheresChange?.(e.currentTarget.checked)} />
                 </Group>
+                <Group justify="space-between" mt="sm">
+                  <Stack gap={0}>
+                    <Text fw={600}>Show Panel Bounds</Text>
+                    <Text size="sm" c="dimmed">Draw AABB/sphere for the debug panel while open</Text>
+                  </Stack>
+                  <Switch aria-label="Show Panel Bounds" checked={!!props.showPanelBounds} onChange={(e) => props.onShowPanelBoundsChange?.(e.currentTarget.checked)} />
+                </Group>
               </Accordion.Panel>
             </Accordion.Item>
 
@@ -444,6 +453,7 @@ function Demo() {
   const [drawSleep, setDrawSleep] = useState(false)
   const [drawPins, setDrawPins] = useState(false)
   const [drawSpheres, setDrawSpheres] = useState(false)
+  const [showPanelBounds, setShowPanelBounds] = useState(true)
   const [pinMode, setPinMode] = useState<PinMode>('none')
 
   useEffect(() => {
@@ -705,6 +715,8 @@ function Demo() {
         onDrawPinsChange={setDrawPins}
         drawSpheres={drawSpheres}
         onDrawSpheresChange={setDrawSpheres}
+        showPanelBounds={showPanelBounds}
+        onShowPanelBoundsChange={setShowPanelBounds}
         pinMode={pinMode}
         onPinModeChange={setPinMode}
         onStep={() => actionsRef.current?.stepOnce()}

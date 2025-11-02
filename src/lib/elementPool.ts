@@ -52,7 +52,6 @@ export class ElementPool {
         window.dispatchEvent(new CustomEvent('newDomObjectGeo', { detail }))
         const mode = (import.meta as unknown as { env?: Record<string, string> }).env?.MODE
         if (mode !== 'test') {
-          // eslint-disable-next-line no-console
           console.info('[newDomObjectGeo]', detail)
         }
       }

@@ -793,7 +793,6 @@ export class ClothSceneController {
           }
           window.dispatchEvent(new CustomEvent('clothActivated', { detail }))
           if ((import.meta as unknown as { env?: Record<string, string> }).env?.MODE !== 'test') {
-            // eslint-disable-next-line no-console
             console.info('[clothActivated]', detail)
           }
         }
