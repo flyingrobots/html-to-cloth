@@ -856,7 +856,7 @@ export class ClothSceneController {
     adapter.setWorldSleepGuardEnabled(this.debug.worldSleepGuardEnabled)
     // Mark mesh as cloth for render settings system.
     const meshObj = record.mesh as unknown as { userData?: Record<string, unknown> }
-    meshObj.userData = { ...(meshObj.userData || {}), isCloth: true, isStatic: false }
+    meshObj.userData = { ...(meshObj.userData || {}), isCloth: true, isStatic: false, bodyId: adapterId }
     this.simulationSystem.addBody(adapter, {
       warmStart: this.createWarmStartConfig(),
       sleep: this.sleepConfig,
@@ -902,8 +902,11 @@ export class ClothSceneController {
     await this.pool.prepare(element, seg, { reason: 'rigid-activation', force: true })
     this.pool.mount(element)
     const record = this.pool.getRecord(element)!
-    element.style.opacity = '0'
     const adapterId = this.getBodyId(element) + '-rb'
+    // Mark mesh as rigid for visualization
+    const meshObj = record.mesh as unknown as { userData?: Record<string, unknown> }
+    meshObj.userData = { ...(meshObj.userData || {}), isRigid: true, isStatic: false, bodyId: adapterId }
+    element.style.opacity = '0'
     const adapter = new RigidBodyAdapter(adapterId, item, this.collisionSystem, record)
     const entity = this.entities.createEntity({ id: adapterId, name: element.id })
     entity.addComponent(adapter)

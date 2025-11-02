@@ -127,6 +127,7 @@ export class DebugOverlaySystem implements EngineSystem {
     this.drawSimCircles(!!this.state.drawSleep)
     this.drawStaticSpheres(!!this.state.drawSpheres)
     this.drawPins(!!this.state.drawPins)
+    this.applySleepTint(!!this.state.drawSleep)
     this.drawSimAABBs(!!this.state.drawFatAABBs)
   }
 
@@ -264,12 +265,31 @@ export class DebugOverlaySystem implements EngineSystem {
     this.clearOverlayGroup(this.circleGroup)
     const snap = this.state.simSnapshot
     if (!snap) return
+    // Compute pixel anisotropy so circles look circular on screen
+    const cam = this.view.camera as THREE.Camera & Partial<THREE.OrthographicCamera>
+    const maybeOrtho = cam as Partial<THREE.OrthographicCamera>
+    const left = typeof maybeOrtho.left === 'number' ? maybeOrtho.left : NaN
+    const right = typeof maybeOrtho.right === 'number' ? maybeOrtho.right : NaN
+    const top = typeof maybeOrtho.top === 'number' ? maybeOrtho.top : NaN
+    const bottom = typeof maybeOrtho.bottom === 'number' ? maybeOrtho.bottom : NaN
+    const hasOrtho = [left, right, top, bottom].every((v) => Number.isFinite(v))
+    let yScale = 1
+    if (hasOrtho) {
+      const vp = (this.view as unknown as { getViewportPixels?: () => { width: number; height: number } }).getViewportPixels?.()
+      if (vp && vp.width > 0 && vp.height > 0) {
+        const pxPerMeterX = vp.width / Math.max(1e-6, (right! - left!))
+        const pxPerMeterY = vp.height / Math.max(1e-6, (top! - bottom!))
+        yScale = pxPerMeterX / pxPerMeterY
+      }
+    }
     for (const body of snap.bodies) {
       const segments = 64
       const verts: number[] = []
       for (let i = 0; i < segments; i++) {
         const t = (i / segments) * Math.PI * 2
-        verts.push(body.center.x + Math.cos(t) * body.radius, body.center.y + Math.sin(t) * body.radius, 0.1)
+        const dx = Math.cos(t) * body.radius
+        const dy = Math.sin(t) * body.radius * yScale
+        verts.push(body.center.x + dx, body.center.y + dy, 0.1)
       }
       const geom = new THREE.BufferGeometry()
       geom.setAttribute('position', new THREE.Float32BufferAttribute(verts, 3))
@@ -298,12 +318,31 @@ export class DebugOverlaySystem implements EngineSystem {
     const spheres = this.state.staticSpheres
     if (!spheres?.length) return
     const color = new THREE.Color(0x66ccff)
+    // Same anisotropy compensation as sim circles
+    const cam = this.view.camera as THREE.Camera & Partial<THREE.OrthographicCamera>
+    const maybeOrtho = cam as Partial<THREE.OrthographicCamera>
+    const left = typeof maybeOrtho.left === 'number' ? maybeOrtho.left : NaN
+    const right = typeof maybeOrtho.right === 'number' ? maybeOrtho.right : NaN
+    const top = typeof maybeOrtho.top === 'number' ? maybeOrtho.top : NaN
+    const bottom = typeof maybeOrtho.bottom === 'number' ? maybeOrtho.bottom : NaN
+    const hasOrtho = [left, right, top, bottom].every((v) => Number.isFinite(v))
+    let yScale = 1
+    if (hasOrtho) {
+      const vp = (this.view as unknown as { getViewportPixels?: () => { width: number; height: number } }).getViewportPixels?.()
+      if (vp && vp.width > 0 && vp.height > 0) {
+        const pxPerMeterX = vp.width / Math.max(1e-6, (right! - left!))
+        const pxPerMeterY = vp.height / Math.max(1e-6, (top! - bottom!))
+        yScale = pxPerMeterX / pxPerMeterY
+      }
+    }
     for (const s of spheres) {
       const segments = 64
       const verts: number[] = []
       for (let i = 0; i < segments; i++) {
         const t = (i / segments) * Math.PI * 2
-        verts.push(s.center.x + Math.cos(t) * s.radius, s.center.y + Math.sin(t) * s.radius, 0.1)
+        const dx = Math.cos(t) * s.radius
+        const dy = Math.sin(t) * s.radius * yScale
+        verts.push(s.center.x + dx, s.center.y + dy, 0.1)
       }
       const geom = new THREE.BufferGeometry()
       geom.setAttribute('position', new THREE.Float32BufferAttribute(verts, 3))
@@ -311,5 +350,32 @@ export class DebugOverlaySystem implements EngineSystem {
       const loop = new THREE.LineLoop(geom, mat)
       this.sphereGroup.add(loop)
     }
+  }
+
+  private applySleepTint(enabled: boolean) {
+    if (!enabled) return
+    const snap = this.state.simSnapshot
+    if (!snap) return
+    const asleep = new Set<string>()
+    for (const b of snap.bodies) if (b.sleeping) asleep.add(b.id)
+    const scene = this.view.scene as THREE.Scene | undefined
+    if (!scene) return
+    scene.traverse((obj) => {
+      const mesh = obj as THREE.Mesh
+      const userData = (mesh as unknown as { userData?: Record<string, unknown> }).userData || {}
+      if (!userData['isCloth']) return
+      const id = (userData['bodyId'] as string | undefined) || ''
+      const mat = mesh.material as THREE.MeshBasicMaterial | undefined
+      if (!mat) return
+      if (asleep.has(id)) {
+        mat.color.setHex(0xcc5555)
+        mat.opacity = 0.95
+        mat.transparent = true
+      } else {
+        mat.color.setHex(0xffffff)
+        mat.opacity = 1
+        mat.transparent = false
+      }
+    })
   }
 }

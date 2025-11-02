@@ -558,6 +558,11 @@ function Demo() {
         setDebugOpen((open) => !open)
         return
       }
+      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'e') {
+        event.preventDefault()
+        setEventsOpen((o) => !o)
+        return
+      }
       if (!realTimeRef.current && event.key === " ") {
         event.preventDefault()
         if (actionsRef.current) {
