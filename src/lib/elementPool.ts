@@ -17,18 +17,47 @@ export class ElementPool {
     this.domBridge = domBridge
   }
 
-  async prepare(element: HTMLElement, segments = 24) {
+  async prepare(element: HTMLElement, segments = 24, options: { force?: boolean; reason?: string } = {}) {
     const existing = this.elements.get(element)
-    if (existing && existing.segments === segments) return
+    if (existing && existing.segments === segments && !options.force) return
 
-    if (existing) {
-      this.destroy(element)
-    }
-
+    // Capture first to avoid visible gaps, then swap the record.
     const texture = await this.domBridge.captureElement(element)
     const record = this.domBridge.createMesh(element, texture, segments)
 
+    // If an old record exists, remove its mesh only after we have a new one.
+    if (existing) {
+      if (this.mounted.has(element)) {
+        this.domBridge.removeMesh(existing.mesh)
+        this.mounted.delete(element)
+      }
+      this.domBridge.disposeMesh(existing)
+    }
+
     this.elements.set(element, record)
+
+    // Emit a browser event for debugging / observability
+    try {
+      if (typeof window !== 'undefined' && 'dispatchEvent' in window) {
+        const detail = {
+          elementId: element.id || null,
+          widthMeters: record.widthMeters,
+          heightMeters: record.heightMeters,
+          baseWidthMeters: record.baseWidthMeters,
+          baseHeightMeters: record.baseHeightMeters,
+          segments: record.segments,
+          reason: options.reason ?? 'prepare',
+          time: Date.now(),
+        }
+        window.dispatchEvent(new CustomEvent('newDomObjectGeo', { detail }))
+        const mode = (import.meta as unknown as { env?: Record<string, string> }).env?.MODE
+        if (mode !== 'test') {
+          console.info('[newDomObjectGeo]', detail)
+        }
+      }
+    } catch {
+      // ignore if CustomEvent/window not available
+    }
   }
 
   getRecord(element: HTMLElement) {

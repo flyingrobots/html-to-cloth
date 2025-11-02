@@ -2,8 +2,6 @@ import { useEffect, useRef, useState } from "react"
 import {
   MantineProvider,
   Button,
-  Drawer,
-  Card,
   Text,
   Group,
   Stack,
@@ -15,6 +13,13 @@ import {
   Divider,
   Select,
   Kbd,
+  Accordion,
+  Menu,
+  Container,
+  Image,
+  List,
+  ThemeIcon,
+  TextInput,
 } from "@mantine/core"
 import type { DebugOverlayState } from './engine/render/DebugOverlayState'
 
@@ -22,6 +27,8 @@ import { ClothSceneController, type PinMode } from "./lib/clothSceneController"
 import { EngineActions } from "./engine/debug/engineActions"
 import type { CameraSnapshot } from './engine/camera/CameraSystem'
 import { PRESETS, getPreset } from "./app/presets"
+import { Drawer, ScrollArea, Table } from '@mantine/core'
+import { IconSearch } from '@tabler/icons-react'
 
 // Use Mantine's native Kbd component (no inline styles)
 
@@ -38,6 +45,12 @@ type DebugProps = {
   onImpulseMultiplierChange: (value: number) => void
   tessellationSegments: number
   onTessellationChange: (value: number) => void
+  autoTessellation?: boolean
+  onAutoTessellationChange?: (value: boolean) => void
+  tessellationMin?: number
+  tessellationMax?: number
+  onTessellationMinChange?: (value: number) => void
+  onTessellationMaxChange?: (value: number) => void
   constraintIterations: number
   onConstraintIterationsChange: (value: number) => void
   substeps: number
@@ -46,6 +59,8 @@ type DebugProps = {
   onSleepVelocityChange: (value: number) => void
   sleepFrames: number
   onSleepFramesChange: (value: number) => void
+  worldSleepGuard?: boolean
+  onWorldSleepGuardChange?: (value: boolean) => void
   warmStartPasses: number
   onWarmStartPassesChange: (value: number) => void
   cameraZoom: number
@@ -53,6 +68,7 @@ type DebugProps = {
   cameraZoomActual: number
   onWarmStartNow?: () => void
   onPresetSelect?: (name: string) => void
+  presetValue?: string | null
   pointerColliderVisible: boolean
   onPointerColliderVisibleChange: (value: boolean) => void
   drawAABBs: boolean
@@ -61,10 +77,23 @@ type DebugProps = {
   onDrawSleepChange: (value: boolean) => void
   drawPins: boolean
   onDrawPinsChange: (value: boolean) => void
+  drawSpheres?: boolean
+  onDrawSpheresChange?: (value: boolean) => void
+  showPanelBounds?: boolean
+  onShowPanelBoundsChange?: (value: boolean) => void
+  broadphaseMode?: 'sphere' | 'fatAABB'
+  onBroadphaseModeChange?: (m: 'sphere' | 'fatAABB') => void
+  drawFatAABBs?: boolean
+  onDrawFatAABBsChange?: (v: boolean) => void
   pinMode: PinMode
   onPinModeChange: (value: PinMode) => void
   onStep: () => void
   onReset: () => void
+  // Optional helper passed by parent to clothify the panel element
+  clothifyElement?: (el: HTMLElement) => Promise<void>
+  restoreElement?: (el: HTMLElement) => Promise<void>
+  addOverlayElement?: (el: HTMLElement) => void
+  removeOverlayElement?: (el: HTMLElement) => void
 }
 
 function DebugPalette(props: DebugProps) {
@@ -81,6 +110,12 @@ function DebugPalette(props: DebugProps) {
     onImpulseMultiplierChange,
     tessellationSegments,
     onTessellationChange,
+    autoTessellation,
+    onAutoTessellationChange,
+    tessellationMin,
+    tessellationMax,
+    onTessellationMinChange,
+    onTessellationMaxChange,
     constraintIterations,
     onConstraintIterationsChange,
     substeps,
@@ -89,6 +124,8 @@ function DebugPalette(props: DebugProps) {
     onSleepVelocityChange,
     sleepFrames,
     onSleepFramesChange,
+    worldSleepGuard,
+    onWorldSleepGuardChange,
     warmStartPasses,
     onWarmStartPassesChange,
     cameraZoom,
@@ -96,6 +133,7 @@ function DebugPalette(props: DebugProps) {
     cameraZoomActual,
     onWarmStartNow,
     onPresetSelect,
+    presetValue,
     pointerColliderVisible,
     onPointerColliderVisibleChange,
     pinMode,
@@ -106,186 +144,318 @@ function DebugPalette(props: DebugProps) {
 
   // (labels kept close to Select entries)
 
+  const panelRef = useRef<HTMLDivElement | null>(null)
+
+  // If the panel is reopened after being clothified, restore it to static DOM to avoid
+  // double images and transparency blending with the cloth copy.
+  useEffect(() => {
+    const el = panelRef.current
+    if (!el) return
+    if (open && props.restoreElement) {
+      // Ensure any previously clothified panel is restored to DOM for interactivity
+      Promise.resolve(props.restoreElement(el)).catch(() => {})
+    }
+    // Register/unregister the panel as a static collider so its AABB/sphere draw in the overlay
+    if (open && props.showPanelBounds) props.addOverlayElement?.(el)
+    else props.removeOverlayElement?.(el)
+  }, [open, props, props.showPanelBounds])
+
   return (
-    <Drawer
-      opened={open}
-      onClose={() => onOpenChange(false)}
-      position="right"
-      size={380}
-      withCloseButton
-      // Keep dropdowns and overlay content inside the drawer layer
-      withinPortal
-      zIndex={2100}
-    >
-      <Card withBorder shadow="sm">
+    <Affix position={{ top: 16, right: 16 }} zIndex={2100}>
+      <Paper
+        ref={panelRef}
+        // Do NOT mark as 'cloth-enabled' at init; we clothify on demand via Hide.
+        withBorder
+        shadow="lg"
+        p="md"
+        w={380}
+        style={{
+          maxHeight: 'calc(100vh - 32px)',
+          overflowY: 'auto',
+          // Hide via visual opacity to keep element capturable by html2canvas when needed
+          opacity: open ? 1 : 0,
+          pointerEvents: open ? 'auto' : 'none',
+        }}
+      >
         <Stack gap="md">
-          <Stack gap={0}
-          >
+          <Stack gap={0}>
             <Title order={3}>Debug Settings</Title>
             <Text c="dimmed" size="sm">Control simulation parameters</Text>
           </Stack>
-          <Stack gap="md">
-            <Stack gap={6}>
-              <Text fw={600}>Presets</Text>
-              <Select
-                aria-label="Presets"
-                placeholder="Choose preset"
-                data={PRESETS.map((p) => ({ value: p.name, label: p.name }))}
-                comboboxProps={{ withinPortal: true, zIndex: 2300 }}
-                onChange={(v) => v && onPresetSelect?.(v)}
-              />
-            </Stack>
-            <Group justify="space-between">
-              <Stack gap={0}
-              >
-                <Text fw={600}>Wireframe</Text>
-                <Text size="sm" c="dimmed">Toggle mesh rendering as wireframe</Text>
-              </Stack>
-              <Switch aria-label="Wireframe" checked={wireframe} onChange={(e) => onWireframeChange(e.currentTarget.checked)} />
+          {/* Compact status row */}
+          <Paper withBorder radius="sm" p="xs">
+            <Group gap="xs" justify="space-between" wrap="wrap">
+              <Text size="xs">Real-Time: {realTime ? 'ON' : 'OFF'}</Text>
+              <Text size="xs">g: {gravity.toFixed(2)} m/s²</Text>
+              <Text size="xs">Substeps: {substeps}</Text>
+              <Text size="xs">Iterations: {constraintIterations}</Text>
             </Group>
-            <Group justify="space-between">
-              <Stack gap={0}
-              >
-                <Text fw={600}>Real-Time</Text>
-                <Text size="sm" c="dimmed">Pause simulation to step manually</Text>
-              </Stack>
-              <Switch aria-label="Real-Time" checked={realTime} onChange={(e) => onRealTimeChange(e.currentTarget.checked)} />
-            </Group>
-            <Group justify="space-between">
-              <Stack gap={0}
-              >
-                <Text fw={600}>Pointer Collider</Text>
-                <Text size="sm" c="dimmed">Visualize the pointer collision sphere</Text>
-              </Stack>
-              <Switch aria-label="Pointer Collider" checked={pointerColliderVisible} onChange={(e) => onPointerColliderVisibleChange(e.currentTarget.checked)} />
-            </Group>
-            <Group justify="space-between">
-              <Stack gap={0}
-              >
-                <Text fw={600}>Debug AABBs</Text>
-                <Text size="sm" c="dimmed">Draw static collision bounds</Text>
-              </Stack>
-              <Switch aria-label="Debug AABBs" checked={props.drawAABBs} onChange={(e) => props.onDrawAABBsChange(e.currentTarget.checked)} />
-            </Group>
-            <Group justify="space-between">
-              <Stack gap={0}
-              >
-                <Text fw={600}>Sleep State</Text>
-                <Text size="sm" c="dimmed">Color centers (awake vs sleeping)</Text>
-              </Stack>
-              <Switch aria-label="Sleep State" checked={props.drawSleep} onChange={(e) => props.onDrawSleepChange(e.currentTarget.checked)} />
-            </Group>
-            <Group justify="space-between">
-              <Stack gap={0}
-              >
-                <Text fw={600}>Pin Markers</Text>
-                <Text size="sm" c="dimmed">Draw markers on pinned vertices</Text>
-              </Stack>
-              <Switch aria-label="Pin Markers" checked={props.drawPins} onChange={(e) => props.onDrawPinsChange(e.currentTarget.checked)} />
-            </Group>
-            <Stack gap={4}
-            >
-              <Group justify="space-between">
-                <Text fw={500}>Gravity</Text>
-                <Text c="dimmed">{gravity.toFixed(2)} m/s²</Text>
-              </Group>
-              <Slider aria-label="Gravity" value={gravity} min={0} max={30} step={0.5} onChange={onGravityChange} />
-            </Stack>
-            <Stack gap={4}
-            >
-              <Group justify="space-between">
-                <Text fw={500}>Impulse Multiplier</Text>
-                <Text c="dimmed">{impulseMultiplier.toFixed(2)}</Text>
-              </Group>
-              <Slider aria-label="Impulse Multiplier" value={impulseMultiplier} min={0.1} max={3} step={0.1} onChange={onImpulseMultiplierChange} />
-            </Stack>
-            <Stack gap={4}
-            >
-              <Group justify="space-between">
-                <Text fw={500}>Tessellation</Text>
-                <Text c="dimmed">{tessellationSegments} × {tessellationSegments}</Text>
-              </Group>
-              <Slider aria-label="Tessellation" value={tessellationSegments} min={1} max={32} step={1} onChange={(v) => onTessellationChange(Math.round(v))} />
-            </Stack>
-            <Stack gap={4}
-            >
-              <Group justify="space-between">
-                <Text fw={500}>Constraint Iterations</Text>
-                <Text c="dimmed">{constraintIterations}</Text>
-              </Group>
-              <Slider aria-label="Constraint Iterations" value={constraintIterations} min={1} max={12} step={1} onChange={(v) => onConstraintIterationsChange(Math.round(v))} />
-            </Stack>
-            <Stack gap={4}
-            >
-              <Group justify="space-between">
-                <Text fw={500}>Substeps</Text>
-                <Text c="dimmed">{substeps}</Text>
-              </Group>
-              <Slider aria-label="Substeps" value={substeps} min={1} max={8} step={1} onChange={(v) => onSubstepsChange(Math.round(v))} />
-            </Stack>
-            <Stack gap={4}
-            >
-              <Group justify="space-between">
-                <Text fw={500}>Sleep Velocity Threshold</Text>
-                <Text c="dimmed">{sleepVelocity.toExponential(2)}</Text>
-              </Group>
-              <Slider aria-label="Sleep Velocity Threshold" value={sleepVelocity} min={0} max={0.01} step={0.0005} onChange={(v) => onSleepVelocityChange(Number(v))} />
-            </Stack>
-            <Stack gap={4}
-            >
-              <Group justify="space-between">
-                <Text fw={500}>Sleep Frame Threshold</Text>
-                <Text c="dimmed">{sleepFrames}f</Text>
-              </Group>
-              <Slider aria-label="Sleep Frame Threshold" value={sleepFrames} min={10} max={240} step={10} onChange={(v) => onSleepFramesChange(Math.round(v))} />
-            </Stack>
-            <Stack gap={4}
-            >
-              <Group justify="space-between">
-                <Text fw={500}>Warm Start Passes</Text>
-                <Text c="dimmed">{warmStartPasses}</Text>
-              </Group>
-              <Slider aria-label="Warm Start Passes" value={warmStartPasses} min={0} max={6} step={1} onChange={(v) => onWarmStartPassesChange(Math.round(v))} />
-              <Button variant="default" onClick={() => onWarmStartNow?.()}>Warm Start Now</Button>
-            </Stack>
-            <Stack gap={4}
-            >
-              <Group justify="space-between">
-                <Text fw={500}>Camera Zoom</Text>
-                <Text c="dimmed">{cameraZoom.toFixed(2)}×</Text>
-              </Group>
-              <Slider aria-label="Camera Zoom" value={cameraZoom} min={0.5} max={3} step={0.1} onChange={onCameraZoomChange} />
-            </Stack>
-            <Group justify="space-between">
-              <Text fw={500}>Camera Zoom (Actual)</Text>
-              <Text c="dimmed">{cameraZoomActual.toFixed(2)}×</Text>
-            </Group>
-            <Stack gap={6}>
-              <Text fw={500}>Pin Mode</Text>
-              <Select
-                aria-label="Pin Mode"
-                placeholder="Choose pin"
-                data={[
-                  { value: 'top', label: 'Top Edge' },
-                  { value: 'bottom', label: 'Bottom Edge' },
-                  { value: 'corners', label: 'Corners' },
-                  { value: 'none', label: 'None' },
-                ]}
-                value={pinMode}
-                comboboxProps={{ withinPortal: true, zIndex: 2300 }}
-                onChange={(v) => v && onPinModeChange(v as PinMode)}
-              />
-            </Stack>
-            {!realTime ? <Button variant="default" onClick={onStep}>Step (Space)</Button> : null}
-          </Stack>
+          </Paper>
+          <Accordion multiple chevronPosition="right" defaultValue={["presets", "physics", "sleep", "view"]} variant="contained">
+            <Accordion.Item value="presets">
+              <Accordion.Control>Presets</Accordion.Control>
+              <Accordion.Panel>
+                <Select
+                  aria-label="Presets"
+                  placeholder="Choose preset"
+                  data={PRESETS.map((p) => ({ value: p.name, label: p.name }))}
+                  comboboxProps={{ withinPortal: true, zIndex: 2300 }}
+                  value={presetValue ?? null}
+                  onChange={(v) => { if (v) onPresetSelect?.(v) }}
+                />
+                <Group justify="space-between" mt="sm">
+                  <Stack gap={0}>
+                    <Text fw={600}>Wireframe</Text>
+                    <Text size="sm" c="dimmed">Toggle mesh rendering as wireframe</Text>
+                  </Stack>
+                  <Switch aria-label="Wireframe" checked={wireframe} onChange={(e) => onWireframeChange(e.currentTarget.checked)} />
+                </Group>
+                <Group justify="space-between" mt="sm">
+                  <Stack gap={0}>
+                    <Text fw={600}>Pin Mode</Text>
+                    <Text size="sm" c="dimmed">Choose pinned vertices</Text>
+                  </Stack>
+                  <Menu withinPortal position="bottom-end" shadow="sm" zIndex={2300}>
+                    <Menu.Target>
+                      <Button variant="default">{pinMode.charAt(0).toUpperCase() + pinMode.slice(1)}</Button>
+                    </Menu.Target>
+                    <Menu.Dropdown>
+                      <Menu.Item onClick={() => onPinModeChange('none')}>None</Menu.Item>
+                      <Menu.Item onClick={() => onPinModeChange('top')}>Top</Menu.Item>
+                      <Menu.Item onClick={() => onPinModeChange('bottom')}>Bottom</Menu.Item>
+                      <Menu.Item onClick={() => onPinModeChange('corners')}>Corners</Menu.Item>
+                    </Menu.Dropdown>
+                  </Menu>
+                </Group>
+              </Accordion.Panel>
+            </Accordion.Item>
+
+            <Accordion.Item value="physics">
+              <Accordion.Control>Physics</Accordion.Control>
+              <Accordion.Panel>
+                <Group justify="space-between">
+                  <Stack gap={0}>
+                    <Text fw={600}>Real-Time</Text>
+                    <Text size="sm" c="dimmed">Pause simulation to step manually</Text>
+                  </Stack>
+                  <Switch aria-label="Real-Time" checked={realTime} onChange={(e) => onRealTimeChange(e.currentTarget.checked)} />
+                </Group>
+                <Stack gap={4} mt="sm">
+                  <Group justify="space-between">
+                    <Text fw={500}>Gravity</Text>
+                    <Text c="dimmed">{gravity.toFixed(2)} m/s²</Text>
+                  </Group>
+                  <Slider aria-label="Gravity" value={gravity} min={0} max={30} step={0.5} onChange={onGravityChange} />
+                </Stack>
+                <Stack gap={4} mt="sm">
+                  <Group justify="space-between">
+                    <Text fw={500}>Impulse Multiplier</Text>
+                    <Text c="dimmed">{impulseMultiplier.toFixed(2)}</Text>
+                  </Group>
+                  <Slider aria-label="Impulse Multiplier" value={impulseMultiplier} min={0.1} max={3} step={0.1} onChange={onImpulseMultiplierChange} />
+                </Stack>
+                <Stack gap={4} mt="sm">
+                  <Group justify="space-between">
+                    <Text fw={500}>Constraint Iterations</Text>
+                    <Text c="dimmed">{constraintIterations}</Text>
+                  </Group>
+                  <Slider aria-label="Constraint Iterations" value={constraintIterations} min={1} max={12} step={1} onChange={(v) => onConstraintIterationsChange(Math.round(v))} />
+                </Stack>
+                <Stack gap={4} mt="sm">
+                  <Group justify="space-between">
+                    <Text fw={500}>Substeps</Text>
+                    <Text c="dimmed">{substeps}</Text>
+                  </Group>
+                  <Slider aria-label="Substeps" value={substeps} min={1} max={8} step={1} onChange={(v) => onSubstepsChange(Math.round(v))} />
+                </Stack>
+              </Accordion.Panel>
+            </Accordion.Item>
+
+            <Accordion.Item value="tessellation">
+              <Accordion.Control>Tessellation</Accordion.Control>
+              <Accordion.Panel>
+                <Stack gap={4}>
+                  <Group justify="space-between">
+                    <Text fw={500}>Tessellation</Text>
+                    <Text c="dimmed">{tessellationSegments} × {tessellationSegments}</Text>
+                  </Group>
+                  <Slider aria-label="Tessellation" value={tessellationSegments} min={1} max={32} step={1} onChange={(v) => onTessellationChange(Math.round(v))} />
+                  <Group justify="space-between">
+                    <Stack gap={0}>
+                      <Text fw={600}>Auto Tessellation</Text>
+                      <Text size="sm" c="dimmed">Scale segments by on-screen size</Text>
+                    </Stack>
+                    <Switch aria-label="Auto Tessellation" checked={!!autoTessellation} onChange={(e) => onAutoTessellationChange?.(e.currentTarget.checked)} />
+                  </Group>
+                  {autoTessellation ? (
+                    <>
+                      <Group justify="space-between">
+                        <Text fw={500}>Min Segments</Text>
+                        <Text c="dimmed">{tessellationMin}</Text>
+                      </Group>
+                      <Slider aria-label="Tessellation Min" value={tessellationMin ?? 6} min={1} max={46} step={1} onChange={(v) => onTessellationMinChange?.(Math.round(v))} />
+                      <Group justify="space-between">
+                        <Text fw={500}>Max Segments</Text>
+                        <Text c="dimmed">{tessellationMax}</Text>
+                      </Group>
+                      <Slider aria-label="Tessellation Max" value={tessellationMax ?? 24} min={(tessellationMin ?? 6) + 2} max={48} step={1} onChange={(v) => onTessellationMaxChange?.(Math.round(v))} />
+                    </>
+                  ) : null}
+                </Stack>
+              </Accordion.Panel>
+            </Accordion.Item>
+
+            <Accordion.Item value="sleep">
+              <Accordion.Control>Sleep & Warm Start</Accordion.Control>
+              <Accordion.Panel>
+                <Stack gap={6}>
+                  <Stack gap={4}>
+                    <Group justify="space-between">
+                      <Text fw={500}>Sleep Velocity Threshold</Text>
+                      <Text c="dimmed">{sleepVelocity.toExponential(2)}</Text>
+                    </Group>
+                    <Slider aria-label="Sleep Velocity Threshold" value={sleepVelocity} min={0} max={0.01} step={0.0005} onChange={(v) => onSleepVelocityChange(Number(v))} />
+                  </Stack>
+                  <Stack gap={4}>
+                    <Group justify="space-between">
+                      <Text fw={500}>Sleep Frame Threshold</Text>
+                      <Text c="dimmed">{sleepFrames}f</Text>
+                    </Group>
+                    <Slider aria-label="Sleep Frame Threshold" value={sleepFrames} min={10} max={240} step={10} onChange={(v) => onSleepFramesChange(Math.round(v))} />
+                  </Stack>
+                  <Group justify="space-between">
+                    <Stack gap={0}>
+                      <Text fw={600}>World Sleep Guard</Text>
+                      <Text size="sm" c="dimmed">Delay sleep until world-space still</Text>
+                    </Stack>
+                    <Switch aria-label="World Sleep Guard" checked={!!worldSleepGuard} onChange={(e) => onWorldSleepGuardChange?.(e.currentTarget.checked)} />
+                  </Group>
+                  <Stack gap={4}>
+                    <Group justify="space-between">
+                      <Text fw={500}>Warm Start Passes</Text>
+                      <Text c="dimmed">{warmStartPasses}</Text>
+                    </Group>
+                    <Slider aria-label="Warm Start Passes" value={warmStartPasses} min={0} max={6} step={1} onChange={(v) => onWarmStartPassesChange(Math.round(v))} />
+                    <Button variant="default" onClick={() => onWarmStartNow?.()}>Warm Start Now</Button>
+                  </Stack>
+                  <Divider my="sm" />
+                  <Group justify="space-between" align="center">
+                    <Stack gap={0}>
+                      <Text fw={600}>Broad-phase</Text>
+                      <Text size="sm" c="dimmed">Choose wake strategy for sleeping bodies</Text>
+                    </Stack>
+                  <Select
+                      aria-label="Broad-phase Mode"
+                      data={[{ value: 'fatAABB', label: 'Fat AABB' }, { value: 'sphere', label: 'Sphere' }]}
+                      value={props.broadphaseMode ?? 'fatAABB'}
+                      onChange={(v) => v && props.onBroadphaseModeChange?.(v as 'sphere' | 'fatAABB')}
+                      comboboxProps={{ withinPortal: true, zIndex: 2300 }}
+                      w={160}
+                    />
+                  </Group>
+                </Stack>
+              </Accordion.Panel>
+            </Accordion.Item>
+
+            <Accordion.Item value="overlays">
+              <Accordion.Control>Overlays</Accordion.Control>
+              <Accordion.Panel>
+                <Group justify="space-between">
+                  <Stack gap={0}>
+                    <Text fw={600}>Pointer Collider</Text>
+                    <Text size="sm" c="dimmed">Visualize the pointer collision sphere</Text>
+                  </Stack>
+                  <Switch aria-label="Pointer Collider" checked={pointerColliderVisible} onChange={(e) => onPointerColliderVisibleChange(e.currentTarget.checked)} />
+                </Group>
+                <Group justify="space-between" mt="sm">
+                  <Stack gap={0}>
+                    <Text fw={600}>Debug AABBs</Text>
+                    <Text size="sm" c="dimmed">Draw static collision bounds</Text>
+                  </Stack>
+                  <Switch aria-label="Debug AABBs" checked={props.drawAABBs} onChange={(e) => props.onDrawAABBsChange(e.currentTarget.checked)} />
+                </Group>
+                <Group justify="space-between" mt="sm">
+                  <Stack gap={0}>
+                    <Text fw={600}>Sleep State</Text>
+                    <Text size="sm" c="dimmed">Color centers (awake vs sleeping)</Text>
+                  </Stack>
+                  <Switch aria-label="Sleep State" checked={props.drawSleep} onChange={(e) => props.onDrawSleepChange(e.currentTarget.checked)} />
+                </Group>
+                <Group justify="space-between" mt="sm">
+                  <Stack gap={0}>
+                    <Text fw={600}>Pin Markers</Text>
+                    <Text size="sm" c="dimmed">Draw markers on pinned vertices</Text>
+                  </Stack>
+                  <Switch aria-label="Pin Markers" checked={props.drawPins} onChange={(e) => props.onDrawPinsChange(e.currentTarget.checked)} />
+                </Group>
+                <Group justify="space-between" mt="sm">
+                  <Stack gap={0}>
+                    <Text fw={600}>Bounding Spheres</Text>
+                    <Text size="sm" c="dimmed">Draw world-space bounding spheres</Text>
+                  </Stack>
+                  <Switch aria-label="Bounding Spheres" checked={!!props.drawSpheres} onChange={(e) => props.onDrawSpheresChange?.(e.currentTarget.checked)} />
+                </Group>
+                <Group justify="space-between" mt="sm">
+                  <Stack gap={0}>
+                    <Text fw={600}>Show Panel Bounds</Text>
+                    <Text size="sm" c="dimmed">Draw AABB/sphere for the debug panel while open</Text>
+                  </Stack>
+                  <Switch aria-label="Show Panel Bounds" checked={!!props.showPanelBounds} onChange={(e) => props.onShowPanelBoundsChange?.(e.currentTarget.checked)} />
+                </Group>
+                <Group justify="space-between" mt="sm">
+                  <Stack gap={0}>
+                    <Text fw={600}>Draw Fat AABBs</Text>
+                    <Text size="sm" c="dimmed">Visualize inflated bounds used for waking</Text>
+                  </Stack>
+                  <Switch aria-label="Draw Fat AABBs" checked={!!props.drawFatAABBs} onChange={(e) => props.onDrawFatAABBsChange?.(e.currentTarget.checked)} />
+                </Group>
+              </Accordion.Panel>
+            </Accordion.Item>
+
+            <Accordion.Item value="view">
+              <Accordion.Control>View</Accordion.Control>
+              <Accordion.Panel>
+                <Stack gap={4}>
+                  <Group justify="space-between">
+                    <Text fw={500}>Camera Zoom</Text>
+                    <Text c="dimmed">{cameraZoom.toFixed(2)}×</Text>
+                  </Group>
+                  <Slider aria-label="Camera Zoom" value={cameraZoom} min={0.5} max={3} step={0.1} onChange={onCameraZoomChange} />
+                  <Group justify="space-between">
+                    <Text fw={500}>Camera Zoom (Actual)</Text>
+                    <Text c="dimmed">{cameraZoomActual.toFixed(2)}×</Text>
+                  </Group>
+                </Stack>
+              </Accordion.Panel>
+            </Accordion.Item>
+          </Accordion>
           <Divider />
           <Group justify="flex-end">
-            <Button variant="default" onClick={() => onOpenChange(false)}>Close</Button>
+            {!realTime ? <Button variant="default" onClick={onStep}>Step (Space)</Button> : null}
+            <Button
+              variant="default"
+              onClick={async () => {
+                // Clothify the panel and drop it; keep clicks confined to this action
+                try {
+                  const el = panelRef.current
+                  // Delegate to parent to avoid referencing controllerRef here
+                  if (el && props.clothifyElement) {
+                    await props.clothifyElement(el)
+                  }
+                } catch (err) {
+                  console.warn('Debug panel clothify failed', err)
+                } finally {
+                  onOpenChange(false)
+                }
+              }}
+            >
+              Hide
+            </Button>
             <Button variant="outline" onClick={onReset}>Reset</Button>
           </Group>
         </Stack>
-      </Card>
-    </Drawer>
+      </Paper>
+    </Affix>
   )
 }
 
@@ -299,23 +469,49 @@ function Demo() {
   const [gravity, setGravity] = useState(2)
   const [impulseMultiplier, setImpulseMultiplier] = useState(1)
   const [tessellationSegments, setTessellationSegments] = useState(24)
+  const [autoTessellation, setAutoTessellation] = useState(true)
+  const [tessellationMin, setTessellationMin] = useState(6)
+  const [tessellationMax, setTessellationMax] = useState(24)
   const [constraintIterations, setConstraintIterations] = useState(6)
   const [substeps, setSubsteps] = useState(2)
   const [sleepVelocity, setSleepVelocity] = useState(0.001)
   const [sleepFrames, setSleepFrames] = useState(60)
+  const [worldSleepGuard, setWorldSleepGuard] = useState(true)
   const [warmStartPasses, setWarmStartPasses] = useState(2)
   const [cameraZoom, setCameraZoom] = useState(1)
   const [cameraZoomActual, setCameraZoomActual] = useState(1)
+  const [selectedPreset, setSelectedPreset] = useState<string | null>(null)
   const [pointerColliderVisible, setPointerColliderVisible] = useState(false)
   const [drawAABBs, setDrawAABBs] = useState(false)
   const [drawSleep, setDrawSleep] = useState(false)
   const [drawPins, setDrawPins] = useState(false)
-  const [pinMode, setPinMode] = useState<PinMode>('top')
+  const [drawSpheres, setDrawSpheres] = useState(false)
+  const [showPanelBounds, setShowPanelBounds] = useState(true)
+  const [broadphaseMode, setBroadphaseMode] = useState<'sphere' | 'fatAABB'>('fatAABB')
+  const [drawFatAABBs, setDrawFatAABBs] = useState(false)
+  const [eventsOpen, setEventsOpen] = useState(false)
+  type EngineEventRow = { time: number; type: string; id?: string; tag?: string | null }
+  const [events, setEvents] = useState<EngineEventRow[]>([])
+  const [eventSearch, setEventSearch] = useState('')
 
   useEffect(() => {
+    const handler = (e: Event) => {
+      const detail = (e as CustomEvent).detail as EngineEventRow
+      setEvents((prev) => {
+        const next = [detail, ...prev]
+        return next.slice(0, 100)
+      })
+    }
+    window.addEventListener('engineEvent', handler as EventListener)
+    return () => window.removeEventListener('engineEvent', handler as EventListener)
+  }, [])
+  const [pinMode, setPinMode] = useState<PinMode>('none')
+
+  useEffect(() => {
+    let reduced = false
     if (typeof window !== 'undefined') {
       const mql = window.matchMedia('(prefers-reduced-motion: reduce)')
-      if (mql.matches) return
+      reduced = !!mql.matches
     }
 
     const controller = new ClothSceneController()
@@ -334,6 +530,8 @@ function Demo() {
           setPinMode: (mode) => controller.setPinMode(mode),
         })
         actionsRef.current = actions
+        // Preview wireframe on static meshes too in the playground for clarity
+        if (rs) rs.applyToStatic = true
         actionsRef.current.setCameraTargetZoom(cameraZoom)
         const snap = actionsRef.current.getCameraSnapshot?.()
         if (snap && typeof snap.zoom === 'number') {
@@ -343,6 +541,10 @@ function Demo() {
         actionsRef.current.setConstraintIterations(constraintIterations)
         controller.setSleepConfig({ velocityThreshold: sleepVelocity, frameThreshold: sleepFrames })
         actionsRef.current.setSleepConfig(sleepVelocity, sleepFrames)
+        if (reduced) {
+          actionsRef.current.setRealTime(false)
+          setRealTime(false)
+        }
       } catch (err) {
         if (import.meta?.env?.MODE !== 'test') {
           console.warn('EngineActions init failed:', err)
@@ -354,6 +556,11 @@ function Demo() {
       if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "j") {
         event.preventDefault()
         setDebugOpen((open) => !open)
+        return
+      }
+      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'e') {
+        event.preventDefault()
+        setEventsOpen((o) => !o)
         return
       }
       if (!realTimeRef.current && event.key === " ") {
@@ -377,6 +584,8 @@ function Demo() {
 
   useEffect(() => {
     actionsRef.current?.setWireframe(wireframe)
+    // Also update controller-side debug flag so newly activated cloth picks up the value immediately
+    controllerRef.current?.setWireframe?.(wireframe)
   }, [wireframe])
 
   useEffect(() => {
@@ -388,9 +597,9 @@ function Demo() {
   useEffect(() => {
     const actions = actionsRef.current
     if (!actions) return
-    // Toggle overlay visibility; hide while the drawer is open to avoid overlap.
-    actions.setPointerOverlayVisible(debugOpen ? false : pointerColliderVisible)
-  }, [debugOpen, pointerColliderVisible])
+    // Non-modal debug: keep overlay visibility tied to the toggle regardless of Drawer state.
+    actions.setPointerOverlayVisible(pointerColliderVisible)
+  }, [pointerColliderVisible])
 
   useEffect(() => {
     actionsRef.current?.setGravityScalar(gravity)
@@ -443,6 +652,24 @@ function Demo() {
   }, [tessellationSegments])
 
   useEffect(() => {
+    controllerRef.current?.setTessellationAutoEnabled?.(autoTessellation)
+  }, [autoTessellation])
+
+  useEffect(() => {
+    controllerRef.current?.setTessellationMinMax?.(tessellationMin, tessellationMax)
+  }, [tessellationMin, tessellationMax])
+
+  useEffect(() => {
+    controllerRef.current?.setWorldSleepGuardEnabled?.(worldSleepGuard)
+  }, [worldSleepGuard])
+
+  useEffect(() => {
+    // Wire broad-phase mode
+    actionsRef.current?.setBroadphaseMode?.(broadphaseMode)
+    controllerRef.current?.setBroadphaseMode?.(broadphaseMode)
+  }, [broadphaseMode])
+
+  useEffect(() => {
     actionsRef.current?.setPointerOverlayVisible(pointerColliderVisible)
   }, [pointerColliderVisible])
 
@@ -462,6 +689,16 @@ function Demo() {
   }, [drawPins])
 
   useEffect(() => {
+    const overlay = controllerRef.current?.getOverlayState?.() as DebugOverlayState | null
+    if (overlay) overlay.drawFatAABBs = drawFatAABBs
+  }, [drawFatAABBs])
+
+  useEffect(() => {
+    const overlay = controllerRef.current?.getOverlayState?.() as DebugOverlayState | null
+    if (overlay) overlay.drawSpheres = drawSpheres
+  }, [drawSpheres])
+
+  useEffect(() => {
     actionsRef.current?.setPinMode(pinMode)
     if (!actionsRef.current) controllerRef.current?.setPinMode(pinMode)
   }, [pinMode])
@@ -470,15 +707,41 @@ function Demo() {
 
   return (
     <>
-      <Group justify="center" style={{ minHeight: '100vh' }}>
-        <Stack align="center" gap="md">
-          <Title order={1}>Cloth Playground</Title>
-          <Text size="sm" maw={560} ta="center">
-            This minimal scene keeps the DOM simple while we tune the cloth overlay. Click the button below to peel it away.
-          </Text>
-          <Button className="cloth-enabled" size="lg">Peel Back</Button>
-        </Stack>
-      </Group>
+      <Container size="md" mt="xl">
+        <Group justify="space-between" align="flex-start" wrap="nowrap">
+          <Stack gap="md" style={{ maxWidth: 520 }}>
+            <Title order={1} className="rigid-static">A modern React components library</Title>
+            <Text c="dimmed" className="rigid-static">
+              Build fully functional accessible web applications faster than ever – Mantine includes more than 120 customizable components and hooks to cover you in any situation
+            </Text>
+            <List spacing="sm" size="sm" className="rigid-static" icon={<ThemeIcon size={20} radius="xl"><span>✓</span></ThemeIcon>}>
+              <List.Item><b>TypeScript based</b> – build type safe applications, all components and hooks export types</List.Item>
+              <List.Item><b>Free and open source</b> – MIT license for any project</List.Item>
+              <List.Item><b>No annoying focus ring</b> – focus ring appears only on keyboard nav</List.Item>
+            </List>
+            <Group>
+              <Button radius="xl" size="md" className="cloth-enabled">Get started</Button>
+              <Button variant="default" radius="xl" size="md" className="rigid-static">Source code</Button>
+            </Group>
+          </Stack>
+          <Image src="/vite.svg" alt="hero" w={280} className="rigid-static"/>
+        </Group>
+
+        <Paper withBorder radius="md" p="xl" mt="xl">
+          <Group align="center" wrap="nowrap">
+            <Stack gap={4} style={{ flex: 1 }}>
+              <Title order={2} className="rigid-static">Wait a minute...</Title>
+              <Text fw={500} className="rigid-static">Subscribe to our newsletter!</Text>
+              <Text size="sm" c="dimmed" className="rigid-static">You will never miss important product updates, latest news and community QA sessions. Our newsletter is once a week, every Sunday.</Text>
+              <Group>
+                <TextInput placeholder="Your email" className="cloth-enabled" radius="md" size="md" style={{ flex: 1 }} />
+                <Button className="rigid-dynamic" radius="md" size="md">Subscribe</Button>
+              </Group>
+            </Stack>
+            <Image src="/vite.svg" alt="banner" w={160} className="rigid-static"/>
+          </Group>
+        </Paper>
+      </Container>
       <Affix position={{ bottom: 24, left: 0, right: 0 }}>
         <Paper radius="xl" px="md" py={8} withBorder mx="auto" w="max-content">
           <Group gap={6} align="center">
@@ -487,9 +750,44 @@ function Demo() {
             <Text size="sm">+</Text>
             <Kbd>J</Kbd>
             <Text size="sm">to open the debug palette</Text>
+            <Button size="xs" variant="subtle" onClick={() => setEventsOpen((o) => !o)}>Events</Button>
           </Group>
         </Paper>
       </Affix>
+      <Drawer size="xl" position="bottom" opened={eventsOpen} onClose={() => setEventsOpen(false)} title="Engine Events">
+        <Stack>
+          <TextInput placeholder="Search events" value={eventSearch} onChange={(e) => setEventSearch(e.currentTarget.value)} leftSection={<IconSearch size={16} />} />
+          <ScrollArea h={260}>
+            <Table striped highlightOnHover>
+              <Table.Thead>
+                <Table.Tr>
+                  <Table.Th>Time</Table.Th>
+                  <Table.Th>Type</Table.Th>
+                  <Table.Th>Id</Table.Th>
+                  <Table.Th>Tag</Table.Th>
+                </Table.Tr>
+              </Table.Thead>
+              <Table.Tbody>
+                {events
+                  .filter((e) => {
+                    const q = eventSearch.toLowerCase().trim()
+                    if (!q) return true
+                    const s = `${new Date(e.time).toLocaleTimeString()} ${e.type} ${e.id ?? ''} ${e.tag ?? ''}`.toLowerCase()
+                    return s.includes(q)
+                  })
+                  .map((ev, i) => (
+                    <Table.Tr key={i}>
+                      <Table.Td>{new Date(ev.time).toLocaleTimeString()}</Table.Td>
+                      <Table.Td>{ev.type}</Table.Td>
+                      <Table.Td>{ev.id ?? ''}</Table.Td>
+                      <Table.Td>{ev.tag ?? ''}</Table.Td>
+                    </Table.Tr>
+                  ))}
+              </Table.Tbody>
+            </Table>
+          </ScrollArea>
+        </Stack>
+      </Drawer>
       <DebugPalette
         open={debugOpen}
         onOpenChange={setDebugOpen}
@@ -503,6 +801,12 @@ function Demo() {
         onImpulseMultiplierChange={setImpulseMultiplier}
         tessellationSegments={tessellationSegments}
         onTessellationChange={setTessellationSegments}
+        autoTessellation={autoTessellation}
+        onAutoTessellationChange={setAutoTessellation}
+        tessellationMin={tessellationMin}
+        tessellationMax={tessellationMax}
+        onTessellationMinChange={setTessellationMin}
+        onTessellationMaxChange={setTessellationMax}
         constraintIterations={constraintIterations}
         onConstraintIterationsChange={setConstraintIterations}
         substeps={substeps}
@@ -511,6 +815,8 @@ function Demo() {
         onSleepVelocityChange={setSleepVelocity}
         sleepFrames={sleepFrames}
         onSleepFramesChange={setSleepFrames}
+        worldSleepGuard={worldSleepGuard}
+        onWorldSleepGuardChange={setWorldSleepGuard}
         warmStartPasses={warmStartPasses}
         onWarmStartPassesChange={setWarmStartPasses}
         cameraZoom={cameraZoom}
@@ -520,12 +826,13 @@ function Demo() {
         onPresetSelect={(name: string) => {
           const p = getPreset(name)
           if (!p) return
+          setSelectedPreset(name)
           setConstraintIterations(p.iterations)
           setSleepVelocity(p.sleepVelocity)
           setSleepFrames(p.sleepFrames)
           setWarmStartPasses(p.warmStartPasses)
-          setCameraZoom(p.cameraZoom)
         }}
+        presetValue={selectedPreset}
         pointerColliderVisible={pointerColliderVisible}
         onPointerColliderVisibleChange={setPointerColliderVisible}
         drawAABBs={drawAABBs}
@@ -534,6 +841,14 @@ function Demo() {
         onDrawSleepChange={setDrawSleep}
         drawPins={drawPins}
         onDrawPinsChange={setDrawPins}
+        drawSpheres={drawSpheres}
+        onDrawSpheresChange={setDrawSpheres}
+        showPanelBounds={showPanelBounds}
+        onShowPanelBoundsChange={setShowPanelBounds}
+        broadphaseMode={broadphaseMode}
+        onBroadphaseModeChange={setBroadphaseMode}
+        drawFatAABBs={drawFatAABBs}
+        onDrawFatAABBsChange={setDrawFatAABBs}
         pinMode={pinMode}
         onPinModeChange={setPinMode}
         onStep={() => actionsRef.current?.stepOnce()}
@@ -543,14 +858,39 @@ function Demo() {
           setGravity(9.81)
           setImpulseMultiplier(1)
           setTessellationSegments(24)
+          setAutoTessellation(true)
+          setTessellationMin(6)
+          setTessellationMax(24)
           setConstraintIterations(4)
           setSubsteps(1)
           setCameraZoom(1)
           setPointerColliderVisible(false)
-          setPinMode("top")
+          setPinMode("none")
+          setWorldSleepGuard(true)
           controllerRef.current?.setSleepConfig({ velocityThreshold: 0.001, frameThreshold: 60 })
           actionsRef.current?.setSleepConfig(0.001, 60)
         }}
+        clothifyElement={async (el: HTMLElement) => {
+          try {
+            await controllerRef.current?.clothify?.(el, { activate: true, addClickHandler: false })
+            if (!realTimeRef.current) {
+              // Give it a nudge when paused so it separates from the DOM panel
+              controllerRef.current?.stepOnce()
+              controllerRef.current?.stepOnce()
+            }
+          } catch (err) {
+            console.warn('clothifyElement failed', err)
+          }
+        }}
+        restoreElement={async (el: HTMLElement) => {
+          try {
+            await controllerRef.current?.restoreElement?.(el)
+          } catch (err) {
+            console.warn('restoreElement failed', err)
+          }
+        }}
+        addOverlayElement={(el) => controllerRef.current?.addStaticOverlayElement?.(el)}
+        removeOverlayElement={(el) => controllerRef.current?.removeStaticOverlayElement?.(el)}
       />
     </>
   )

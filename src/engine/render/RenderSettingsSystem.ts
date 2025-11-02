@@ -20,7 +20,9 @@ export class RenderSettingsSystem implements EngineSystem {
 
   private readonly view: RenderSettingsOptions['view']
   private readonly state: RenderSettingsState
-  private lastWireframe = false
+  // Kept for future toggles; currently unused because we enforce every frame
+  // to cover meshes created after the last toggle.
+  // private lastWireframe = false
 
   constructor(options: RenderSettingsOptions) {
     this.view = options.view
@@ -32,17 +34,19 @@ export class RenderSettingsSystem implements EngineSystem {
     const scene = this.view.scene as THREE.Scene | undefined
     if (!scene) return
 
-    // Only walk when the value changes to avoid per-frame churn.
-    if (this.state.wireframe === this.lastWireframe) return
-    this.lastWireframe = this.state.wireframe
+    // Always enforce current state on cloth meshes. New meshes can appear after the last
+    // toggle (e.g., user clicks to activate cloth or clothifies the debug panel). Applying
+    // the value every frame is cheap and prevents drift.
+    // this.lastWireframe = this.state.wireframe
 
     scene.traverse((obj) => {
       const mesh = obj as THREE.Mesh
       const mat = (mesh.material as THREE.Material | undefined) as THREE.MeshBasicMaterial | undefined
       if (!mat) return
-      // We only toggle for cloth meshes flagged by the controller.
-      const flag = (mesh as unknown as { userData?: Record<string, unknown> }).userData?.['isCloth']
-      if (flag) {
+      const userData = (mesh as unknown as { userData?: Record<string, unknown> }).userData || {}
+      const isCloth = !!userData['isCloth']
+      const isStatic = !!userData['isStatic']
+      if (isCloth || (isStatic && this.state.applyToStatic)) {
         mat.wireframe = this.state.wireframe
       }
     })

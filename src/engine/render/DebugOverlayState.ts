@@ -6,10 +6,17 @@ export type CollisionAABB = {
   max: { x: number; y: number }
 }
 
+export type WorldSphere = {
+  center: { x: number; y: number }
+  radius: number
+}
+
 /** Shared state read by DebugOverlaySystem and writable from UI/controller. */
 export class DebugOverlayState {
   /** World-space pointer position in canonical meters. */
   readonly pointer = new THREE.Vector2()
+  /** World-space pointer collider radius (meters) for the gizmo. */
+  pointerRadius = 0.01
   /** Whether the pointer collider gizmo should be visible. */
   visible = false
   /** Whether to draw static AABBs when visible. */
@@ -18,8 +25,18 @@ export class DebugOverlayState {
   drawSleep = false
   /** Whether to draw pin markers when visible. */
   drawPins = false
+  /** Whether to draw world-space bounding spheres (static and/or sim). */
+  drawSpheres = false
   /** Static collision AABBs (canonical coordinates). */
   aabbs: CollisionAABB[] = []
+  /** Static world-space spheres (derived from AABBs). */
+  staticSpheres: WorldSphere[] = []
+  /** Draw broad-phase 'fat' AABBs for sleeping bodies (approximate visualization). */
+  drawFatAABBs = false
+  /** Active cloth AABBs (world space). */
+  simAABBs: CollisionAABB[] = []
+  /** Active cloth fat AABBs (world space, expanded by base margin). */
+  simFatAABBs: CollisionAABB[] = []
   /** Simulation snapshot for sleeping/awake coloring of gizmos. */
   simSnapshot?: Readonly<SimSnapshot>
   /** World-space pin markers (small crosses). */

@@ -116,6 +116,16 @@ export class EngineActions {
     if (this.renderSettings) this.renderSettings.wireframe = enabled
   }
 
+  /** Sets broad-phase mode on the simulation world via SimulationSystem (if present). */
+  setBroadphaseMode(mode: 'sphere' | 'fatAABB') {
+    (this.simulation as unknown as { setBroadphaseMode?: (m: 'sphere' | 'fatAABB') => void })?.setBroadphaseMode?.(mode)
+  }
+
+  /** Adjusts broad-phase margins (base + velocity fudge) on SimWorld via SimulationSystem. */
+  setBroadphaseMargins(baseMargin: number, velocityFudge: number) {
+    (this.simulation as unknown as { setBroadphaseMargins?: (b: number, v: number) => void })?.setBroadphaseMargins?.(baseMargin, velocityFudge)
+  }
+
   /** Requests tessellation change (rebuild inactive meshes via controller-provided callback). */
   async setTessellation(segments: number) {
     if (this.setTessellationCb) await this.setTessellationCb(segments)
