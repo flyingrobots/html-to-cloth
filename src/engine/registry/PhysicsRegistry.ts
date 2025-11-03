@@ -20,11 +20,10 @@ export type PhysicsDescriptor = {
 
 export type RegistryEventType = 'registry:add' | 'registry:update' | 'registry:remove'
 
-export type RegistryEvent = {
-  type: RegistryEventType
-  current?: PhysicsDescriptor
-  previous?: PhysicsDescriptor
-}
+export type RegistryEvent =
+  | { type: 'registry:add'; current: PhysicsDescriptor }
+  | { type: 'registry:update'; previous: PhysicsDescriptor; current: PhysicsDescriptor }
+  | { type: 'registry:remove'; previous: PhysicsDescriptor }
 
 export class PhysicsRegistry {
   private map = new Map<HTMLElement, PhysicsDescriptor>()
@@ -53,12 +52,25 @@ export class PhysicsRegistry {
     }
   }
 
-  on(fn: (e: RegistryEvent) => void) { this.listeners.add(fn); return () => this.listeners.delete(fn) }
-  entries() { return Array.from(this.map.values()) }
+  /** Subscribe to registry events. Returns an unsubscribe function. */
+  on(fn: (e: RegistryEvent) => void) {
+    this.listeners.add(fn)
+    return () => this.listeners.delete(fn)
+  }
+  /** Returns all currently tracked descriptors. */
+  entries() {
+    return Array.from(this.map.values())
+  }
 
   // --- internals ---
   private emit(e: RegistryEvent) {
-    for (const fn of this.listeners) fn(e)
+    for (const fn of this.listeners) {
+      try {
+        fn(e)
+      } catch (err) {
+        console.error('PhysicsRegistry listener error:', err)
+      }
+    }
   }
 
   private describe(el: HTMLElement): PhysicsDescriptor | null {
@@ -67,8 +79,12 @@ export class PhysicsRegistry {
     else if (el.classList.contains('rigid-dynamic')) type = 'rigid-dynamic'
     else if (el.classList.contains('rigid-static')) type = 'rigid-static'
     // Also accept explicit data-phys-type
-    const dataType = (el.dataset.physType as PhysicsType | undefined) ?? undefined
-    if (!type && dataType) type = dataType
+    const dataType = el.dataset.physType
+    if (!type && dataType) {
+      if (dataType === 'cloth' || dataType === 'rigid-dynamic' || dataType === 'rigid-static') {
+        type = dataType as PhysicsType
+      }
+    }
     if (!type) return null
 
     const rect = el.getBoundingClientRect()
@@ -82,7 +98,7 @@ export class PhysicsRegistry {
       damping: parseNum(el.dataset.clothDamping),
     }
     return {
-      id: el.id || this.autoId(el),
+      id: (el.id ?? '').trim() !== '' ? el.id : this.autoId(el),
       tag,
       type,
       attrs,
@@ -93,10 +109,20 @@ export class PhysicsRegistry {
   }
 
   private equal(a: PhysicsDescriptor, b: PhysicsDescriptor) {
-    return a.id === b.id && a.type === b.type && a.tag === b.tag &&
-      a.origin.x === b.origin.x && a.origin.y === b.origin.y &&
-      a.origin.width === b.origin.width && a.origin.height === b.origin.height &&
-      JSON.stringify(a.attrs) === JSON.stringify(b.attrs)
+    return (
+      a.id === b.id &&
+      a.type === b.type &&
+      a.tag === b.tag &&
+      a.origin.x === b.origin.x &&
+      a.origin.y === b.origin.y &&
+      a.origin.width === b.origin.width &&
+      a.origin.height === b.origin.height &&
+      a.attrs.mass === b.attrs.mass &&
+      a.attrs.restitution === b.attrs.restitution &&
+      a.attrs.friction === b.attrs.friction &&
+      a.attrs.shape === b.attrs.shape &&
+      a.attrs.damping === b.attrs.damping
+    )
   }
 
   private autoId(el: HTMLElement) {
@@ -104,7 +130,9 @@ export class PhysicsRegistry {
     const parts: string[] = []
     let n: HTMLElement | null = el
     while (n && n !== document.body) {
-      const idx = n.parentElement ? Array.from(n.parentElement.children).indexOf(n) : 0
+      let idx = 0
+      let sibling = n.previousElementSibling as HTMLElement | null
+      while (sibling) { idx++; sibling = sibling.previousElementSibling as HTMLElement | null }
       parts.push(`${n.tagName.toLowerCase()}:${idx}`)
       n = n.parentElement
     }
@@ -117,4 +145,3 @@ function parseNum(v?: string): number | undefined {
   const n = Number(v)
   return Number.isFinite(n) ? n : undefined
 }
-

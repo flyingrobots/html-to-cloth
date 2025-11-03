@@ -332,12 +332,15 @@ function Demo() {
   const [eventsOpen, setEventsOpen] = useState(false)
   const prevOpen = useRef(debugOpen)
   useEffect(() => {
+    let timeoutId: number | undefined
     if (prevOpen.current && !debugOpen) {
       setToast('panel clothified: debug-panel')
-      const t = window.setTimeout(() => setToast(null), 1200)
-      return () => window.clearTimeout(t)
+      timeoutId = window.setTimeout(() => setToast(null), 1200)
     }
     prevOpen.current = debugOpen
+    return () => {
+      if (timeoutId !== undefined) window.clearTimeout(timeoutId)
+    }
   }, [debugOpen])
 
   useEffect(() => {

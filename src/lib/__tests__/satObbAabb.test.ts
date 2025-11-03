@@ -26,8 +26,10 @@ describe('SAT OBB vs AABB', () => {
     // MTV should push OBB minimally along +X (since overlap on right side is smaller)
     expect(Math.abs(res.mtv.x) + Math.abs(res.mtv.y)).toBeGreaterThan(0)
     expect(Math.abs(res.mtv.x)).toBeGreaterThan(Math.abs(res.mtv.y))
-    // Projecting the OBB by MTV should separate (quick check on sign)
-    expect(res.normal.x === 1 || res.normal.x === -1 || res.normal.y === 1 || res.normal.y === -1).toBe(true)
+    // Normal should be axis-aligned, unit, and X-dominant when |mtv.x| > |mtv.y|
+    const mag1 = Math.abs(res.normal.x) + Math.abs(res.normal.y)
+    expect(mag1).toBeCloseTo(1, 3)
+    expect(Math.abs(res.normal.x)).toBeGreaterThan(Math.abs(res.normal.y))
   })
 
   it('handles rotated OBB collisions with AABB', () => {
@@ -45,7 +47,6 @@ describe('SAT OBB vs AABB', () => {
     // Normal component should flip and be scaled by restitution
     expect(out.x).toBeCloseTo(1, 3) // 0.5 * 2 = 1
     // Tangential component should be reduced by friction factor
-    expect(out.y).toBeLessThan(1)
+    expect(out.y).toBeCloseTo(0.8, 3)
   })
 })
-

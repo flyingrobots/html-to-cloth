@@ -29,9 +29,15 @@ describe('Engine events validation + bus', () => {
   it('event bus emits to subscribers', () => {
     const bus = new EventBus()
     const seen: EngineEvent[] = []
+    // First listener throws, second should still receive
+    bus.on(() => { throw new Error('boom') })
     bus.on((e) => seen.push(e))
     const e: EngineEvent = { type: 'wake', id: 'A', time: 123 }
-    bus.emit(e)
+    expect(() => bus.emit(e)).not.toThrow()
     expect(seen[0]).toBe(e)
+    // Bus remains functional
+    const e2: EngineEvent = { type: 'sleep', id: 'B', time: 124 }
+    bus.emit(e2)
+    expect(seen[1]).toBe(e2)
   })
 })

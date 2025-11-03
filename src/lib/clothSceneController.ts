@@ -422,17 +422,24 @@ export class ClothSceneController {
     // Initialize PhysicsRegistry as the source of truth
     this.registry = new PhysicsRegistry()
     const pendingCloth: HTMLElement[] = []
+    let registryReady = false
     const applyEvent = (evt: RegistryEvent) => {
       if (evt.type === 'registry:add') {
-        const d = evt.current!
-        if (d.type === 'cloth') pendingCloth.push(d.element)
+        const d = evt.current
+        if (d.type === 'cloth') {
+          if (registryReady && this.domToWebGL && this.pool) {
+            void this.prepareElements([d.element])
+          } else {
+            pendingCloth.push(d.element)
+          }
+        }
         if (d.type === 'rigid-static') this.collisionSystem.addStaticBody(d.element)
       } else if (evt.type === 'registry:remove') {
-        const d = evt.previous!
+        const d = evt.previous
         if (d.type === 'rigid-static') this.collisionSystem.removeStaticBody(d.element)
         if (d.type === 'cloth') this.removeClothForElement(d.element)
       } else if (evt.type === 'registry:update') {
-        if (evt.current?.type === 'rigid-static') this.collisionSystem.refresh()
+        if (evt.current.type === 'rigid-static') this.collisionSystem.refresh()
       }
       this.updateOverlayDebug()
     }
@@ -455,6 +462,8 @@ export class ClothSceneController {
     }
 
     await this.prepareElements(pendingCloth)
+    pendingCloth.length = 0
+    registryReady = true
     this.updateOverlayDebug()
 
     window.addEventListener('resize', this.onResize, { passive: true })
@@ -722,36 +731,13 @@ export class ClothSceneController {
     this.overlaySystem = new DebugOverlaySystem({ view: this.domToWebGL, state: this.overlayState })
     this.renderSettingsState = new RenderSettingsState()
     this.renderSettingsSystem = new RenderSettingsSystem({ view: this.domToWebGL, state: this.renderSettingsState })
-    // Register with lower priority than simulation so render sees the latest snapshot.
-    this.engine.addSystem(this.cameraSystem, {
-      id: ClothSceneController.CAMERA_SYSTEM_ID,
-      priority: 50,
-      allowWhilePaused: true,
-    })
-    this.engine.addSystem(this.worldRenderer, {
-      id: ClothSceneController.RENDERER_SYSTEM_ID,
-      priority: 10,
-      allowWhilePaused: true,
-    })
-    this.engine.addSystem(this.overlaySystem, {
-      id: ClothSceneController.OVERLAY_SYSTEM_ID,
-      priority: 5,
-      allowWhilePaused: true,
-    })
-    this.engine.addSystem(this.renderSettingsSystem, {
-      id: 'render-settings',
-      priority: 8,
-      allowWhilePaused: true,
-    })
-
     // Perf budgets (ms @ 60fps window)
     perfMonitor.setBudget(ClothSceneController.OVERLAY_SYSTEM_ID, 0.8)
     perfMonitor.setBudget(ClothSceneController.SIM_SYSTEM_ID, 1.5)
 
-    // Instrument world by wrapping system updates
+    // Instrument world by wrapping system updates BEFORE adding systems
     const world = this.engine
     const addSystemOrig = world.addSystem.bind(world)
-    // Wrap addSystem for perf instrumentation
     world.addSystem = ((system: EngineSystem, options: EngineSystemOptions = {}) => {
       const id = options.id ?? system.id ?? 'system'
       if (typeof system.fixedUpdate === 'function') {
@@ -770,6 +756,28 @@ export class ClothSceneController {
       }
       return addSystemOrig(system, options)
     }) as typeof addSystemOrig
+
+    // Register with lower priority than simulation so render sees the latest snapshot.
+    world.addSystem(this.cameraSystem, {
+      id: ClothSceneController.CAMERA_SYSTEM_ID,
+      priority: 50,
+      allowWhilePaused: true,
+    })
+    world.addSystem(this.worldRenderer, {
+      id: ClothSceneController.RENDERER_SYSTEM_ID,
+      priority: 10,
+      allowWhilePaused: true,
+    })
+    world.addSystem(this.overlaySystem, {
+      id: ClothSceneController.OVERLAY_SYSTEM_ID,
+      priority: 5,
+      allowWhilePaused: true,
+    })
+    world.addSystem(this.renderSettingsSystem, {
+      id: 'render-settings',
+      priority: 8,
+      allowWhilePaused: true,
+    })
   }
 
   /** Returns the underlying engine world for debug actions. */
@@ -930,6 +938,7 @@ export class ClothSceneController {
     item.entity?.destroy()
     element.style.opacity = item.originalOpacity
     element.removeEventListener('click', item.clickHandler)
+    this.collisionSystem.removeStaticBody(element)
     this.pool?.destroy(element)
     this.items.delete(element)
   }

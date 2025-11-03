@@ -54,7 +54,13 @@ export function validateEngineEvent(e: unknown): e is EngineEvent {
     case 'deactivate':
       return typeof ev.id === 'string'
     case 'registry:add':
-    case 'registry:update':
+      return typeof ev.id === 'string'
+    case 'registry:update': {
+      if (typeof ev.id !== 'string') return false
+      const payload = ev.payload as UnknownRecord | undefined
+      if (!payload || typeof payload !== 'object') return false
+      return 'previous' in payload && 'current' in payload
+    }
     case 'registry:remove':
       return typeof ev.id === 'string'
     default:

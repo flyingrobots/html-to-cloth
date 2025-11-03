@@ -51,7 +51,7 @@ export function EventsPanel({ open, onOpenChange }: { open: boolean; onOpenChang
                 <Table.Tr key={i} onClick={() => setSelected(e)} style={{ cursor: 'pointer' }}>
                   <Table.Td>{new Date(e.time).toLocaleTimeString()}</Table.Td>
                   <Table.Td>{e.type}</Table.Td>
-                  <Table.Td>{(e as any).tag ?? ''}</Table.Td>
+                  <Table.Td>{typeof e.tag === 'string' ? e.tag : ''}</Table.Td>
                 </Table.Tr>
               ))}
             </Table.Tbody>
@@ -66,4 +66,3 @@ export function EventsPanel({ open, onOpenChange }: { open: boolean; onOpenChang
     </Affix>
   )
 }
-

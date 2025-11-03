@@ -29,6 +29,24 @@ jobs:
               pull_number: pr.number,
               per_page: 100,
             })
+            // Escape hatch via label and audit line in body
+            const labels = (pr.labels || []).map(l => typeof l === 'string' ? l : l.name)
+            const skip = labels.includes('skip-test-check')
+            if (skip && /skip-test-check:/i.test(pr.body || '')) {
+              core.notice('tests-first check skipped via label + audit line')
+              return
+            }
+            // Allowlist infra/docs only changes
+            const infraOnly = files.every(f => (
+              f.filename.startsWith('.github/') ||
+              /\.(ya?ml|md|txt)$/.test(f.filename) ||
+              /(^|\/)Dockerfile$/.test(f.filename) ||
+              /(^|\/)package-lock\.json$/.test(f.filename)
+            ))
+            if (infraOnly) {
+              core.notice('infra/docs-only change: tests change not required')
+              return
+            }
             const hasTest = files.some(f => /__tests__|\.test\.[tj]sx?$/.test(f.filename))
             if (!hasTest) {
               core.setFailed('PR must include changes to tests (tests-first).')
@@ -39,4 +57,3 @@ jobs:
             if (!/Acceptance Criteria/i.test(body)) {
               core.notice('Consider adding an "Acceptance Criteria" section to the PR description.')
             }
-
