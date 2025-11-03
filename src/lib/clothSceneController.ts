@@ -17,11 +17,13 @@ import { RenderSettingsSystem } from '../engine/render/RenderSettingsSystem'
 import { RenderSettingsState } from '../engine/render/RenderSettingsState'
 import { perfMonitor } from '../engine/perf/perfMonitor'
 import type { EngineSystem, EngineSystemOptions } from '../engine/types'
+import { RigidSystem, type DynamicBody } from '../engine/systems/rigidSystem'
 import type { Entity } from '../engine/entity/entity'
 import type { Component } from '../engine/entity/component'
 import type { PinMode } from '../types/pinMode'
 import { SimWorld, type SimBody, type SimWarmStartConfig, type SimSleepConfig } from './simWorld'
 import { PhysicsRegistry, type RegistryEvent } from '../engine/registry/PhysicsRegistry'
+import type { PhysicsDescriptor } from '../engine/registry/PhysicsRegistry'
 
 const WARM_START_PASSES = 2
 
@@ -350,6 +352,7 @@ export class ClothSceneController {
   private elementIds = new Map<HTMLElement, string>()
   private registry: PhysicsRegistry | null = null
   private unreg?: () => void
+  private rigidSystem: RigidSystem | null = null
   private onResize = () => this.handleResize()
   private onScroll = () => {
     this.syncStaticMeshes()
@@ -434,10 +437,12 @@ export class ClothSceneController {
           }
         }
         if (d.type === 'rigid-static') this.collisionSystem.addStaticBody(d.element)
+        if (d.type === 'rigid-dynamic') this.addRigidDynamicFromDescriptor(d)
       } else if (evt.type === 'registry:remove') {
         const d = evt.previous
         if (d.type === 'rigid-static') this.collisionSystem.removeStaticBody(d.element)
         if (d.type === 'cloth') this.removeClothForElement(d.element)
+        if (d.type === 'rigid-dynamic') this.rigidSystem?.removeBody(d.id)
       } else if (evt.type === 'registry:update') {
         if (evt.current.type === 'rigid-static') this.collisionSystem.refresh()
       }
@@ -544,6 +549,14 @@ export class ClothSceneController {
     if (this.cameraSystem) {
       this.engine.removeSystemInstance(this.cameraSystem)
       this.cameraSystem = null
+    }
+    if (this.renderSettingsSystem) {
+      this.engine.removeSystemInstance(this.renderSettingsSystem)
+      this.renderSettingsSystem = null
+    }
+    if (this.rigidSystem) {
+      this.engine.removeSystemInstance(this.rigidSystem)
+      this.rigidSystem = null
     }
     // Finally remove the simulation core system itself.
     this.engine.removeSystemInstance(this.simulationSystem)
@@ -713,15 +726,17 @@ export class ClothSceneController {
   private installRenderPipeline() {
     if (!this.domToWebGL) return
     if (this.cameraSystem && this.worldRenderer && this.overlaySystem) return
-    if (this.cameraSystem || this.worldRenderer || this.overlaySystem || this.renderSettingsSystem) {
+    if (this.cameraSystem || this.worldRenderer || this.overlaySystem || this.renderSettingsSystem || this.rigidSystem) {
       if (this.cameraSystem) this.engine.removeSystemInstance(this.cameraSystem)
       if (this.worldRenderer) this.engine.removeSystemInstance(this.worldRenderer)
       if (this.overlaySystem) this.engine.removeSystemInstance(this.overlaySystem)
       if (this.renderSettingsSystem) this.engine.removeSystemInstance(this.renderSettingsSystem)
+      if (this.rigidSystem) this.engine.removeSystemInstance(this.rigidSystem)
       this.cameraSystem = null
       this.worldRenderer = null
       this.overlaySystem = null
       this.renderSettingsSystem = null
+      this.rigidSystem = null
     }
     // Create a camera system and world renderer that reads snapshots each frame.
     this.cameraSystem = new CameraSystem()
@@ -731,6 +746,7 @@ export class ClothSceneController {
     this.overlaySystem = new DebugOverlaySystem({ view: this.domToWebGL, state: this.overlayState })
     this.renderSettingsState = new RenderSettingsState()
     this.renderSettingsSystem = new RenderSettingsSystem({ view: this.domToWebGL, state: this.renderSettingsState })
+    this.rigidSystem = new RigidSystem({ getAabbs: () => this.collisionSystem.getStaticAABBs(), gravity: this.debug.gravity })
     // Perf budgets (ms @ 60fps window)
     perfMonitor.setBudget(ClothSceneController.OVERLAY_SYSTEM_ID, 0.8)
     perfMonitor.setBudget(ClothSceneController.SIM_SYSTEM_ID, 1.5)
@@ -778,6 +794,9 @@ export class ClothSceneController {
       priority: 8,
       allowWhilePaused: true,
     })
+    if (this.rigidSystem) {
+      world.addSystem(this.rigidSystem, { id: 'rigid-system', priority: 95 })
+    }
   }
 
   /** Returns the underlying engine world for debug actions. */
@@ -947,6 +966,30 @@ export class ClothSceneController {
   setWireframe(enabled: boolean) {
     // Deprecated: wireframe toggled via RenderSettingsSystem
     this.debug.wireframe = enabled
+  }
+
+  private addRigidDynamicFromDescriptor(desc: PhysicsDescriptor) {
+    if (!this.domToWebGL || !this.rigidSystem) return
+    const left = desc.origin.x
+    const top = desc.origin.y
+    const right = desc.origin.x + desc.origin.width
+    const bottom = desc.origin.y + desc.origin.height
+    const min = this.domToWebGL.pointerToCanonical(left, bottom)
+    const max = this.domToWebGL.pointerToCanonical(right, top)
+    const center = { x: (min.x + max.x) * 0.5, y: (min.y + max.y) * 0.5 }
+    const half = { x: Math.max(1e-6, (max.x - min.x) * 0.5), y: Math.max(1e-6, (max.y - min.y) * 0.5) }
+    const body: DynamicBody = {
+      id: desc.id,
+      tag: desc.tag ?? undefined,
+      center,
+      half,
+      rotation: 0,
+      velocity: { x: 0, y: 0 },
+      mass: Math.max(1e-6, desc.attrs.mass ?? 1),
+      restitution: Math.max(0, Math.min(1, desc.attrs.restitution ?? 0.2)),
+      friction: Math.max(0, Math.min(1, desc.attrs.friction ?? 0.3)),
+    }
+    this.rigidSystem.addBody(body)
   }
 
   /** Applies a new gravity scalar to every active cloth body. */
