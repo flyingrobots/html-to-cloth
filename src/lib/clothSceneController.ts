@@ -15,10 +15,13 @@ import { DebugOverlaySystem } from '../engine/render/DebugOverlaySystem'
 import { DebugOverlayState } from '../engine/render/DebugOverlayState'
 import { RenderSettingsSystem } from '../engine/render/RenderSettingsSystem'
 import { RenderSettingsState } from '../engine/render/RenderSettingsState'
+import { perfMonitor } from '../engine/perf/perfMonitor'
+import type { EngineSystem, EngineSystemOptions } from '../engine/types'
 import type { Entity } from '../engine/entity/entity'
 import type { Component } from '../engine/entity/component'
 import type { PinMode } from '../types/pinMode'
 import { SimWorld, type SimBody, type SimWarmStartConfig, type SimSleepConfig } from './simWorld'
+import { PhysicsRegistry, type RegistryEvent } from '../engine/registry/PhysicsRegistry'
 
 const WARM_START_PASSES = 2
 
@@ -345,10 +348,13 @@ export class ClothSceneController {
   private renderSettingsSystem: RenderSettingsSystem | null = null
   private renderSettingsState: RenderSettingsState | null = null
   private elementIds = new Map<HTMLElement, string>()
+  private registry: PhysicsRegistry | null = null
+  private unreg?: () => void
   private onResize = () => this.handleResize()
   private onScroll = () => {
     this.syncStaticMeshes()
     this.collisionSystem.refresh()
+    this.registry?.discover(document)
   }
   private pointer: PointerState = {
     position: new THREE.Vector2(),
@@ -413,13 +419,42 @@ export class ClothSceneController {
     const viewport = this.domToWebGL.getViewportPixels()
     this.collisionSystem.setViewportDimensions(viewport.width, viewport.height)
 
-    const clothElements = Array.from(
-      document.querySelectorAll<HTMLElement>('.cloth-enabled')
-    )
+    // Initialize PhysicsRegistry as the source of truth
+    this.registry = new PhysicsRegistry()
+    const pendingCloth: HTMLElement[] = []
+    const applyEvent = (evt: RegistryEvent) => {
+      if (evt.type === 'registry:add') {
+        const d = evt.current!
+        if (d.type === 'cloth') pendingCloth.push(d.element)
+        if (d.type === 'rigid-static') this.collisionSystem.addStaticBody(d.element)
+      } else if (evt.type === 'registry:remove') {
+        const d = evt.previous!
+        if (d.type === 'rigid-static') this.collisionSystem.removeStaticBody(d.element)
+        if (d.type === 'cloth') this.removeClothForElement(d.element)
+      } else if (evt.type === 'registry:update') {
+        if (evt.current?.type === 'rigid-static') this.collisionSystem.refresh()
+      }
+      this.updateOverlayDebug()
+    }
+    this.unreg = this.registry.on(applyEvent)
+    this.registry.discover(document)
 
-    if (!clothElements.length) return
+    if (!pendingCloth.length) {
+      // Still listen to events and render pipeline
+      this.updateOverlayDebug()
+      window.addEventListener('resize', this.onResize, { passive: true })
+      window.addEventListener('scroll', this.onScroll, { passive: true })
+      window.addEventListener('pointermove', this.onPointerMove, { passive: true })
+      window.addEventListener('pointerup', this.onPointerLeave, { passive: true })
+      window.addEventListener('pointerleave', this.onPointerLeave, { passive: true })
+      window.addEventListener('pointercancel', this.onPointerLeave, { passive: true })
+      this.installRenderPipeline()
+      this.clock.start()
+      this.animate()
+      return
+    }
 
-    await this.prepareElements(clothElements)
+    await this.prepareElements(pendingCloth)
     this.updateOverlayDebug()
 
     window.addEventListener('resize', this.onResize, { passive: true })
@@ -478,6 +513,13 @@ export class ClothSceneController {
     this.items.clear()
     this.domToWebGL = null
     this.pool = null
+    try { this.unreg?.() } catch (err) {
+      // ignore unsubscription errors during teardown
+      if (this.engine.getLogger) {
+        this.engine.getLogger().warn?.('registry unsubscribe failed', err)
+      }
+    }
+    this.registry = null
     // Pause, clear simulation state, then detach systems.
     this.setRealTime(false)
     this.simulationSystem.clear()
@@ -656,6 +698,7 @@ export class ClothSceneController {
     this.collisionSystem.setViewportDimensions(viewport.width, viewport.height)
     this.collisionSystem.refresh()
     this.syncStaticMeshes()
+    this.registry?.discover(document)
   }
 
   private installRenderPipeline() {
@@ -700,6 +743,33 @@ export class ClothSceneController {
       priority: 8,
       allowWhilePaused: true,
     })
+
+    // Perf budgets (ms @ 60fps window)
+    perfMonitor.setBudget(ClothSceneController.OVERLAY_SYSTEM_ID, 0.8)
+    perfMonitor.setBudget(ClothSceneController.SIM_SYSTEM_ID, 1.5)
+
+    // Instrument world by wrapping system updates
+    const world = this.engine
+    const addSystemOrig = world.addSystem.bind(world)
+    // Wrap addSystem for perf instrumentation
+    world.addSystem = ((system: EngineSystem, options: EngineSystemOptions = {}) => {
+      const id = options.id ?? system.id ?? 'system'
+      if (typeof system.fixedUpdate === 'function') {
+        const orig = system.fixedUpdate.bind(system)
+        system.fixedUpdate = (dt: number) => {
+          const t0 = perfMonitor.begin()
+          try { return orig(dt) } finally { perfMonitor.end(id + ':fixed', t0) }
+        }
+      }
+      if (typeof system.frameUpdate === 'function') {
+        const origf = system.frameUpdate.bind(system)
+        system.frameUpdate = (dt: number) => {
+          const t0 = perfMonitor.begin()
+          try { return origf(dt) } finally { perfMonitor.end(id + ':frame', t0) }
+        }
+      }
+      return addSystemOrig(system, options)
+    }) as typeof addSystemOrig
   }
 
   /** Returns the underlying engine world for debug actions. */
@@ -848,6 +918,20 @@ export class ClothSceneController {
     item.isActive = false
     item.cloth = undefined
     item.adapter = undefined
+  }
+
+  private removeClothForElement(element: HTMLElement) {
+    const item = this.items.get(element)
+    if (!item) return
+    if (item.releasePinsTimeout !== undefined) {
+      clearTimeout(item.releasePinsTimeout)
+      delete item.releasePinsTimeout
+    }
+    item.entity?.destroy()
+    element.style.opacity = item.originalOpacity
+    element.removeEventListener('click', item.clickHandler)
+    this.pool?.destroy(element)
+    this.items.delete(element)
   }
 
   /** Enables or disables wireframe rendering for every captured cloth mesh. */
