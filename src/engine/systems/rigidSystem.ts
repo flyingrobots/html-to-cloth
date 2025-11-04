@@ -19,7 +19,6 @@ export type DynamicBody = {
 }
 
 export class RigidSystem implements EngineSystem {
-  id = 'rigid-system'
   priority = 95
   allowWhilePaused = false
 
@@ -83,4 +82,3 @@ export class RigidSystem implements EngineSystem {
     }
   }
 }
-
