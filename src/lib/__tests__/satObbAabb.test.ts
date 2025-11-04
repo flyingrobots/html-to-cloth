@@ -40,6 +40,20 @@ describe('SAT OBB vs AABB', () => {
     expect(res.depth).toBeGreaterThan(0)
   })
 
+  it('detects separation when AABB is entirely above OBB (no collision)', () => {
+    const obb = makeOBB(0, 0, 0.5, 0.5, 0)
+    const box = makeAABB(-0.2, 1.2, 0.2, 1.6)
+    const res = obbVsAabb(obb, box)
+    expect(res.collided).toBe(false)
+  })
+
+  it('near-miss corner with rotated OBB does not collide', () => {
+    const obb = makeOBB(0, 0, 0.5, 0.5, Math.PI / 4)
+    const box = makeAABB(0.76, 0.76, 1.2, 1.2) // just beyond the corner
+    const res = obbVsAabb(obb, box)
+    expect(res.collided).toBe(false)
+  })
+
   it('applies restitution and friction to velocity along contact', () => {
     const normal = { x: 1, y: 0 } // contact normal to the right
     const v = { x: -2, y: 1 } // incoming from left, with upward tangent
