@@ -35,6 +35,7 @@ export class PhysicsRegistry {
       const desc = this.describe(el)
       if (!desc) continue
       const prev = this.map.get(el)
+      if (prev) desc.active = prev.active
       if (!prev) {
         this.map.set(el, desc)
         this.emit({ type: 'registry:add', current: desc })
@@ -60,6 +61,18 @@ export class PhysicsRegistry {
   /** Returns all currently tracked descriptors. */
   entries() {
     return Array.from(this.map.values())
+  }
+
+  /** Update the active flag for a descriptor by id and emit an update event when it changes. */
+  setActive(id: string, active: boolean) {
+    for (const [el, prev] of this.map.entries()) {
+      if (prev.id !== id) continue
+      if (prev.active === active) return
+      const next: PhysicsDescriptor = { ...prev, active }
+      this.map.set(el, next)
+      this.emit({ type: 'registry:update', previous: prev, current: next })
+      return
+    }
   }
 
   // --- internals ---
