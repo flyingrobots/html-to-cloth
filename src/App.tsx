@@ -16,6 +16,8 @@ import {
   Select,
   Kbd,
 } from "@mantine/core"
+import { PerfOverlay } from './app/PerfOverlay'
+import { EventsPanel } from './app/EventsPanel'
 import type { DebugOverlayState } from './engine/render/DebugOverlayState'
 
 import { ClothSceneController, type PinMode } from "./lib/clothSceneController"
@@ -65,6 +67,8 @@ type DebugProps = {
   onPinModeChange: (value: PinMode) => void
   onStep: () => void
   onReset: () => void
+  showPerf: boolean
+  onShowPerfChange: (value: boolean) => void
 }
 
 function DebugPalette(props: DebugProps) {
@@ -102,6 +106,8 @@ function DebugPalette(props: DebugProps) {
     onPinModeChange,
     onStep,
     onReset,
+    showPerf,
+    onShowPerfChange,
   } = props
 
   // (labels kept close to Select entries)
@@ -109,13 +115,16 @@ function DebugPalette(props: DebugProps) {
   return (
     <Drawer
       opened={open}
-      onClose={() => onOpenChange(false)}
+      onClose={() => {
+        onOpenChange(false)
+      }}
       position="right"
       size={380}
       withCloseButton
       // Keep dropdowns and overlay content inside the drawer layer
       withinPortal
       zIndex={2100}
+      transitionProps={{ duration: 150 }}
     >
       <Card withBorder shadow="sm">
         <Stack gap="md">
@@ -135,14 +144,21 @@ function DebugPalette(props: DebugProps) {
                 onChange={(v) => v && onPresetSelect?.(v)}
               />
             </Stack>
-            <Group justify="space-between">
-              <Stack gap={0}
-              >
-                <Text fw={600}>Wireframe</Text>
-                <Text size="sm" c="dimmed">Toggle mesh rendering as wireframe</Text>
-              </Stack>
-              <Switch aria-label="Wireframe" checked={wireframe} onChange={(e) => onWireframeChange(e.currentTarget.checked)} />
-            </Group>
+          <Group justify="space-between">
+            <Stack gap={0}
+            >
+              <Text fw={600}>Wireframe</Text>
+              <Text size="sm" c="dimmed">Preview edges of the simulated mesh (not the DOM element)</Text>
+            </Stack>
+            <Switch aria-label="Wireframe" checked={wireframe} onChange={(e) => onWireframeChange(e.currentTarget.checked)} />
+          </Group>
+          <Group justify="space-between">
+            <Stack gap={0}>
+              <Text fw={600}>Perf Overlay</Text>
+              <Text size="sm" c="dimmed">Show rolling averages per subsystem</Text>
+            </Stack>
+            <Switch aria-label="Perf Overlay" checked={showPerf} onChange={(e) => onShowPerfChange(e.currentTarget.checked)} />
+          </Group>
             <Group justify="space-between">
               <Stack gap={0}
               >
@@ -311,6 +327,21 @@ function Demo() {
   const [drawSleep, setDrawSleep] = useState(false)
   const [drawPins, setDrawPins] = useState(false)
   const [pinMode, setPinMode] = useState<PinMode>('top')
+  const [showPerf, setShowPerf] = useState(false)
+  const [toast, setToast] = useState<string | null>(null)
+  const [eventsOpen, setEventsOpen] = useState(false)
+  const prevOpen = useRef(debugOpen)
+  useEffect(() => {
+    let timeoutId: number | undefined
+    if (prevOpen.current && !debugOpen) {
+      setToast('panel clothified: debug-panel')
+      timeoutId = window.setTimeout(() => setToast(null), 1200)
+    }
+    prevOpen.current = debugOpen
+    return () => {
+      if (timeoutId !== undefined) window.clearTimeout(timeoutId)
+    }
+  }, [debugOpen])
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
@@ -354,6 +385,11 @@ function Demo() {
       if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "j") {
         event.preventDefault()
         setDebugOpen((open) => !open)
+        return
+      }
+      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "e") {
+        event.preventDefault()
+        setEventsOpen((open) => !open)
         return
       }
       if (!realTimeRef.current && event.key === " ") {
@@ -551,7 +587,18 @@ function Demo() {
           controllerRef.current?.setSleepConfig({ velocityThreshold: 0.001, frameThreshold: 60 })
           actionsRef.current?.setSleepConfig(0.001, 60)
         }}
+        showPerf={showPerf}
+        onShowPerfChange={setShowPerf}
       />
+      <PerfOverlay visible={showPerf} />
+      {toast ? (
+        <Affix position={{ top: 16, left: 0, right: 0 }}>
+          <Paper withBorder shadow="sm" radius="xl" mx="auto" w="max-content" px="md" py={8}>
+            <Text size="sm">{toast}</Text>
+          </Paper>
+        </Affix>
+      ) : null}
+      <EventsPanel open={eventsOpen} onOpenChange={setEventsOpen} />
     </>
   )
 }
