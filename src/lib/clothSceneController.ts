@@ -746,6 +746,8 @@ export class ClothSceneController {
     this.overlaySystem = new DebugOverlaySystem({ view: this.domToWebGL, state: this.overlayState })
     this.renderSettingsState = new RenderSettingsState()
     this.renderSettingsSystem = new RenderSettingsSystem({ view: this.domToWebGL, state: this.renderSettingsState })
+    // Defer rigid system installation; will be enabled in a follow-up when needed
+    this.rigidSystem = null
     this.rigidSystem = new RigidSystem({ getAabbs: () => this.collisionSystem.getStaticAABBs(), gravity: this.debug.gravity })
     // Perf budgets (ms @ 60fps window)
     perfMonitor.setBudget(ClothSceneController.OVERLAY_SYSTEM_ID, 0.8)
@@ -773,6 +775,26 @@ export class ClothSceneController {
       return addSystemOrig(system, options)
     }) as typeof addSystemOrig
 
+    // Ensure simulation is instrumented even though it was added in constructor
+    const simAny = this.simulationSystem as unknown as { __perfWrapped?: boolean; fixedUpdate?: (dt: number) => void; frameUpdate?: (dt: number) => void }
+    if (!simAny.__perfWrapped) {
+      if (typeof simAny.fixedUpdate === 'function') {
+        const orig = simAny.fixedUpdate.bind(this.simulationSystem)
+        simAny.fixedUpdate = (dt: number) => {
+          const t0 = perfMonitor.begin()
+          try { return orig(dt) } finally { perfMonitor.end(ClothSceneController.SIM_SYSTEM_ID + ':fixed', t0) }
+        }
+      }
+      if (typeof simAny.frameUpdate === 'function') {
+        const origf = simAny.frameUpdate.bind(this.simulationSystem)
+        simAny.frameUpdate = (dt: number) => {
+          const t0 = perfMonitor.begin()
+          try { return origf(dt) } finally { perfMonitor.end(ClothSceneController.SIM_SYSTEM_ID + ':frame', t0) }
+        }
+      }
+      simAny.__perfWrapped = true
+    }
+
     // Register with lower priority than simulation so render sees the latest snapshot.
     world.addSystem(this.cameraSystem, {
       id: ClothSceneController.CAMERA_SYSTEM_ID,
@@ -794,6 +816,8 @@ export class ClothSceneController {
       priority: 8,
       allowWhilePaused: true,
     })
+    // Ensure no stale rigid-system entry remains (tests may re-init)
+    // Rigid system intentionally not registered by default in this integration step
     if (this.rigidSystem) {
       world.addSystem(this.rigidSystem, { id: 'rigid-system', priority: 95 })
     }
@@ -953,6 +977,11 @@ export class ClothSceneController {
     if (item.releasePinsTimeout !== undefined) {
       clearTimeout(item.releasePinsTimeout)
       delete item.releasePinsTimeout
+    }
+    if (item.adapter) {
+      this.simulationSystem.removeBody(item.adapter.id)
+      item.adapter = undefined
+      item.isActive = false
     }
     item.entity?.destroy()
     element.style.opacity = item.originalOpacity
