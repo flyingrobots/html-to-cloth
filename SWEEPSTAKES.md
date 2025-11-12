@@ -190,6 +190,9 @@ Progress gate: a cell is considered ✅ when we have TOI (t∈[0,1]), a contact 
 - [x] Physics Dashboard (draggable) with toggles and event inspection (8c57f60)
 - [x] Unit tests for manifolds and impulses (cf77924, 0ae34b6)
 - [x] Initial swept TOI hooks (linear-only, binary search) populate `tCollision` for OBB↔AABB/OBB and dynamic pairs (resolution still discrete) (e007e02; src/engine/ccd/sweptTOI.ts)
+- [x] Axis-aligned fast paths in `sweepTOI` (OBB↔OBB, OBB→AABB) with unit tests (2c9db34)
+- [x] Rotated OBB↔OBB via swept-SAT across {A.ux,A.uy,B.ux,B.uy} (fixed orientation) with unit test (35086e7)
+- [x] Thin Wall acceptance spec at unit level via `advanceWithCCD` harness (no tunneling @ 1 substep); engine integration pending (b7c48cd, fdb9364)
 - [ ] Replace discrete resolution with TOI-ordered resolution (engine scheduler)
 - [ ] Add ray/segment analytic tests and dashboard tooling
 - [ ] Implement general GJK‑TOI + EPA kernel; extend swept coverage to POLYGON and CIRCLE
