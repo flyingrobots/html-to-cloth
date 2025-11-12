@@ -4,21 +4,17 @@
     "type": "split",
     "children": [
       {
-        "id": "570868eaefc41a6d",
+        "id": "fce9ae5c04cb1e7c",
         "type": "tabs",
         "children": [
           {
-            "id": "c083784ba9d47874",
+            "id": "d2c6083d66e7d7de",
             "type": "leaf",
             "state": {
-              "type": "markdown",
-              "state": {
-                "file": "docs/pr-31-comments.md",
-                "mode": "source",
-                "source": false
-              },
+              "type": "empty",
+              "state": {},
               "icon": "lucide-file",
-              "title": "pr-31-comments"
+              "title": "New tab"
             }
           }
         ]
@@ -169,15 +165,22 @@
       "bases:Create new base": false
     }
   },
-  "active": "c083784ba9d47874",
+  "active": "d2c6083d66e7d7de",
   "lastOpenFiles": [
-    "dist/index.html",
-    "dist/assets/index-ClF-17lb.js",
-    "dist/assets/index-BJF4093I.css",
-    "dist/assets/html2canvas.esm-B0tyYwQk.js",
-    "dist/assets",
-    "dist/assets/index-CxPs4GkJ.js",
-    "src/types/global.d.ts",
+    "docs/events/EVENT_BUS_SPEC.md",
+    "src/engine/events/BusMetricsOverlaySystem.ts",
+    "src/engine/events/PerfEmitterSystem.ts",
+    "src/engine/events/EventOverlayAdapter.ts",
+    "src/engine/events/ids.ts",
+    "src/engine/events/EventBusSystem.ts",
+    "src/engine/events/bus.ts",
+    "src/engine/events/__tests__/subscription.multi-channel.test.ts",
+    "src/engine/events/__tests__/metrics.test.ts",
+    "src/engine/events/__tests__/determinism.test.ts",
+    "src/engine/events/__tests__/invalidation.test.ts",
+    "docs/engine-refactor.md",
+    "docs/mantine.md",
+    "docs/pr-31-comments.md",
     "docs/qa/manual-qa-2025-10-29.md"
   ]
 }
