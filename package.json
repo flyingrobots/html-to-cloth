@@ -12,8 +12,9 @@
     "docs:api": "typedoc"
   },
   "dependencies": {
-    "@mantine/core": "^7.13.6",
-    "@mantine/hooks": "^7.13.6",
+    "@mantine/core": "^8.3.7",
+    "@mantine/hooks": "^8.3.7",
+    "@mantine/notifications": "^8.3.7",
     "@tabler/icons-react": "^3.23.0",
     "html2canvas": "^1.4.1",
     "react": "^19.1.1",
