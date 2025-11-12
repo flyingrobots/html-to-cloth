@@ -89,12 +89,12 @@ Progress gate: a cell is considered ✅ when we have TOI (t∈[0,1]), a contact 
 
 ### Phase B — Fast Paths / Analytic & SAT
 - [ ] AABB↔AABB swept slabs (fast exact)
-- [ ] Ray/Segment queries
-  - [ ] ray–AABB slabs, ray–OBB (local‑frame slabs)
+- [x] Ray/Segment queries
+  - [x] ray–AABB slabs, ray–OBB (local‑frame slabs) (9c4f056, d0dc200)
   - [ ] ray/segment–POLYGON via half‑space clipping
   - [ ] ray/segment–CIRCLE analytic
-- [ ] CIRCLE pairs
-  - [ ] circle–circle analytic TOI
+- [x] CIRCLE pairs
+  - [x] circle–circle analytic TOI (9c4f056)
   - [ ] circle vs AABB/OBB via expansion + slabs/SAT
 - [ ] Swept SAT (optional alternative to GJK-TOI)
   - [ ] Candidate axes = face normals of the two shapes
@@ -193,6 +193,8 @@ Progress gate: a cell is considered ✅ when we have TOI (t∈[0,1]), a contact 
 - [x] Axis-aligned fast paths in `sweepTOI` (OBB↔OBB, OBB→AABB) with unit tests (2c9db34)
 - [x] Rotated OBB↔OBB via swept-SAT across {A.ux,A.uy,B.ux,B.uy} (fixed orientation) with unit test (35086e7)
 - [x] Thin Wall acceptance spec at unit level via `advanceWithCCD` harness (no tunneling @ 1 substep); engine integration pending (b7c48cd, fdb9364)
+- [x] Ray slabs (AABB/OBB local-frame) and circle–circle analytic TOI with unit tests (9c4f056, d0dc200)
+- [x] Feature-flagged `CcdStepperSystem` + `CcdSettingsState` (skeleton) to advance supplied bodies via CCD (9c4f056)
 - [ ] Replace discrete resolution with TOI-ordered resolution (engine scheduler)
 - [ ] Add ray/segment analytic tests and dashboard tooling
 - [ ] Implement general GJK‑TOI + EPA kernel; extend swept coverage to POLYGON and CIRCLE
