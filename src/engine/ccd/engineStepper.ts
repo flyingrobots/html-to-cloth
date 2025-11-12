@@ -23,10 +23,9 @@ export function advanceWithCCD(
     // Advance up to contact and place slightly before the surface along -normal
     const cx = A.center.x + v.x * dt * t - best.normal.x * eps
     const cy = A.center.y + v.y * dt * t - best.normal.y * eps
-    return { center: { x: cx, y: cy }, collided: true as const }
+    return { center: { x: cx, y: cy }, collided: true as const, t, normal: best.normal, obstacle: best.obstacle }
   }
 
   // No hit; naive advance
   return { center: { x: A.center.x + v.x * dt, y: A.center.y + v.y * dt }, collided: false as const }
 }
-

@@ -16,6 +16,8 @@ export type CcdStepperOptions = {
   getMovingBodies: () => MovingBody[]
   /** supplies obstacles to test against */
   getObstacles: () => Array<OBB | AABB>
+  /** optional collision listener for UI/telemetry */
+  onCollision?: (payload: { id: string; obstacle: OBB | AABB; t: number; normal: Vec2 }) => void
 }
 
 /**
@@ -30,6 +32,7 @@ export class CcdStepperSystem implements EngineSystem {
   private readonly state: CcdSettingsState
   private readonly getMovingBodies: () => MovingBody[]
   private readonly getObstacles: () => Array<OBB | AABB>
+  private readonly onCollision?: (payload: { id: string; obstacle: OBB | AABB; t: number; normal: Vec2 }) => void
 
   constructor(options: CcdStepperOptions) {
     this.state = options.state
@@ -37,6 +40,7 @@ export class CcdStepperSystem implements EngineSystem {
     this.getObstacles = options.getObstacles
     this.priority = 55 // after typical physics integrators
     this.id = 'ccd-stepper'
+    this.onCollision = options.onCollision
   }
 
   fixedUpdate(dt: number) {
@@ -53,7 +57,9 @@ export class CcdStepperSystem implements EngineSystem {
       }
       const out = advanceWithCCD(b.shape, b.velocity, dt, obstacles, { epsilon: this.state.epsilon })
       b.setCenter(out.center.x, out.center.y)
+      if (out.collided && this.onCollision && typeof out.t === 'number' && out.normal) {
+        try { this.onCollision({ id: b.id, obstacle: (out as any).obstacle, t: out.t!, normal: out.normal! }) } catch {}
+      }
     }
   }
 }
-

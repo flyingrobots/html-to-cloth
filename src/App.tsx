@@ -22,6 +22,7 @@ import { ClothSceneController, type PinMode } from "./lib/clothSceneController"
 import { EngineActions } from "./engine/debug/engineActions"
 import type { CameraSnapshot } from './engine/camera/CameraSystem'
 import { PRESETS, getPreset } from "./app/presets"
+import { Notifications, notifications } from '@mantine/notifications'
 
 // Use Mantine's native Kbd component (no inline styles)
 
@@ -103,6 +104,8 @@ type DebugProps = {
   onCcdSpeedThresholdChange: (value: number) => void
   ccdEpsilon: number
   onCcdEpsilonChange: (value: number) => void
+  ccdToastEnabled: boolean
+  onCcdToastEnabledChange: (value: boolean) => void
 }
 
 function DebugPalette(props: DebugProps) {
@@ -148,6 +151,8 @@ function DebugPalette(props: DebugProps) {
     onCcdSpeedThresholdChange,
     ccdEpsilon,
     onCcdEpsilonChange,
+    ccdToastEnabled,
+    onCcdToastEnabledChange,
   } = props
 
   // (labels kept close to Select entries)
@@ -331,6 +336,10 @@ function DebugPalette(props: DebugProps) {
               <Text>Enabled</Text>
               <Switch checked={ccdEnabled} onChange={(e) => onCcdEnabledChange(e.currentTarget.checked)} />
             </Group>
+            <Group justify="space-between">
+              <Text>Collision Toasts</Text>
+              <Switch checked={ccdToastEnabled} onChange={(e) => onCcdToastEnabledChange(e.currentTarget.checked)} />
+            </Group>
             <Stack gap={4}>
               <Text size="sm">Probe Speed (m/s): {ccdProbeSpeed.toFixed(1)}</Text>
               <Slider min={0} max={20} step={0.5} value={ccdProbeSpeed} onChange={onCcdProbeSpeedChange} />
@@ -359,7 +368,7 @@ function Demo() {
   const controllerRef = useRef<ClothSceneController | null>(null)
   const actionsRef = useRef<EngineActions | null>(null)
   const realTimeRef = useRef(true)
-  const [debugOpen, setDebugOpen] = useState(false)
+  const [debugOpen, setDebugOpen] = useState(() => lsGetBoolean('debugOpen', false))
   const [wireframe, setWireframe] = useState(() => lsGetBoolean('wireframe', false))
   const [realTime, setRealTime] = useState(() => lsGetBoolean('realTime', true))
   const [gravity, setGravity] = useState(() => lsGetNumber('gravity', 2))
@@ -581,6 +590,31 @@ function Demo() {
     actionsRef.current?.configureCcd({ speedThreshold: ccdSpeedThreshold, epsilon: ccdEpsilon })
   }, [ccdSpeedThreshold, ccdEpsilon])
 
+  // Persist debugOpen state
+  useEffect(() => { lsSetBoolean('debugOpen', debugOpen) }, [debugOpen])
+
+  // CCD collision toasts hook
+  const [ccdToastEnabled, setCcdToastEnabled] = useState(() => lsGetBoolean('ccd.toastEnabled', false))
+  useEffect(() => { lsSetBoolean('ccd.toastEnabled', ccdToastEnabled) }, [ccdToastEnabled])
+  useEffect(() => {
+    if (!actionsRef.current) return
+    if (!ccdToastEnabled) {
+      actionsRef.current.onCcdCollision(null)
+      return
+    }
+    actionsRef.current.onCcdCollision((payload) => {
+      const { t, normal } = payload
+      notifications.show({
+        position: 'top-right',
+        title: 'CCD contact',
+        message: `t=${t.toFixed(3)} n=(${normal.x.toFixed(2)}, ${normal.y.toFixed(2)})`,
+        withBorder: true,
+        autoClose: 3000,
+      })
+    })
+    return () => actionsRef.current?.onCcdCollision(null)
+  }, [ccdToastEnabled, actionsRef.current])
+
   const modifierKey = typeof navigator !== "undefined" && navigator?.platform?.toLowerCase().includes("mac") ? "⌘" : "Ctrl"
 
   return (
@@ -682,6 +716,9 @@ function Demo() {
         onCcdSpeedThresholdChange={setCcdSpeedThreshold}
         ccdEpsilon={ccdEpsilon}
         onCcdEpsilonChange={setCcdEpsilon}
+        // toast toggle
+        ccdToastEnabled={ccdToastEnabled}
+        onCcdToastEnabledChange={setCcdToastEnabled}
       />
     </>
   )
@@ -690,6 +727,7 @@ function Demo() {
 function App() {
   return (
     <MantineProvider defaultColorScheme="dark">
+      <Notifications position="top-right" zIndex={2100} />
       <Demo />
     </MantineProvider>
   )

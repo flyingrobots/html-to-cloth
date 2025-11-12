@@ -20,6 +20,7 @@ export type EngineActionsOptions = {
   setCcdEnabled?: (enabled: boolean) => void
   setCcdProbeSpeed?: (speed: number) => void
   configureCcd?: (opts: { speedThreshold?: number; epsilon?: number }) => void
+  setCcdCollisionListener?: (listener: ((payload: { id: string; obstacle: any; t: number; normal: { x: number; y: number } }) => void) | null) => void
 }
 
 /**
@@ -40,6 +41,7 @@ export class EngineActions {
   private readonly setCcdEnabledCb?: (enabled: boolean) => void
   private readonly setCcdProbeSpeedCb?: (speed: number) => void
   private readonly configureCcdCb?: (opts: { speedThreshold?: number; epsilon?: number }) => void
+  private readonly setCcdCollisionListenerCb?: (listener: ((payload: { id: string; obstacle: any; t: number; normal: { x: number; y: number } }) => void) | null) => void
 
   constructor(options: EngineActionsOptions) {
     this.runner = options.runner
@@ -53,6 +55,7 @@ export class EngineActions {
     this.setCcdEnabledCb = options.setCcdEnabled
     this.setCcdProbeSpeedCb = options.setCcdProbeSpeed
     this.configureCcdCb = options.configureCcd
+    this.setCcdCollisionListenerCb = options.setCcdCollisionListener
   }
 
   /** Enables/disables real-time ticking. */
@@ -144,6 +147,10 @@ export class EngineActions {
   }
   configureCcd(opts: { speedThreshold?: number; epsilon?: number }) {
     this.configureCcdCb?.(opts)
+  }
+
+  onCcdCollision(listener: ((payload: { id: string; obstacle: any; t: number; normal: { x: number; y: number } }) => void) | null) {
+    this.setCcdCollisionListenerCb?.(listener)
   }
 
   /** Exposes the attached world for advanced hooks (read-only usage suggested). */

@@ -353,6 +353,7 @@ export class ClothSceneController {
   private ccdOverlay: import('../engine/ccd/CcdProbeOverlaySystem').CcdProbeOverlaySystem | null = null
   private ccdProbe: { shape: import('../engine/ccd/sweep').OBB; velocity: import('../engine/ccd/sweep').Vec2 } | null = null
   private ccdWall: import('../engine/ccd/sweep').AABB | null = null
+  private ccdOnCollision: ((payload: { id: string; obstacle: any; t: number; normal: { x: number; y: number } }) => void) | null = null
   private elementIds = new Map<HTMLElement, string>()
   private onResize = () => this.handleResize()
   private onScroll = () => {
@@ -740,6 +741,11 @@ export class ClothSceneController {
         if (this.ccdWall) obs.push(this.ccdWall)
         return obs
       },
+      onCollision: (payload) => {
+        if (this.ccdOnCollision) {
+          try { this.ccdOnCollision(payload) } catch {}
+        }
+      }
     })
     this.engine.addSystem(this.ccdStepper, { id: 'ccd-stepper', priority: 55 })
     this.ccdOverlay = new CcdProbeOverlaySystem({
@@ -806,6 +812,11 @@ export class ClothSceneController {
     const s = Math.max(0, speed)
     this.ccdProbe.velocity.x = s
     this.ccdProbe.velocity.y = 0
+  }
+
+  /** Registers a collision listener for CCD probe hits (used by Debug UI to show toasts). */
+  setCcdCollisionListener(listener: ((payload: { id: string; obstacle: any; t: number; normal: { x: number; y: number } }) => void) | null) {
+    this.ccdOnCollision = listener
   }
 
   private syncStaticMeshes() {
