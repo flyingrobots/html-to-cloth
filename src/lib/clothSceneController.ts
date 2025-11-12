@@ -1,4 +1,7 @@
 import * as THREE from 'three'
+import { CcdSettingsState } from '../engine/ccd/CcdSettingsState'
+import { CcdStepperSystem } from '../engine/ccd/CcdStepperSystem'
+import { CcdProbeOverlaySystem } from '../engine/ccd/CcdProbeOverlaySystem'
 import { DOMToWebGL } from './domToWebGL'
 import type { DOMMeshRecord } from './domToWebGL'
 import { ClothPhysics } from './clothPhysics'
@@ -351,6 +354,14 @@ export class ClothSceneController {
   // Event bus and overlay adapter
   private eventBusSystem: import('../engine/events/EventBusSystem').EventBusSystem | null = null
   private eventOverlayAdapter: import('../engine/events/EventOverlayAdapter').EventOverlayAdapter | null = null
+  private busMetricsOverlay: import('../engine/events/BusMetricsOverlaySystem').BusMetricsOverlaySystem | null = null
+  // CCD demo integration
+  private ccdSettings: import('../engine/ccd/CcdSettingsState').CcdSettingsState | null = null
+  private ccdStepper: import('../engine/ccd/CcdStepperSystem').CcdStepperSystem | null = null
+  private ccdOverlay: import('../engine/ccd/CcdProbeOverlaySystem').CcdProbeOverlaySystem | null = null
+  private ccdProbe: { shape: import('../engine/ccd/sweep').OBB; velocity: import('../engine/ccd/sweep').Vec2 } | null = null
+  private ccdWall: import('../engine/ccd/sweep').AABB | null = null
+  private ccdOnCollision: ((payload: { id: string; obstacle: any; t: number; normal: { x: number; y: number } }) => void) | null = null
   private elementIds = new Map<HTMLElement, string>()
   private onResize = () => this.handleResize()
   private onScroll = () => {
@@ -492,6 +503,14 @@ export class ClothSceneController {
     if (this.overlaySystem) {
       this.engine.removeSystemInstance(this.overlaySystem)
       this.overlaySystem = null
+    }
+    if (this.ccdOverlay) {
+      this.engine.removeSystemInstance(this.ccdOverlay)
+      this.ccdOverlay = null
+    }
+    if (this.ccdStepper) {
+      this.engine.removeSystemInstance(this.ccdStepper)
+      this.ccdStepper = null
     }
     if (this.worldRenderer) {
       this.engine.removeSystemInstance(this.worldRenderer)
@@ -676,19 +695,35 @@ export class ClothSceneController {
   private installRenderPipeline() {
     if (!this.domToWebGL) return
     if (this.cameraSystem && this.worldRenderer && this.overlaySystem) return
-    if (this.cameraSystem || this.worldRenderer || this.overlaySystem || this.renderSettingsSystem || this.eventOverlayAdapter || this.eventBusSystem) {
+    if (
+      this.cameraSystem ||
+      this.worldRenderer ||
+      this.overlaySystem ||
+      this.renderSettingsSystem ||
+      this.eventOverlayAdapter ||
+      this.eventBusSystem ||
+      this.busMetricsOverlay ||
+      this.ccdOverlay ||
+      this.ccdStepper
+    ) {
       if (this.cameraSystem) this.engine.removeSystemInstance(this.cameraSystem)
       if (this.worldRenderer) this.engine.removeSystemInstance(this.worldRenderer)
       if (this.overlaySystem) this.engine.removeSystemInstance(this.overlaySystem)
       if (this.renderSettingsSystem) this.engine.removeSystemInstance(this.renderSettingsSystem)
       if (this.eventOverlayAdapter) this.engine.removeSystemInstance(this.eventOverlayAdapter)
       if (this.eventBusSystem) this.engine.removeSystemInstance(this.eventBusSystem)
+      if (this.busMetricsOverlay) this.engine.removeSystemInstance(this.busMetricsOverlay)
+      if (this.ccdOverlay) this.engine.removeSystemInstance(this.ccdOverlay)
+      if (this.ccdStepper) this.engine.removeSystemInstance(this.ccdStepper)
       this.cameraSystem = null
       this.worldRenderer = null
       this.overlaySystem = null
       this.renderSettingsSystem = null
       this.eventOverlayAdapter = null
       this.eventBusSystem = null
+      this.busMetricsOverlay = null
+      this.ccdOverlay = null
+      this.ccdStepper = null
     }
     // Create a camera system and world renderer that reads snapshots each frame.
     this.cameraSystem = new CameraSystem()
@@ -721,6 +756,7 @@ export class ClothSceneController {
       priority: 8,
       allowWhilePaused: true,
     })
+    // Event bus and overlays
     this.engine.addSystem(this.eventBusSystem, { id: 'event-bus', priority: 1000, allowWhilePaused: true })
     this.eventOverlayAdapter = new EventOverlayAdapter({ bus: this.eventBusSystem.getBus(), overlay: this.overlayState! })
     this.engine.addSystem(this.eventOverlayAdapter, { id: 'event-overlay-adapter', priority: 9, allowWhilePaused: true })
@@ -731,6 +767,38 @@ export class ClothSceneController {
     const { BusMetricsOverlaySystem } = require('../engine/events/BusMetricsOverlaySystem.ts') as typeof import('../engine/events/BusMetricsOverlaySystem')
     this.busMetricsOverlay = new BusMetricsOverlaySystem({ view: this.domToWebGL, bus: this.eventBusSystem.getBus() })
     try { this.engine.addSystem(this.busMetricsOverlay, { id: 'bus-metrics-overlay', priority: 6, allowWhilePaused: true }) } catch {}
+
+    // CCD demo: overlay + stepper (feature-flagged)
+    this.ccdSettings = new CcdSettingsState()
+    // Default wall: thin vertical slab in front of camera
+    this.ccdWall = { kind: 'aabb', min: { x: 2.0, y: -2.0 }, max: { x: 2.02, y: 2.0 } }
+    // Probe starts inactive until toggled via UI
+    this.ccdProbe = null
+    this.ccdStepper = new CcdStepperSystem({
+      state: this.ccdSettings,
+      getMovingBodies: () => {
+        if (!this.ccdProbe || !this.ccdSettings?.enabled) return []
+        const p = this.ccdProbe
+        return [{ id: 'ccd-probe', shape: p.shape, velocity: p.velocity, setCenter: (x, y) => { p.shape.center.x = x; p.shape.center.y = y } }]
+      },
+      getObstacles: () => {
+        const obs: Array<import('../engine/ccd/sweep').OBB | import('../engine/ccd/sweep').AABB> = []
+        if (this.ccdWall) obs.push(this.ccdWall)
+        return obs
+      },
+      onCollision: (payload) => {
+        if (this.ccdOnCollision) {
+          try { this.ccdOnCollision(payload) } catch {}
+        }
+      }
+    })
+    this.engine.addSystem(this.ccdStepper, { id: 'ccd-stepper', priority: 55 })
+    this.ccdOverlay = new CcdProbeOverlaySystem({
+      view: this.domToWebGL,
+      getProbe: () => this.ccdProbe ? this.ccdProbe.shape : null,
+      getObstacles: () => (this.ccdWall ? [this.ccdWall] : []),
+    })
+    this.engine.addSystem(this.ccdOverlay, { id: 'ccd-probe-overlay', priority: 6, allowWhilePaused: true })
   }
 
   /** Returns the underlying engine world for debug actions. */
@@ -761,6 +829,44 @@ export class ClothSceneController {
   /** Returns the event bus instance for advanced integrations. */
   getEventBus() {
     return this.eventBusSystem?.getBus() ?? null
+  }
+
+  /** CCD settings for the debug UI */
+  getCcdSettingsState() {
+    return this.ccdSettings
+  }
+
+  /** Enables/disables the CCD stepper and optionally spawns a probe box. */
+  setCcdEnabled(enabled: boolean) {
+    if (!this.ccdSettings) return
+    this.ccdSettings.enabled = enabled
+    if (enabled && !this.ccdProbe) {
+      // Spawn a small probe to the left moving right
+      this.ccdProbe = { shape: { kind: 'obb', center: { x: 0, y: 0 }, half: { x: 0.1, y: 0.1 }, angle: 0 }, velocity: { x: 6, y: 0 } }
+    }
+    if (!enabled) {
+      this.ccdProbe = null
+    }
+  }
+
+  /** Adjusts CCD thresholds. */
+  configureCcd(options: Partial<{ speedThreshold: number; epsilon: number }>) {
+    if (!this.ccdSettings) return
+    if (options.speedThreshold !== undefined) this.ccdSettings.speedThreshold = Math.max(0, options.speedThreshold)
+    if (options.epsilon !== undefined) this.ccdSettings.epsilon = Math.max(1e-6, options.epsilon)
+  }
+
+  /** Sets the probe speed (m/s). */
+  setCcdProbeSpeed(speed: number) {
+    if (!this.ccdProbe) return
+    const s = Math.max(0, speed)
+    this.ccdProbe.velocity.x = s
+    this.ccdProbe.velocity.y = 0
+  }
+
+  /** Registers a collision listener for CCD probe hits (used by Debug UI to show toasts). */
+  setCcdCollisionListener(listener: ((payload: { id: string; obstacle: any; t: number; normal: { x: number; y: number } }) => void) | null) {
+    this.ccdOnCollision = listener
   }
 
   private syncStaticMeshes() {
