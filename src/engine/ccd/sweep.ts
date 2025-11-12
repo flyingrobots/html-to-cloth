@@ -11,6 +11,12 @@ export type SweepResult =
   | { hit: false }
   | { hit: true; t: number; normal: Vec2; point?: Vec2 }
 
+export type AABB = {
+  kind: 'aabb'
+  min: Vec2
+  max: Vec2
+}
+
 function clamp(v: number, lo: number, hi: number) {
   return Math.max(lo, Math.min(hi, v))
 }
@@ -107,22 +113,97 @@ function sweepObbObbAxisAligned(A: OBB, vRel: Vec2, B: OBB, dt: number): SweepRe
   return { hit: true, t, normal, point }
 }
 
+/** Axis-aligned OBB swept against axis-aligned AABB using slabs. */
+function sweepObbAabbAxisAligned(A: OBB, vRel: Vec2, B: AABB, dt: number): SweepResult {
+  const dx = vRel.x * dt
+  const dy = vRel.y * dt
+
+  const aMinX = A.center.x - A.half.x
+  const aMaxX = A.center.x + A.half.x
+  const aMinY = A.center.y - A.half.y
+  const aMaxY = A.center.y + A.half.y
+
+  const bMinX = B.min.x
+  const bMaxX = B.max.x
+  const bMinY = B.min.y
+  const bMaxY = B.max.y
+
+  if (intervalsOverlap(aMinX, aMaxX, bMinX, bMaxX) && intervalsOverlap(aMinY, aMaxY, bMinY, bMaxY)) {
+    const n = Math.hypot(vRel.x, vRel.y) > 0 ? { x: vRel.x, y: vRel.y } : { x: 1, y: 0 }
+    const len = Math.hypot(n.x, n.y)
+    return { hit: true, t: 0, normal: { x: -n.x / len, y: -n.y / len } }
+  }
+
+  let txEntry: number, txExit: number
+  if (dx > 0) {
+    txEntry = (bMinX - aMaxX) / dx
+    txExit = (bMaxX - aMinX) / dx
+  } else if (dx < 0) {
+    txEntry = (bMaxX - aMinX) / dx
+    txExit = (bMinX - aMaxX) / dx
+  } else {
+    if (!intervalsOverlap(aMinX, aMaxX, bMinX, bMaxX)) return { hit: false }
+    txEntry = -Infinity
+    txExit = Infinity
+  }
+
+  let tyEntry: number, tyExit: number
+  if (dy > 0) {
+    tyEntry = (bMinY - aMaxY) / dy
+    tyExit = (bMaxY - aMinY) / dy
+  } else if (dy < 0) {
+    tyEntry = (bMaxY - aMinY) / dy
+    tyExit = (bMinY - aMaxY) / dy
+  } else {
+    if (!intervalsOverlap(aMinY, aMaxY, bMinY, bMaxY)) return { hit: false }
+    tyEntry = -Infinity
+    tyExit = Infinity
+  }
+
+  const tEnter = Math.max(txEntry, tyEntry)
+  const tExit = Math.min(txExit, tyExit)
+  if (!(tEnter <= tExit)) return { hit: false }
+  if (tExit < 0 || tEnter > 1) return { hit: false }
+
+  const t = clamp(tEnter, 0, 1)
+  let normal: Vec2
+  if (txEntry > tyEntry) {
+    normal = dx > 0 ? { x: -1, y: 0 } : { x: 1, y: 0 }
+  } else {
+    normal = dy > 0 ? { x: 0, y: -1 } : { x: 0, y: 1 }
+  }
+
+  const cx = A.center.x + dx * t
+  const cy = A.center.y + dy * t
+  let point: Vec2 | undefined
+  if (Math.abs(normal.x) > Math.abs(normal.y)) {
+    const x = normal.x < 0 ? bMinX : bMaxX
+    point = { x, y: clamp(cy, bMinY, bMaxY) }
+  } else {
+    const y = normal.y < 0 ? bMinY : bMaxY
+    point = { x: clamp(cx, bMinX, bMaxX), y }
+  }
+
+  return { hit: true, t, normal, point }
+}
+
 /**
  * Top-level CCD sweep entry.
  * Currently supports OBB↔OBB when both are axis-aligned (angle≈0) using swept slabs.
  * The API is stable, so future work can add GJK‑TOI/EPA and rotated OBBs.
  */
-export function sweepTOI(A: OBB, vRel: Vec2, B: OBB, dt: number): SweepResult {
+export function sweepTOI(A: OBB | AABB, vRel: Vec2, B: OBB | AABB, dt: number): SweepResult {
   // For now, treat small angles as axis-aligned (tolerance ~1e-4 rad)
   const eps = 1e-4
-  const aAligned = Math.abs(A.angle) < eps || Math.abs(Math.abs(A.angle) - Math.PI) < eps
-  const bAligned = Math.abs(B.angle) < eps || Math.abs(Math.abs(B.angle) - Math.PI) < eps
-
-  if (A.kind === 'obb' && B.kind === 'obb' && aAligned && bAligned) {
-    return sweepObbObbAxisAligned(A, vRel, B, dt)
+  if (A.kind === 'obb' && B.kind === 'obb') {
+    const aAligned = Math.abs(A.angle) < eps || Math.abs(Math.abs(A.angle) - Math.PI) < eps
+    const bAligned = Math.abs(B.angle) < eps || Math.abs(Math.abs(B.angle) - Math.PI) < eps
+    if (aAligned && bAligned) return sweepObbObbAxisAligned(A, vRel, B, dt)
+  } else if (A.kind === 'obb' && B.kind === 'aabb') {
+    const aAligned = Math.abs(A.angle) < eps || Math.abs(Math.abs(A.angle) - Math.PI) < eps
+    if (aAligned) return sweepObbAabbAxisAligned(A, vRel, B, dt)
   }
 
   // Not yet supported
   return { hit: false }
 }
-
