@@ -171,6 +171,12 @@
   },
   "active": "ca4a9ea64f468a41",
   "lastOpenFiles": [
+    "src/engine/events/__tests__/subscription.multi-channel.test.ts",
+    "src/engine/events/__tests__/metrics.test.ts",
+    "src/engine/events/__tests__/determinism.test.ts",
+    "src/engine/events/__tests__/invalidation.test.ts",
+    "src/engine/events/__tests__/mailbox.behavior.test.ts",
+    "src/engine/events/__tests__/edgecases.ring-seq.test.ts",
     "src/engine/events/__tests__/reentrancy.test.ts",
     "src/engine/events/__tests__/subscription.test.ts",
     "src/engine/events/__tests__/staleOverwrite.test.ts",
@@ -179,11 +185,6 @@
     "docs/pr-31-comments.md",
     "dist/index.html",
     "dist/assets/index-ClF-17lb.js",
-    "dist/assets/index-BJF4093I.css",
-    "dist/assets/html2canvas.esm-B0tyYwQk.js",
-    "dist/assets",
-    "dist/assets/index-CxPs4GkJ.js",
-    "src/types/global.d.ts",
     "docs/qa/manual-qa-2025-10-29.md"
   ]
 }
