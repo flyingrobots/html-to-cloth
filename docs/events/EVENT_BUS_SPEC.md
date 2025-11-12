@@ -8,7 +8,7 @@ Scope: Types + rings + bus core (no producers/consumers wired yet)
 - Deterministic, zero-reentrancy publish → consume model
 - Low-GC, cache-friendly delivery via struct-of-arrays rings
 - Deferred processing by phase: `frameBegin`, `fixedEnd`, `frameEnd` (plus `immediate` debug)
-- Per-subscriber watermarks, mailbox index rings; skip invalidated tombstones
+- Per-subscriber watermarks, mailbox index rings; skip invalidated tombstones and detect stale overwrites
 - Preallocated buffers; bounded memory; drop metrics
 
 ## Core Concepts
@@ -68,24 +68,30 @@ export interface EventReader {
 
 export interface EventHeaderView {
   id: EventId
-  seq: number
-  frame: number
-  timeMs: number
-  valid: boolean
+  seq: number        // f64 logical sequence for the channel
+  frame: number      // u32 frame index
+  tick: number       // u32 deterministic tick (phase‑relative)
+  valid: boolean     // false => tombstone, MUST be skipped
 }
 ```
 
 ## Behaviour Rules
 
-- Publish writes one slot in the channel ring, sets `valid=1`, returns seq
+- Publish writes one slot in the channel ring (payload first, header last), sets `valid=1`, returns seq
 - Delivery uses mailboxes:
   - Bus appends `seq` to each subscribed mailbox for the event id/channel
   - Cursor.read iterates mailbox indices in publish order
-  - If slot is invalid (`valid=0`), skip without advancing watermark side effects
+  - If slot header.seq !== mailbox seq (stale/overwritten), drop for this subscriber (overflow), advance mailbox head; watermark unchanged
+  - If slot is invalid (`valid=0`), drop (tombstone), advance mailbox head; watermark unchanged
 - Invalidate: sets header `valid=0` for the slot (tombstone)
 - Overflows:
   - Channel ring: overwrite policy; metrics.drops.channel++ (future: guard by frame boundary)
   - Mailbox ring: drop for that subscriber only; metrics.drops.mailbox[subscriberId]++
+
+## Capacities & Indexing
+
+- Channel ring capacities are powers of two; ring index = (seq & (capacity - 1))
+- Mailbox capacities are powers of two as well
 
 ## Lanes (Phase 0 constants)
 
@@ -99,20 +105,22 @@ export interface EventHeaderView {
 - Rings
   - Push/wrap returns increasing seq; header.valid default true
   - Invalidate then read skips slot
+  - Overwrite while unread → stale detection drops the old mailbox entry
 - Mailboxes
   - Subscribe A,B; publish one id; both mailboxes receive seq
   - Unrelated id does not enter mailbox
   - Mailbox overflow drops for that subscriber only
+- Update/unsubscribe: updateSubscription/unsubscribe change routing and stop delivery
 - Bus read
   - read() delivers only subscribed ids in order; advances watermark
   - Skips tombstones
   - Fast-forward jumps to head without delivering
   - Channels are independent (seq spaces per channel)
+  - Reentrancy guard: publish inside read does not synchronously deliver to the same read call
 
 ## Deferred work
 
 - String table intern + dev hydration
 - Perf panel events
-- Immediate mode (dev only)
+- Immediate mode (dev only; guarded to avoid reentrancy) 
 - Backpressure policies (frame-bounded delivery limits)
-
