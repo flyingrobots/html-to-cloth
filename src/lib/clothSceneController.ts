@@ -22,6 +22,7 @@ import { DebugOverlaySystem } from '../engine/render/DebugOverlaySystem'
 import { DebugOverlayState } from '../engine/render/DebugOverlayState'
 import { RenderSettingsSystem } from '../engine/render/RenderSettingsSystem'
 import { RenderSettingsState } from '../engine/render/RenderSettingsState'
+import { WireframeOverlaySystem } from '../engine/render/WireframeOverlaySystem'
 import type { Entity } from '../engine/entity/entity'
 import type { Component } from '../engine/entity/component'
 import type { PinMode } from '../types/pinMode'
@@ -351,6 +352,7 @@ export class ClothSceneController {
   private overlayState: DebugOverlayState | null = null
   private renderSettingsSystem: RenderSettingsSystem | null = null
   private renderSettingsState: RenderSettingsState | null = null
+  private wireframeOverlaySystem: WireframeOverlaySystem | null = null
   // Event bus and overlay adapter
   private eventBusSystem: import('../engine/events/EventBusSystem').EventBusSystem | null = null
   private eventOverlayAdapter: import('../engine/events/EventOverlayAdapter').EventOverlayAdapter | null = null
@@ -713,6 +715,7 @@ export class ClothSceneController {
       if (this.eventOverlayAdapter) this.engine.removeSystemInstance(this.eventOverlayAdapter)
       if (this.eventBusSystem) this.engine.removeSystemInstance(this.eventBusSystem)
       if (this.busMetricsOverlay) this.engine.removeSystemInstance(this.busMetricsOverlay)
+      if (this.wireframeOverlaySystem) this.engine.removeSystemInstance(this.wireframeOverlaySystem)
       if (this.ccdOverlay) this.engine.removeSystemInstance(this.ccdOverlay)
       if (this.ccdStepper) this.engine.removeSystemInstance(this.ccdStepper)
       this.cameraSystem = null
@@ -722,6 +725,7 @@ export class ClothSceneController {
       this.eventOverlayAdapter = null
       this.eventBusSystem = null
       this.busMetricsOverlay = null
+      this.wireframeOverlaySystem = null
       this.ccdOverlay = null
       this.ccdStepper = null
     }
@@ -733,6 +737,8 @@ export class ClothSceneController {
     this.overlaySystem = new DebugOverlaySystem({ view: this.domToWebGL, state: this.overlayState })
     this.renderSettingsState = new RenderSettingsState()
     this.renderSettingsSystem = new RenderSettingsSystem({ view: this.domToWebGL, state: this.renderSettingsState })
+    // Wireframe overlay pass (driven by render settings)
+    this.wireframeOverlaySystem = new WireframeOverlaySystem({ view: this.domToWebGL, settings: this.renderSettingsState })
     // Event bus system
     this.eventBusSystem = new EventBusSystem()
     // Register with lower priority than simulation so render sees the latest snapshot.
@@ -754,6 +760,11 @@ export class ClothSceneController {
     this.engine.addSystem(this.renderSettingsSystem, {
       id: 'render-settings',
       priority: 8,
+      allowWhilePaused: true,
+    })
+    this.engine.addSystem(this.wireframeOverlaySystem, {
+      id: 'wireframe-overlay',
+      priority: 7,
       allowWhilePaused: true,
     })
     // Event bus and overlays

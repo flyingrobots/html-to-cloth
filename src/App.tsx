@@ -23,6 +23,7 @@ import { EngineActions } from "./engine/debug/engineActions"
 import type { CameraSnapshot } from './engine/camera/CameraSystem'
 import { PRESETS, getPreset } from "./app/presets"
 import { Notifications, notifications } from '@mantine/notifications'
+import { EventsPanel } from './app/EventsPanel'
 
 // Use Mantine's native Kbd component (no inline styles)
 
@@ -395,6 +396,8 @@ function Demo() {
   const [drawAABBs, setDrawAABBs] = useState(() => lsGetBoolean('drawAABBs', false))
   const [drawSleep, setDrawSleep] = useState(() => lsGetBoolean('drawSleep', false))
   const [drawPins, setDrawPins] = useState(() => lsGetBoolean('drawPins', false))
+  // Events panel (non-modal) state
+  const [eventsOpen, setEventsOpen] = useState(false)
   const [pinMode, setPinMode] = useState<PinMode>(() => lsGetString('pinMode', 'top' as PinMode))
   // CCD debug controls
   const [ccdEnabled, setCcdEnabled] = useState(() => lsGetBoolean('ccd.enabled', false))
@@ -680,6 +683,24 @@ function Demo() {
 
   const modifierKey = typeof navigator !== "undefined" && navigator?.platform?.toLowerCase().includes("mac") ? "⌘" : "Ctrl"
 
+  // Keyboard shortcuts: Cmd/Ctrl+J for Debug, Cmd/Ctrl+E for Events panel
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => {
+      const isMod = event.metaKey || event.ctrlKey
+      if (!isMod) return
+      const key = (event.key || '').toLowerCase()
+      if (key === 'j') {
+        event.preventDefault()
+        setDebugOpen((v) => !v)
+      } else if (key === 'e') {
+        event.preventDefault()
+        setEventsOpen((v) => !v)
+      }
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [])
+
   return (
     <>
       <Group justify="center" style={{ minHeight: '100vh' }}>
@@ -702,6 +723,7 @@ function Demo() {
           </Group>
         </Paper>
       </Affix>
+      <EventsPanel open={eventsOpen} onOpenChange={setEventsOpen} />
       <DebugPalette
         open={debugOpen}
         onOpenChange={setDebugOpen}

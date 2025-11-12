@@ -4,17 +4,21 @@
     "type": "split",
     "children": [
       {
-        "id": "fce9ae5c04cb1e7c",
+        "id": "5f78c7c8be9a3d47",
         "type": "tabs",
         "children": [
           {
-            "id": "d2c6083d66e7d7de",
+            "id": "aa44776f7279b1f6",
             "type": "leaf",
             "state": {
-              "type": "empty",
-              "state": {},
+              "type": "markdown",
+              "state": {
+                "file": "BRANCHES_AND_WHAT_TO_DO_WITH_THEM.md",
+                "mode": "source",
+                "source": false
+              },
               "icon": "lucide-file",
-              "title": "New tab"
+              "title": "BRANCHES_AND_WHAT_TO_DO_WITH_THEM"
             }
           }
         ]
@@ -74,7 +78,8 @@
       }
     ],
     "direction": "horizontal",
-    "width": 300
+    "width": 300,
+    "collapsed": true
   },
   "right": {
     "id": "16442523b6d20242",
@@ -90,7 +95,7 @@
             "state": {
               "type": "backlink",
               "state": {
-                "file": "docs/pr-31-comments.md",
+                "file": "BRANCHES_AND_WHAT_TO_DO_WITH_THEM.md",
                 "collapseAll": false,
                 "extraContext": false,
                 "sortOrder": "alphabetical",
@@ -100,7 +105,7 @@
                 "unlinkedCollapsed": true
               },
               "icon": "links-coming-in",
-              "title": "Backlinks for pr-31-comments"
+              "title": "Backlinks for BRANCHES_AND_WHAT_TO_DO_WITH_THEM"
             }
           },
           {
@@ -146,6 +151,16 @@
               "icon": "lucide-list",
               "title": "Outline of pr-31-comments"
             }
+          },
+          {
+            "id": "e9bbd142373a9227",
+            "type": "leaf",
+            "state": {
+              "type": "chronology-calendar-view",
+              "state": {},
+              "icon": "clock",
+              "title": "Chronology"
+            }
           }
         ]
       }
@@ -162,11 +177,16 @@
       "daily-notes:Open today's daily note": false,
       "templates:Insert template": false,
       "command-palette:Open command palette": false,
-      "bases:Create new base": false
+      "bases:Create new base": false,
+      "chronology:Open Chronology": false
     }
   },
-  "active": "d2c6083d66e7d7de",
+  "active": "aa44776f7279b1f6",
   "lastOpenFiles": [
+    "src/app/EventsPanel.tsx",
+    "src/engine/render/WireframeOverlaySystem.ts",
+    "BRANCHES_AND_WHAT_TO_DO_WITH_THEM.md",
+    "EVENT_MATRIX.md",
     "docs/events/EVENT_BUS_SPEC.md",
     "src/engine/events/BusMetricsOverlaySystem.ts",
     "src/engine/events/PerfEmitterSystem.ts",
@@ -177,7 +197,6 @@
     "src/engine/events/__tests__/subscription.multi-channel.test.ts",
     "src/engine/events/__tests__/metrics.test.ts",
     "src/engine/events/__tests__/determinism.test.ts",
-    "src/engine/events/__tests__/invalidation.test.ts",
     "docs/engine-refactor.md",
     "docs/mantine.md",
     "docs/pr-31-comments.md",
