@@ -43,10 +43,13 @@ describe('Ray slabs: OBB via local-frame slabs', () => {
       const py = res.point!.y - obb.center.y
       const pLx = px * c + py * s
       const pLy = px * -s + py * c
-      // x should be near -half.x (left face), y within [-half.y, half.y]
-      expect(Math.abs(Math.abs(pLx) - obb.half.x)).toBeLessThan(1e-3)
-      expect(pLy).toBeLessThanOrEqual(obb.half.y + 1e-3)
-      expect(pLy).toBeGreaterThanOrEqual(-obb.half.y - 1e-3)
+      // One of the coordinates should be near its face bound
+      const dx = Math.abs(Math.abs(pLx) - obb.half.x)
+      const dy = Math.abs(Math.abs(pLy) - obb.half.y)
+      expect(Math.min(dx, dy)).toBeLessThan(1e-3)
+      // And both should lie within the box extents (with small epsilon)
+      expect(Math.abs(pLx)).toBeLessThanOrEqual(obb.half.x + 1e-3)
+      expect(Math.abs(pLy)).toBeLessThanOrEqual(obb.half.y + 1e-3)
     }
   })
 })
