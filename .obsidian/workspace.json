@@ -4,21 +4,17 @@
     "type": "split",
     "children": [
       {
-        "id": "2f6f63bc936f6557",
+        "id": "fce9ae5c04cb1e7c",
         "type": "tabs",
         "children": [
           {
-            "id": "ca4a9ea64f468a41",
+            "id": "d2c6083d66e7d7de",
             "type": "leaf",
             "state": {
-              "type": "markdown",
-              "state": {
-                "file": "docs/events/EVENT_BUS_SPEC.md",
-                "mode": "source",
-                "source": false
-              },
+              "type": "empty",
+              "state": {},
               "icon": "lucide-file",
-              "title": "EVENT_BUS_SPEC"
+              "title": "New tab"
             }
           }
         ]
@@ -169,22 +165,22 @@
       "bases:Create new base": false
     }
   },
-  "active": "ca4a9ea64f468a41",
+  "active": "d2c6083d66e7d7de",
   "lastOpenFiles": [
+    "docs/events/EVENT_BUS_SPEC.md",
+    "src/engine/events/BusMetricsOverlaySystem.ts",
+    "src/engine/events/PerfEmitterSystem.ts",
+    "src/engine/events/EventOverlayAdapter.ts",
+    "src/engine/events/ids.ts",
+    "src/engine/events/EventBusSystem.ts",
+    "src/engine/events/bus.ts",
     "src/engine/events/__tests__/subscription.multi-channel.test.ts",
     "src/engine/events/__tests__/metrics.test.ts",
     "src/engine/events/__tests__/determinism.test.ts",
     "src/engine/events/__tests__/invalidation.test.ts",
-    "src/engine/events/__tests__/mailbox.behavior.test.ts",
-    "src/engine/events/__tests__/edgecases.ring-seq.test.ts",
-    "src/engine/events/__tests__/reentrancy.test.ts",
-    "src/engine/events/__tests__/subscription.test.ts",
-    "src/engine/events/__tests__/staleOverwrite.test.ts",
     "docs/engine-refactor.md",
     "docs/mantine.md",
     "docs/pr-31-comments.md",
-    "dist/index.html",
-    "dist/assets/index-ClF-17lb.js",
     "docs/qa/manual-qa-2025-10-29.md"
   ]
 }

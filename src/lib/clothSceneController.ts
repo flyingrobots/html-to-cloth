@@ -3,6 +3,10 @@ import { DOMToWebGL } from './domToWebGL'
 import type { DOMMeshRecord } from './domToWebGL'
 import { ClothPhysics } from './clothPhysics'
 import { CollisionSystem } from './collisionSystem'
+import { EventBusSystem } from '../engine/events/EventBusSystem'
+import { EventOverlayAdapter } from '../engine/events/EventOverlayAdapter'
+import { PerfEmitterSystem } from '../engine/events/PerfEmitterSystem'
+import { EventIds } from '../engine/events/ids'
 import { CANONICAL_HEIGHT_METERS } from './units'
 import { ElementPool } from './elementPool'
 import { EngineWorld } from '../engine/world'
@@ -344,6 +348,9 @@ export class ClothSceneController {
   private overlayState: DebugOverlayState | null = null
   private renderSettingsSystem: RenderSettingsSystem | null = null
   private renderSettingsState: RenderSettingsState | null = null
+  // Event bus and overlay adapter
+  private eventBusSystem: import('../engine/events/EventBusSystem').EventBusSystem | null = null
+  private eventOverlayAdapter: import('../engine/events/EventOverlayAdapter').EventOverlayAdapter | null = null
   private elementIds = new Map<HTMLElement, string>()
   private onResize = () => this.handleResize()
   private onScroll = () => {
@@ -493,6 +500,14 @@ export class ClothSceneController {
     if (this.cameraSystem) {
       this.engine.removeSystemInstance(this.cameraSystem)
       this.cameraSystem = null
+    }
+    if (this.eventOverlayAdapter) {
+      this.engine.removeSystemInstance(this.eventOverlayAdapter)
+      this.eventOverlayAdapter = null
+    }
+    if (this.eventBusSystem) {
+      this.engine.removeSystemInstance(this.eventBusSystem)
+      this.eventBusSystem = null
     }
     // Finally remove the simulation core system itself.
     this.engine.removeSystemInstance(this.simulationSystem)
@@ -661,15 +676,19 @@ export class ClothSceneController {
   private installRenderPipeline() {
     if (!this.domToWebGL) return
     if (this.cameraSystem && this.worldRenderer && this.overlaySystem) return
-    if (this.cameraSystem || this.worldRenderer || this.overlaySystem || this.renderSettingsSystem) {
+    if (this.cameraSystem || this.worldRenderer || this.overlaySystem || this.renderSettingsSystem || this.eventOverlayAdapter || this.eventBusSystem) {
       if (this.cameraSystem) this.engine.removeSystemInstance(this.cameraSystem)
       if (this.worldRenderer) this.engine.removeSystemInstance(this.worldRenderer)
       if (this.overlaySystem) this.engine.removeSystemInstance(this.overlaySystem)
       if (this.renderSettingsSystem) this.engine.removeSystemInstance(this.renderSettingsSystem)
+      if (this.eventOverlayAdapter) this.engine.removeSystemInstance(this.eventOverlayAdapter)
+      if (this.eventBusSystem) this.engine.removeSystemInstance(this.eventBusSystem)
       this.cameraSystem = null
       this.worldRenderer = null
       this.overlaySystem = null
       this.renderSettingsSystem = null
+      this.eventOverlayAdapter = null
+      this.eventBusSystem = null
     }
     // Create a camera system and world renderer that reads snapshots each frame.
     this.cameraSystem = new CameraSystem()
@@ -679,6 +698,8 @@ export class ClothSceneController {
     this.overlaySystem = new DebugOverlaySystem({ view: this.domToWebGL, state: this.overlayState })
     this.renderSettingsState = new RenderSettingsState()
     this.renderSettingsSystem = new RenderSettingsSystem({ view: this.domToWebGL, state: this.renderSettingsState })
+    // Event bus system
+    this.eventBusSystem = new EventBusSystem()
     // Register with lower priority than simulation so render sees the latest snapshot.
     this.engine.addSystem(this.cameraSystem, {
       id: ClothSceneController.CAMERA_SYSTEM_ID,
@@ -700,6 +721,16 @@ export class ClothSceneController {
       priority: 8,
       allowWhilePaused: true,
     })
+    this.engine.addSystem(this.eventBusSystem, { id: 'event-bus', priority: 1000, allowWhilePaused: true })
+    this.eventOverlayAdapter = new EventOverlayAdapter({ bus: this.eventBusSystem.getBus(), overlay: this.overlayState! })
+    this.engine.addSystem(this.eventOverlayAdapter, { id: 'event-overlay-adapter', priority: 9, allowWhilePaused: true })
+    // Perf emitter
+    const perf = new PerfEmitterSystem({ bus: this.eventBusSystem.getBus() })
+    try { this.engine.addSystem(perf, { id: 'perf-emitter', priority: 998, allowWhilePaused: true }) } catch {}
+    // Bus metrics overlay bars
+    const { BusMetricsOverlaySystem } = require('../engine/events/BusMetricsOverlaySystem.ts') as typeof import('../engine/events/BusMetricsOverlaySystem')
+    this.busMetricsOverlay = new BusMetricsOverlaySystem({ view: this.domToWebGL, bus: this.eventBusSystem.getBus() })
+    try { this.engine.addSystem(this.busMetricsOverlay, { id: 'bus-metrics-overlay', priority: 6, allowWhilePaused: true }) } catch {}
   }
 
   /** Returns the underlying engine world for debug actions. */
@@ -727,6 +758,11 @@ export class ClothSceneController {
     return this.renderSettingsState
   }
 
+  /** Returns the event bus instance for advanced integrations. */
+  getEventBus() {
+    return this.eventBusSystem?.getBus() ?? null
+  }
+
   private syncStaticMeshes() {
     if (!this.domToWebGL) return
 
@@ -749,6 +785,14 @@ export class ClothSceneController {
     this.pointer.previous.copy(this.pointer.position)
     this.pointer.position.set(x, y)
     this.overlayState?.pointer.set(x, y)
+    // Publish pointer move to the event bus
+    const bus = this.getEventBus()
+    if (bus) {
+      bus.publish('frameBegin', EventIds.PointerMove, (w) => {
+        w.f32[0] = x
+        w.f32[1] = y
+      })
+    }
 
     if (!this.pointer.active) {
       this.pointer.active = true

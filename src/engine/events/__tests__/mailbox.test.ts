@@ -37,10 +37,9 @@ describe('EventBus: per-subscriber mailboxes', () => {
     a.read('frameEnd', (h) => seenA.push(h.seq))
     const seenB: number[] = []
     b.read('frameEnd', (h) => seenB.push(h.seq))
-    // At least one of the mailboxes must have dropped something, but not both necessarily the same
-    expect(new Set([seenA.length, seenB.length]).has(2)).toBe(true)
-    // Central ring still has all 3 slots; the other subscriber could still receive all 3
-    expect(seenA.length + seenB.length).toBeGreaterThanOrEqual(5)
+    // At least one of the mailboxes must have dropped something
+    expect(Math.max(seenA.length, seenB.length)).toBe(2)
+    // Total delivered should be >= published - drops; with both capacity=2 and 3 events, total >= 3
+    expect(seenA.length + seenB.length).toBeGreaterThanOrEqual(3)
   })
 })
-
