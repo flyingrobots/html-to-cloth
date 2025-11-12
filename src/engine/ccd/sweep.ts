@@ -113,6 +113,70 @@ function sweepObbObbAxisAligned(A: OBB, vRel: Vec2, B: OBB, dt: number): SweepRe
   return { hit: true, t, normal, point }
 }
 
+function axisFromAngle(theta: number): { ux: Vec2; uy: Vec2 } {
+  const c = Math.cos(theta)
+  const s = Math.sin(theta)
+  // Right-handed: ux = (c,s), uy = (-s,c)
+  return { ux: { x: c, y: s }, uy: { x: -s, y: c } }
+}
+
+function radiusAlong(axis: Vec2, ux: Vec2, uy: Vec2, half: Vec2) {
+  const ax = Math.abs(axis.x * ux.x + axis.y * ux.y)
+  const ay = Math.abs(axis.x * uy.x + axis.y * uy.y)
+  return ax * half.x + ay * half.y
+}
+
+/** Generic swept SAT for OBB↔OBB with fixed orientations (no angular motion). */
+function sweepObbObbSweptSAT(A: OBB, vRel: Vec2, B: OBB, dt: number): SweepResult {
+  const { ux: uxA, uy: uyA } = axisFromAngle(A.angle)
+  const { ux: uxB, uy: uyB } = axisFromAngle(B.angle)
+  const axes: Vec2[] = [uxA, uyA, uxB, uyB]
+
+  let tEnter = -Infinity
+  let tExit = Infinity
+  let enterAxisIndex = -1
+
+  for (let i = 0; i < axes.length; i++) {
+    const l = axes[i]
+    // Project centers
+    const cA = A.center.x * l.x + A.center.y * l.y
+    const cB = B.center.x * l.x + B.center.y * l.y
+    // Radii along axis
+    const rA = radiusAlong(l, uxA, uyA, A.half)
+    const rB = radiusAlong(l, uxB, uyB, B.half)
+    // Relative velocity along axis over the dt window
+    const v = (vRel.x * l.x + vRel.y * l.y) * dt
+    const dx = cB - cA
+
+    if (Math.abs(v) < 1e-12) {
+      // Static along this axis: require overlap now
+      if (Math.abs(dx) > rA + rB) return { hit: false }
+      // No constraint on t from this axis
+      continue
+    }
+
+    // Times when intervals first overlap and then separate along this axis
+    // Derived from |dx + v*t| ≤ rA + rB → two roots t1 ≤ t2
+    let t1 = (dx - (rA + rB)) / v
+    let t2 = (dx + (rA + rB)) / v
+    if (t1 > t2) { const tmp = t1; t1 = t2; t2 = tmp }
+
+    if (t1 > tEnter) { tEnter = t1; enterAxisIndex = i }
+    if (t2 < tExit) { tExit = t2 }
+    if (tEnter > tExit) return { hit: false }
+  }
+
+  if (tExit < 0 || tEnter > 1) return { hit: false }
+  const t = clamp(tEnter, 0, 1)
+
+  // Contact normal along the axis of maximum entry, oriented to oppose motion
+  const l = axes[enterAxisIndex >= 0 ? enterAxisIndex : 0]
+  const vAxis = vRel.x * l.x + vRel.y * l.y
+  const normal = vAxis > 0 ? { x: -l.x, y: -l.y } : { x: l.x, y: l.y }
+
+  return { hit: true, t, normal }
+}
+
 /** Axis-aligned OBB swept against axis-aligned AABB using slabs. */
 function sweepObbAabbAxisAligned(A: OBB, vRel: Vec2, B: AABB, dt: number): SweepResult {
   const dx = vRel.x * dt
@@ -199,6 +263,8 @@ export function sweepTOI(A: OBB | AABB, vRel: Vec2, B: OBB | AABB, dt: number): 
     const aAligned = Math.abs(A.angle) < eps || Math.abs(Math.abs(A.angle) - Math.PI) < eps
     const bAligned = Math.abs(B.angle) < eps || Math.abs(Math.abs(B.angle) - Math.PI) < eps
     if (aAligned && bAligned) return sweepObbObbAxisAligned(A, vRel, B, dt)
+    // Generic rotated case via swept SAT
+    return sweepObbObbSweptSAT(A, vRel, B, dt)
   } else if (A.kind === 'obb' && B.kind === 'aabb') {
     const aAligned = Math.abs(A.angle) < eps || Math.abs(Math.abs(A.angle) - Math.PI) < eps
     if (aAligned) return sweepObbAabbAxisAligned(A, vRel, B, dt)
