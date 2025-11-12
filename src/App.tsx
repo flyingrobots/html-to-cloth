@@ -95,6 +95,7 @@ type DebugProps = {
   onPinModeChange: (value: PinMode) => void
   onStep: () => void
   onReset: () => void
+  onResetBasics: () => void
   // CCD controls
   ccdEnabled: boolean
   onCcdEnabledChange: (value: boolean) => void
@@ -106,6 +107,7 @@ type DebugProps = {
   onCcdEpsilonChange: (value: number) => void
   ccdToastEnabled: boolean
   onCcdToastEnabledChange: (value: boolean) => void
+  onResetCcd: () => void
 }
 
 function DebugPalette(props: DebugProps) {
@@ -143,6 +145,7 @@ function DebugPalette(props: DebugProps) {
     onPinModeChange,
     onStep,
     onReset,
+    onResetBasics,
     ccdEnabled,
     onCcdEnabledChange,
     ccdProbeSpeed,
@@ -153,6 +156,7 @@ function DebugPalette(props: DebugProps) {
     onCcdEpsilonChange,
     ccdToastEnabled,
     onCcdToastEnabledChange,
+    onResetCcd,
   } = props
 
   // (labels kept close to Select entries)
@@ -329,6 +333,9 @@ function DebugPalette(props: DebugProps) {
             </Stack>
             {!realTime ? <Button variant="default" onClick={onStep}>Step (Space)</Button> : null}
           </Stack>
+          <Group justify="flex-end">
+            <Button variant="default" onClick={onResetBasics}>Reset to Defaults</Button>
+          </Group>
           <Divider />
           <Stack gap={6}>
             <Title order={4}>CCD (Experimental)</Title>
@@ -352,6 +359,9 @@ function DebugPalette(props: DebugProps) {
               <Text size="sm">Surface Epsilon (m): {ccdEpsilon.toExponential(1)}</Text>
               <Slider min={1e-6} max={1e-2} step={1e-6} value={ccdEpsilon} onChange={onCcdEpsilonChange} />
             </Stack>
+            <Group justify="flex-end">
+              <Button variant="default" onClick={onResetCcd}>Reset CCD</Button>
+            </Group>
           </Stack>
           <Divider />
           <Group justify="flex-end">
@@ -391,6 +401,19 @@ function Demo() {
   const [ccdProbeSpeed, setCcdProbeSpeed] = useState(() => lsGetNumber('ccd.probeSpeed', 6))
   const [ccdSpeedThreshold, setCcdSpeedThreshold] = useState(() => lsGetNumber('ccd.speedThreshold', 5))
   const [ccdEpsilon, setCcdEpsilon] = useState(() => lsGetNumber('ccd.epsilon', 1e-4))
+  // One-time toast when user first changes a setting
+  const initialSnapshotRef = useRef({
+    wireframe, realTime, gravity, impulseMultiplier, tessellationSegments,
+    constraintIterations, substeps, sleepVelocity, sleepFrames, warmStartPasses,
+    cameraZoom, pointerColliderVisible, drawAABBs, drawSleep, drawPins, pinMode,
+    ccdEnabled, ccdProbeSpeed, ccdSpeedThreshold, ccdEpsilon,
+  })
+  const savedToastShownRef = useRef(lsGetBoolean('savedToastShown', false))
+  const savedToastArmedRef = useRef(false)
+  useEffect(() => {
+    const id = window.setTimeout(() => { savedToastArmedRef.current = true }, 1200)
+    return () => window.clearTimeout(id)
+  }, [])
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
@@ -579,6 +602,46 @@ function Demo() {
     ccdEnabled, ccdProbeSpeed, ccdSpeedThreshold, ccdEpsilon,
   ])
 
+  // One-time "Settings saved" toast on first user change
+  useEffect(() => {
+    if (savedToastShownRef.current || !savedToastArmedRef.current) return
+    const initial = initialSnapshotRef.current
+    const changed = (
+      wireframe !== initial.wireframe ||
+      realTime !== initial.realTime ||
+      gravity !== initial.gravity ||
+      impulseMultiplier !== initial.impulseMultiplier ||
+      tessellationSegments !== initial.tessellationSegments ||
+      constraintIterations !== initial.constraintIterations ||
+      substeps !== initial.substeps ||
+      sleepVelocity !== initial.sleepVelocity ||
+      sleepFrames !== initial.sleepFrames ||
+      warmStartPasses !== initial.warmStartPasses ||
+      cameraZoom !== initial.cameraZoom ||
+      pointerColliderVisible !== initial.pointerColliderVisible ||
+      drawAABBs !== initial.drawAABBs ||
+      drawSleep !== initial.drawSleep ||
+      drawPins !== initial.drawPins ||
+      pinMode !== initial.pinMode ||
+      ccdEnabled !== initial.ccdEnabled ||
+      ccdProbeSpeed !== initial.ccdProbeSpeed ||
+      ccdSpeedThreshold !== initial.ccdSpeedThreshold ||
+      ccdEpsilon !== initial.ccdEpsilon
+    )
+    if (changed) {
+      savedToastShownRef.current = true
+      lsSetBoolean('savedToastShown', true)
+      try {
+        notifications.show({ position: 'top-right', title: 'Settings saved', message: 'Your debug settings now persist across reloads', withBorder: true, autoClose: 2500 })
+      } catch {}
+    }
+  }, [
+    wireframe, realTime, gravity, impulseMultiplier, tessellationSegments,
+    constraintIterations, substeps, sleepVelocity, sleepFrames, warmStartPasses,
+    cameraZoom, pointerColliderVisible, drawAABBs, drawSleep, drawPins, pinMode,
+    ccdEnabled, ccdProbeSpeed, ccdSpeedThreshold, ccdEpsilon,
+  ])
+
   // CCD effects
   useEffect(() => {
     actionsRef.current?.setCcdEnabled(ccdEnabled)
@@ -706,6 +769,25 @@ function Demo() {
           setCcdProbeSpeed(6)
           setCcdSpeedThreshold(5)
           setCcdEpsilon(1e-4)
+          notifications.show({ position: 'top-right', title: 'Settings reset', message: 'All debug settings restored to defaults', withBorder: true })
+        }}
+        onResetBasics={() => {
+          setWireframe(false)
+          setRealTime(true)
+          setGravity(9.81)
+          setImpulseMultiplier(1)
+          setTessellationSegments(24)
+          setConstraintIterations(4)
+          setSubsteps(1)
+          setCameraZoom(1)
+          setPointerColliderVisible(false)
+          setPinMode('top')
+          setDrawAABBs(false)
+          setDrawSleep(false)
+          setDrawPins(false)
+          controllerRef.current?.setSleepConfig({ velocityThreshold: 0.001, frameThreshold: 60 })
+          actionsRef.current?.setSleepConfig(0.001, 60)
+          notifications.show({ position: 'top-right', title: 'Basics reset', message: 'Main debug settings restored to defaults', withBorder: true })
         }}
         // CCD props
         ccdEnabled={ccdEnabled}
@@ -719,6 +801,13 @@ function Demo() {
         // toast toggle
         ccdToastEnabled={ccdToastEnabled}
         onCcdToastEnabledChange={setCcdToastEnabled}
+        onResetCcd={() => {
+          setCcdEnabled(false)
+          setCcdProbeSpeed(6)
+          setCcdSpeedThreshold(5)
+          setCcdEpsilon(1e-4)
+          notifications.show({ position: 'top-right', title: 'CCD reset', message: 'CCD settings restored to defaults', withBorder: true })
+        }}
       />
     </>
   )
