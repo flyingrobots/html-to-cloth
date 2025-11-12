@@ -39,6 +39,16 @@ export function rayObbLocalSlabs(origin: Vec2, dir: Vec2, obb: OBB): RayHit {
   const min = { x: -obb.half.x, y: -obb.half.y }
   const max = { x: obb.half.x, y: obb.half.y }
   // Ray vs AABB in local space
-  return rayAabbSlabs(oL, dL, min, max)
+  const res = rayAabbSlabs(oL, dL, min, max)
+  if (!res.hit) return res
+  const pLx = oL.x + dL.x * res.tEnter
+  const pLy = oL.y + dL.y * res.tEnter
+  const pW = {
+    x: obb.center.x + pLx * ux.x + pLy * uy.x,
+    y: obb.center.y + pLx * ux.y + pLy * uy.y,
+  }
+  const nL = res.normal ?? { x: 0, y: 0 }
+  const nW = { x: nL.x * ux.x + nL.y * uy.x, y: nL.x * ux.y + nL.y * uy.y }
+  const L = Math.hypot(nW.x, nW.y) || 1
+  return { hit: true, tEnter: res.tEnter, tExit: res.tExit, normal: { x: nW.x / L, y: nW.y / L }, point: pW }
 }
-
