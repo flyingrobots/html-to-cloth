@@ -723,7 +723,7 @@ function Demo() {
           </Group>
         </Paper>
       </Affix>
-      <EventsPanel open={eventsOpen} onOpenChange={setEventsOpen} />
+      <EventsPanel open={eventsOpen} onOpenChange={setEventsOpen} bus={controllerRef.current?.getEventBus?.() ?? null} />
       <DebugPalette
         open={debugOpen}
         onOpenChange={setDebugOpen}
