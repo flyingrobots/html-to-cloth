@@ -1184,4 +1184,9 @@ export class ClothSceneController {
   getSimulationSystem() {
     return this.simulationSystem
   }
+
+  /** Returns the physics orchestrator if installed; otherwise null. */
+  getPhysicsSystem() {
+    return this.physicsSystem
+  }
 }

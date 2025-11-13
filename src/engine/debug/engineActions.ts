@@ -21,6 +21,15 @@ export type EngineActionsOptions = {
   setCcdProbeSpeed?: (speed: number) => void
   configureCcd?: (opts: { speedThreshold?: number; epsilon?: number }) => void
   setCcdCollisionListener?: (listener: ((payload: { id: string; obstacle: any; t: number; normal: { x: number; y: number } }) => void) | null) => void
+  addRigidBody?: (body: {
+    id: number
+    center: { x: number; y: number }
+    half: { x: number; y: number }
+    angle: number
+    velocity: { x: number; y: number }
+    restitution: number
+    friction: number
+  }) => void
 }
 
 /**
@@ -42,6 +51,7 @@ export class EngineActions {
   private readonly setCcdProbeSpeedCb?: (speed: number) => void
   private readonly configureCcdCb?: (opts: { speedThreshold?: number; epsilon?: number }) => void
   private readonly setCcdCollisionListenerCb?: (listener: ((payload: { id: string; obstacle: any; t: number; normal: { x: number; y: number } }) => void) | null) => void
+  private readonly addRigidBodyCb?: EngineActionsOptions['addRigidBody']
 
   constructor(options: EngineActionsOptions) {
     this.runner = options.runner
@@ -56,6 +66,7 @@ export class EngineActions {
     this.setCcdProbeSpeedCb = options.setCcdProbeSpeed
     this.configureCcdCb = options.configureCcd
     this.setCcdCollisionListenerCb = options.setCcdCollisionListener
+    this.addRigidBodyCb = options.addRigidBody
   }
 
   /** Enables/disables real-time ticking. */
@@ -151,6 +162,19 @@ export class EngineActions {
 
   onCcdCollision(listener: ((payload: { id: string; obstacle: any; t: number; normal: { x: number; y: number } }) => void) | null) {
     this.setCcdCollisionListenerCb?.(listener)
+  }
+
+  /** Adds a rigid body to the physics system (static-first lane). */
+  addRigidBody(body: {
+    id: number
+    center: { x: number; y: number }
+    half: { x: number; y: number }
+    angle: number
+    velocity: { x: number; y: number }
+    restitution: number
+    friction: number
+  }) {
+    this.addRigidBodyCb?.(body)
   }
 
   /** Exposes the attached world for advanced hooks (read-only usage suggested). */

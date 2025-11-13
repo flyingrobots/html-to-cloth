@@ -97,6 +97,7 @@ type DebugProps = {
   onStep: () => void
   onReset: () => void
   onResetBasics: () => void
+  onSpawnRigid: () => void
   // CCD controls
   ccdEnabled: boolean
   onCcdEnabledChange: (value: boolean) => void
@@ -147,6 +148,7 @@ function DebugPalette(props: DebugProps) {
     onStep,
     onReset,
     onResetBasics,
+    onSpawnRigid,
     ccdEnabled,
     onCcdEnabledChange,
     ccdProbeSpeed,
@@ -365,7 +367,8 @@ function DebugPalette(props: DebugProps) {
             </Group>
           </Stack>
           <Divider />
-          <Group justify="flex-end">
+      <Group justify="flex-end">
+            <Button variant="outline" onClick={onSpawnRigid}>Spawn Rigid Box</Button>
             <Button variant="default" onClick={() => onOpenChange(false)}>Close</Button>
             <Button variant="outline" onClick={onReset}>Reset</Button>
           </Group>
@@ -378,8 +381,13 @@ function DebugPalette(props: DebugProps) {
 function Demo() {
   const controllerRef = useRef<ClothSceneController | null>(null)
   const actionsRef = useRef<EngineActions | null>(null)
+  const rigidIdRef = useRef(100)
   const realTimeRef = useRef(true)
-  const [debugOpen, setDebugOpen] = useState(() => lsGetBoolean('debugOpen', false))
+  const [debugOpen, setDebugOpen] = useState(() => {
+    const fromLS = lsGetBoolean('debugOpen', false)
+    const isTest = (import.meta as any)?.env?.MODE === 'test'
+    return fromLS || !!isTest
+  })
   const [wireframe, setWireframe] = useState(() => lsGetBoolean('wireframe', false))
   const [realTime, setRealTime] = useState(() => lsGetBoolean('realTime', true))
   const [gravity, setGravity] = useState(() => lsGetNumber('gravity', 2))
@@ -441,6 +449,7 @@ function Demo() {
           setCcdEnabled: (enabled) => controller.setCcdEnabled(enabled),
           setCcdProbeSpeed: (speed) => controller.setCcdProbeSpeed(speed),
           configureCcd: (opts) => controller.configureCcd(opts),
+          addRigidBody: (body) => controller.getPhysicsSystem()?.addRigidBody(body as any),
         })
         actionsRef.current = actions
         actionsRef.current.setCameraTargetZoom(cameraZoom)
@@ -829,6 +838,19 @@ function Demo() {
           setCcdSpeedThreshold(5)
           setCcdEpsilon(1e-4)
           notifications.show({ position: 'top-right', title: 'CCD reset', message: 'CCD settings restored to defaults', withBorder: true })
+        }}
+        onSpawnRigid={() => {
+          const id = rigidIdRef.current++
+          actionsRef.current?.addRigidBody({
+            id,
+            center: { x: 0, y: 0.2 },
+            half: { x: 0.12, y: 0.08 },
+            angle: 0,
+            velocity: { x: 0.2, y: 0 },
+            restitution: 0.2,
+            friction: 0.3,
+          } as any)
+          notifications.show({ position: 'top-right', title: 'Rigid spawned', message: `id=${id}`, withBorder: true, autoClose: 1800 })
         }}
       />
     </>
