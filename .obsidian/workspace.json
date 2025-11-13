@@ -183,6 +183,7 @@
   },
   "active": "aa44776f7279b1f6",
   "lastOpenFiles": [
+    "docs/PROJECT_NEWTON.md",
     "src/engine/events/__tests__/stats.test.ts",
     "src/app/EventsPanel.tsx",
     "src/engine/render/WireframeOverlaySystem.ts",
@@ -196,7 +197,6 @@
     "src/engine/events/EventBusSystem.ts",
     "src/engine/events/bus.ts",
     "src/engine/events/__tests__/subscription.multi-channel.test.ts",
-    "src/engine/events/__tests__/metrics.test.ts",
     "docs/engine-refactor.md",
     "docs/mantine.md",
     "docs/pr-31-comments.md",
