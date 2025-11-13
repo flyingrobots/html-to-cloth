@@ -183,6 +183,7 @@
   },
   "active": "aa44776f7279b1f6",
   "lastOpenFiles": [
+    "src/engine/systems/__tests__/rigidStaticSystem.impulse.test.ts",
     "src/engine/systems/physicsSystem.ts",
     "src/engine/systems/__tests__/rigidStaticSystem.test.ts",
     "src/engine/systems/__tests__",
@@ -194,7 +195,6 @@
     "src/engine/registry",
     "docs/issues/physics-registry.md",
     "docs/issues",
-    "src/lib/__tests__/satObbAabb.test.ts",
     "docs/PROJECT_NEWTON.md",
     "BRANCHES_AND_WHAT_TO_DO_WITH_THEM.md",
     "EVENT_MATRIX.md",
