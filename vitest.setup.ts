@@ -26,3 +26,14 @@ if (typeof (globalThis as any).ResizeObserver === 'undefined') {
     }
   )
 }
+
+// Suppress WebGL context errors in jsdom by stubbing getContext on canvas
+try {
+  const proto = (HTMLCanvasElement as any)?.prototype
+  if (proto && typeof proto.getContext !== 'function') {
+    proto.getContext = function getContext(_type: string) {
+      // minimal fake context
+      return {} as any
+    }
+  }
+} catch {}

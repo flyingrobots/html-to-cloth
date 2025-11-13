@@ -278,6 +278,43 @@ export class EventBus {
     return JSON.parse(JSON.stringify(this.metricsState))
   }
 
+  // Introspection: capture current watermarks and subscriber/mailbox stats
+  stats(): BusStats {
+    const channelStats = {
+      frameBegin: this._channelStats('frameBegin'),
+      fixedEnd: this._channelStats('fixedEnd'),
+      frameEnd: this._channelStats('frameEnd'),
+      immediate: this._channelStats('immediate'),
+    }
+    const subs: Array<{ id: string; frameBegin: number; fixedEnd: number; frameEnd: number; immediate: number }> = []
+    for (const [sid, mbs] of this.mailboxes.entries()) {
+      subs.push({
+        id: sid,
+        frameBegin: mbs.frameBegin.len,
+        fixedEnd: mbs.fixedEnd.len,
+        frameEnd: mbs.frameEnd.len,
+        immediate: mbs.immediate.len,
+      })
+    }
+    return {
+      capacity: this.capacity,
+      mailboxCapacity: this.mailboxCapacity,
+      channels: channelStats,
+      subscribers: { total: this.mailboxes.size, mailboxes: subs },
+      drops: JSON.parse(JSON.stringify(this.metricsState.drops)),
+    }
+  }
+
+  private _channelStats(channel: Channel): ChannelWatermark {
+    const ch = this.channels[channel]
+    // Count unique subscribers for this channel across all ids
+    const uniq = new Set<string>()
+    for (const set of ch.subs.values()) {
+      for (const sid of set) uniq.add(sid)
+    }
+    return { seqHead: ch.ring.seqHead, tick: ch.ring.tick, subs: uniq.size }
+  }
+
   // Internal helpers
   _getMailbox(sid: string, channel: Channel): Mailbox | null {
     return this.mailboxes.get(sid)?.[channel] ?? null
@@ -447,4 +484,14 @@ export class EventCursor {
     if (!mb) return
     mb.fastForward()
   }
+}
+
+// ----- Introspection types -----
+export type ChannelWatermark = { seqHead: number; tick: number; subs: number }
+export type BusStats = {
+  capacity: number
+  mailboxCapacity: number
+  channels: Record<Channel, ChannelWatermark>
+  subscribers: { total: number; mailboxes: Array<{ id: string; frameBegin: number; fixedEnd: number; frameEnd: number; immediate: number }> }
+  drops: BusMetrics['drops']
 }

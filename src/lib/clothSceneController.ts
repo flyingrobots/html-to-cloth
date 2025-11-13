@@ -798,8 +798,21 @@ export class ClothSceneController {
         return obs
       },
       onCollision: (payload) => {
+        // Notify UI listener
         if (this.ccdOnCollision) {
           try { this.ccdOnCollision(payload) } catch {}
+        }
+        // Publish to event bus for panels/overlays
+        const bus = this.eventBusSystem?.getBus()
+        if (bus) {
+          try {
+            bus.publish('fixedEnd', EventIds.CcdHit, (w) => {
+              // Pack: t, normal.x, normal.y
+              w.f32[0] = typeof payload.t === 'number' ? payload.t : 0
+              w.f32[1] = payload.normal?.x ?? 0
+              w.f32[2] = payload.normal?.y ?? 0
+            })
+          } catch {}
         }
       }
     })
