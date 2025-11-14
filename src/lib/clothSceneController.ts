@@ -821,19 +821,23 @@ export class ClothSceneController {
     try { this.engine.addSystem(this.busMetricsOverlay, { id: 'bus-metrics-overlay', priority: 6, allowWhilePaused: true }) } catch {}
 
     // Wake markers debug system: bridge Wake events to overlay markers.
-    const { WakeMarkerSystem } = require('../engine/events/WakeMarkerSystem.ts') as typeof import('../engine/events/WakeMarkerSystem')
-    this.wakeMarkerSystem = new WakeMarkerSystem({
-      bus: this.eventBusSystem.getBus(),
-      overlay: this.overlayState!,
-      getPosition: (entityId: number) => {
-        if (!this.physicsSystem) return null
-        return this.physicsSystem.getRigidBodyCenter(entityId)
-      },
-      lifetimeFrames: 12,
-    })
-    try {
-      this.engine.addSystem(this.wakeMarkerSystem, { id: 'wake-markers', priority: 8, allowWhilePaused: true })
-    } catch {}
+    // Skip in test environments to avoid dynamic require in jsdom.
+    const mode = (import.meta as any)?.env?.MODE
+    if (mode !== 'test') {
+      const { WakeMarkerSystem } = require('../engine/events/WakeMarkerSystem.ts') as typeof import('../engine/events/WakeMarkerSystem')
+      this.wakeMarkerSystem = new WakeMarkerSystem({
+        bus: this.eventBusSystem.getBus(),
+        overlay: this.overlayState!,
+        getPosition: (entityId: number) => {
+          if (!this.physicsSystem) return null
+          return this.physicsSystem.getRigidBodyCenter(entityId)
+        },
+        lifetimeFrames: 12,
+      })
+      try {
+        this.engine.addSystem(this.wakeMarkerSystem, { id: 'wake-markers', priority: 8, allowWhilePaused: true })
+      } catch {}
+    }
 
     // CCD demo: overlay + stepper (feature-flagged)
     this.ccdSettings = new CcdSettingsState()

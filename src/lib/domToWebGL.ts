@@ -40,22 +40,36 @@ export class DOMToWebGL {
     this.container = container
     this.scene = new THREE.Scene()
     this.camera = new THREE.OrthographicCamera()
-    this.renderer = new THREE.WebGLRenderer({ alpha: true, antialias: true })
+    const mode = (import.meta as any)?.env?.MODE
+    if (mode === 'test') {
+      const canvas = document.createElement('canvas')
+      const fakeRenderer: Partial<THREE.WebGLRenderer> = {
+        domElement: canvas as any,
+        setPixelRatio: () => {},
+        setSize: () => {},
+        render: () => {},
+      }
+      ;(fakeRenderer.domElement as any).style = {} as any
+      this.renderer = fakeRenderer as THREE.WebGLRenderer
+    } else {
+      this.renderer = new THREE.WebGLRenderer({ alpha: true, antialias: true })
+    }
 
     this.viewportWidth = window.innerWidth
     this.viewportHeight = window.innerHeight
 
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2))
     this.renderer.setSize(this.viewportWidth, this.viewportHeight)
-    this.renderer.domElement.style.position = 'fixed'
-    this.renderer.domElement.style.top = '0'
-    this.renderer.domElement.style.left = '0'
-    this.renderer.domElement.style.pointerEvents = 'none'
-    this.renderer.domElement.style.width = '100vw'
-    this.renderer.domElement.style.height = '100vh'
+    const style = (this.renderer.domElement as any).style ?? ((this.renderer.domElement as any).style = {})
+    style.position = 'fixed'
+    style.top = '0'
+    style.left = '0'
+    style.pointerEvents = 'none'
+    style.width = '100vw'
+    style.height = '100vh'
     // Layering: keep the WebGL overlay above page DOM but below the debug Drawer.
     // The Drawer in App uses zIndex=2100, so 1000 keeps this safely underneath.
-    this.renderer.domElement.style.zIndex = '1000'
+    style.zIndex = '1000'
 
     this.rootGroup = new THREE.Group()
     this.scene.add(this.rootGroup)

@@ -66,4 +66,3 @@ export class WakeMarkerSystem implements EngineSystem {
     this.overlay.wakeMarkers = this.markers.map(({ x, y }) => ({ x, y }))
   }
 }
-
