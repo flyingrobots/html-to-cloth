@@ -24,6 +24,8 @@ import { RenderSettingsSystem } from '../engine/render/RenderSettingsSystem'
 import { RenderSettingsState } from '../engine/render/RenderSettingsState'
 import { WireframeOverlaySystem } from '../engine/render/WireframeOverlaySystem'
 import { PhysicsSystem } from '../engine/systems/physicsSystem'
+import { PhysicsRegistry } from '../engine/registry/PhysicsRegistry'
+import { attachRegistryToEventBus } from '../engine/registry/registryBusAdapter'
 import type { Entity } from '../engine/entity/entity'
 import type { Component } from '../engine/entity/component'
 import type { PinMode } from '../types/pinMode'
@@ -355,6 +357,7 @@ export class ClothSceneController {
   private renderSettingsState: RenderSettingsState | null = null
   private wireframeOverlaySystem: WireframeOverlaySystem | null = null
   private physicsSystem: PhysicsSystem | null = null
+  private registry: PhysicsRegistry | null = null
   // Event bus and overlay adapter
   private eventBusSystem: import('../engine/events/EventBusSystem').EventBusSystem | null = null
   private eventOverlayAdapter: import('../engine/events/EventOverlayAdapter').EventOverlayAdapter | null = null
@@ -396,6 +399,7 @@ export class ClothSceneController {
   }
   private onPointerMove = (event: PointerEvent) => this.handlePointerMove(event)
   private onPointerLeave = () => this.resetPointer()
+  private onPointerUp = (event: PointerEvent) => this.handlePointerUp(event)
 
   /**
    * Creates a new cloth scene controller. All dependencies are optional and may be supplied to
@@ -415,6 +419,8 @@ export class ClothSceneController {
         fixedDelta: options.fixedDelta,
         maxSubSteps: options.maxSubSteps ?? this.debug.substeps,
       })
+
+    this.registry = new PhysicsRegistry()
   }
 
   /**
@@ -447,7 +453,7 @@ export class ClothSceneController {
     window.addEventListener('resize', this.onResize, { passive: true })
     window.addEventListener('scroll', this.onScroll, { passive: true })
     window.addEventListener('pointermove', this.onPointerMove, { passive: true })
-    window.addEventListener('pointerup', this.onPointerLeave, { passive: true })
+    window.addEventListener('pointerup', this.onPointerUp, { passive: true })
     window.addEventListener('pointerleave', this.onPointerLeave, { passive: true })
     window.addEventListener('pointercancel', this.onPointerLeave, { passive: true })
 
@@ -475,7 +481,7 @@ export class ClothSceneController {
     window.removeEventListener('resize', this.onResize)
     window.removeEventListener('scroll', this.onScroll)
     window.removeEventListener('pointermove', this.onPointerMove)
-    window.removeEventListener('pointerup', this.onPointerLeave)
+    window.removeEventListener('pointerup', this.onPointerUp)
     window.removeEventListener('pointerleave', this.onPointerLeave)
     window.removeEventListener('pointercancel', this.onPointerLeave)
 
@@ -745,11 +751,25 @@ export class ClothSceneController {
     this.wireframeOverlaySystem = new WireframeOverlaySystem({ view: this.domToWebGL, settings: this.renderSettingsState })
     // Event bus system
     this.eventBusSystem = new EventBusSystem()
+    const bus = this.eventBusSystem.getBus()
+    // Bridge registry events onto Phase 0 so panels/overlays can observe
+    // add/update/remove changes without coupling to DOM scanning.
+    if (this.registry) {
+      try {
+        attachRegistryToEventBus(this.registry, bus, { channel: 'frameEnd' })
+        this.registry.discover(document)
+      } catch (error) {
+        // Registry wiring is best-effort; avoid breaking init if DOM/registry
+        // integration fails in a particular environment.
+        console.warn?.('PhysicsRegistry wiring failed:', error)
+      }
+    }
     // Physics orchestrator (static-first rigid lane). Runs before SimulationSystem.
     // It uses collisionSystem's static AABBs and publishes events to the bus.
     this.physicsSystem = new PhysicsSystem({
-      bus: this.eventBusSystem.getBus(),
+      bus,
       getAabbs: () => this.collisionSystem.getStaticAABBs().map((b) => ({ min: { x: b.min.x, y: b.min.y }, max: { x: b.max.x, y: b.max.y } })),
+      enableDynamicPairs: true,
     })
     // Register with lower priority than simulation so render sees the latest snapshot.
     this.engine.addSystem(this.cameraSystem, {
@@ -786,8 +806,12 @@ export class ClothSceneController {
     this.eventOverlayAdapter = new EventOverlayAdapter({ bus: this.eventBusSystem.getBus(), overlay: this.overlayState! })
     this.engine.addSystem(this.eventOverlayAdapter, { id: 'event-overlay-adapter', priority: 9, allowWhilePaused: true })
     // Perf emitter
-    const perf = new PerfEmitterSystem({ bus: this.eventBusSystem.getBus() })
-    try { this.engine.addSystem(perf, { id: 'perf-emitter', priority: 998, allowWhilePaused: true }) } catch {}
+    const perfRigid = new PerfEmitterSystem({ bus: this.eventBusSystem.getBus(), laneId: 0 })
+    const perfCloth = new PerfEmitterSystem({ bus: this.eventBusSystem.getBus(), laneId: 1 })
+    try {
+      this.engine.addSystem(perfRigid, { id: 'perf-emitter-rigid', priority: 998, allowWhilePaused: true })
+      this.engine.addSystem(perfCloth, { id: 'perf-emitter-cloth', priority: 997, allowWhilePaused: true })
+    } catch {}
     // Bus metrics overlay bars
     const { BusMetricsOverlaySystem } = require('../engine/events/BusMetricsOverlaySystem.ts') as typeof import('../engine/events/BusMetricsOverlaySystem')
     this.busMetricsOverlay = new BusMetricsOverlaySystem({ view: this.domToWebGL, bus: this.eventBusSystem.getBus() })
@@ -802,7 +826,7 @@ export class ClothSceneController {
     this.ccdStepper = new CcdStepperSystem({
       state: this.ccdSettings,
       getMovingBodies: () => {
-        if (!this.ccdProbe || !this.ccdSettings?.enabled) return []
+        if (!this.ccdProbe) return []
         const p = this.ccdProbe
         return [{ id: 'ccd-probe', shape: p.shape, velocity: p.velocity, setCenter: (x, y) => { p.shape.center.x = x; p.shape.center.y = y } }]
       },
@@ -877,7 +901,6 @@ export class ClothSceneController {
   /** Enables/disables the CCD stepper and optionally spawns a probe box. */
   setCcdEnabled(enabled: boolean) {
     if (!this.ccdSettings) return
-    this.ccdSettings.enabled = enabled
     if (enabled && !this.ccdProbe) {
       // Spawn a small probe to the left moving right
       this.ccdProbe = { shape: { kind: 'obb', center: { x: 0, y: 0 }, half: { x: 0.1, y: 0.1 }, angle: 0 }, velocity: { x: 6, y: 0 } }
@@ -955,6 +978,23 @@ export class ClothSceneController {
     this.simulationSystem.notifyPointer(this.pointer.position)
     this.updateOverlayDebug()
     // overlay pointer updated elsewhere
+  }
+
+  private handlePointerUp(event: PointerEvent) {
+    if (!this.domToWebGL) {
+      this.resetPointer()
+      return
+    }
+    // Map the release position into canonical space and attempt a rigid pick.
+    const canonical = this.domToWebGL.pointerToCanonical(event.clientX, event.clientY)
+    if (this.physicsSystem) {
+      try {
+        this.physicsSystem.pickAt({ x: canonical.x, y: canonical.y })
+      } catch {
+        // Picking is best-effort; never break pointer release.
+      }
+    }
+    this.resetPointer()
   }
 
   private resetPointer() {
@@ -1188,5 +1228,10 @@ export class ClothSceneController {
   /** Returns the physics orchestrator if installed; otherwise null. */
   getPhysicsSystem() {
     return this.physicsSystem
+  }
+
+  /** Returns the physics registry instance if available; otherwise null. */
+  getPhysicsRegistry() {
+    return this.registry
   }
 }

@@ -13,7 +13,7 @@ This report summarizes collision/physics capabilities on `main` and contrasts th
 | Broad phase | Simple AABB interactions in `CollisionSystem` (cloth) | Registry can assist | Per‑update checks vs static lists; dynamic–dynamic checks | Same | Same | Same |
 | Impulses/resolution | N/A (cloth uses constraint relaxation) | N/A | Yes (normal + friction impulses; dynamic–dynamic and dynamic–static) | Same | Same | Yes |
 | Sleep/wake | Cloth thresholds (velocity/frame) with world‑space guard | Adds registry events for activate/deactivate | Adds rigid sleep heuristics; neighbor wake on impulses | Same | Adds UX toggles + visuals | Yes (neighbor wake, tests) |
-| CCD | Minimal demo: ray slabs, circle TOI, swept OBB→AABB/OBB; `CcdStepperSystem` (feature flag) | Unused | Expected to integrate later via PhysicsSystem | – | – | Includes a `sweptTOI.ts` variant; CCD default off |
+| CCD | Minimal demo: ray slabs, circle TOI, swept OBB→AABB/OBB; `CcdStepperSystem` wired via thresholds (no flags) | Unused | Expected to integrate later via PhysicsSystem | – | – | Includes a `sweptTOI.ts` variant; CCD default off |
 | Picking / world xform | No | No | No | Yes: `WorldXform`, rigid picking, `/sandbox` route | Yes (UX polish) | Yes (picking tests) |
 | Registry | No formal registry | `PhysicsRegistry` (add/update/remove events) | Consumed by rigid lane | Consumed | Consumed | Present |
 | Event emission | EventBus Phase 0 for pointer only | Typed events: registry + basic | Emits `collision-v2`, `impulse`, state events via typed bus | Same | Same | Same + extensive tests |
@@ -32,11 +32,11 @@ Principles: keep main stable, land in thin slices, and reuse the existing engine
 - Effort: 0.5–1 day; Risk: low.
 
 2) Registry and typed events
-- Add `PhysicsRegistry` (API behind a feature flag) and map its events onto main’s EventBus Phase 0 via typed helper wrappers (see EVENT_MATRIX.md).
+- Add `PhysicsRegistry` (API integrated directly, no feature flags) and map its events onto main’s EventBus Phase 0 via typed helper wrappers (see EVENT_MATRIX.md).
 - Effort: 1 day; Risk: low/medium (API surface but no runtime coupling yet).
 
 3) Rigid narrow phase (static‑first)
-- Introduce `RigidSystem` with dynamic OBB vs static AABB/OBB collisions and impulses (normal + friction). Do not enable dynamic–dynamic initially; gate via feature flag.
+- Introduce `RigidSystem` with dynamic OBB vs static AABB/OBB collisions and impulses (normal + friction). Start with dynamic–dynamic disabled via explicit configuration and enable once tests cover rest‑without‑jitter.
 - Emit `collision-v2` on `fixedEnd`. Keep CCD off.
 - Effort: 2–3 days; Risk: medium (touches engine step order and controller wiring).
 
@@ -49,7 +49,7 @@ Principles: keep main stable, land in thin slices, and reuse the existing engine
 - Effort: 2 days; Risk: medium/high.
 
 6) World transforms + picking (A2)
-- Add `WorldXform` and picking utilities; optionally add a dev‑only `/sandbox` route guarded behind an env flag so product routes remain unchanged.
+- Add `WorldXform` and picking utilities; if a `/sandbox` route remains dev‑only, keep that explicit in routing rather than via env flags.
 - Effort: 1–2 days; Risk: medium (UI/route churn if not guarded).
 
 7) Sleep UX polish (A3)
@@ -63,7 +63,7 @@ Principles: keep main stable, land in thin slices, and reuse the existing engine
 ## What to keep vs leave out
 - Keep from main: `SimulationSystem`, controller structure, EventBus Phase 0, overlays, and CCD demo (until replaced).
 - Keep from Newton: SAT core, `RigidSystem`, `PhysicsSystem`, typed event emissions, registry, picking/world xform, and tests.
-- Leave out (initially): New routes in production (keep sandbox behind a flag), any duplicate event bus, and large UI rewrites.
+- Leave out (initially): New routes in production (treat sandbox as an explicit dev‑only route), any duplicate event bus, and large UI rewrites.
 
 ## Expected effort by branch group
 - physics‑registry: 1–2 days (docs + registry API + tests; low churn).
@@ -71,4 +71,3 @@ Principles: keep main stable, land in thin slices, and reuse the existing engine
 - newton/a2: 1–2 days (picking/world xform + optional sandbox flag; medium risk if routes change).
 - newton/a3: 1 day (overlay UX polish; low/medium risk).
 - feature/pointer‑input‑system: 4–7 days if merged instead of A1 (wider surface including duplicate bus and QA scaffolding); higher conflict risk. Prefer mining it for tests and specific implementations rather than merging wholesale.
-

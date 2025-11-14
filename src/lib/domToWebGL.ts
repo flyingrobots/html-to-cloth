@@ -23,9 +23,7 @@ export type DOMMeshRecord = {
   worldBody: WorldBody
 }
 
-export type DOMToWebGLOptions = {
-  interceptHtml2CanvasWrites?: 'on' | 'off' | 'auto'
-}
+export type DOMToWebGLOptions = {}
 
 export class DOMToWebGL {
   public scene: THREE.Scene
@@ -37,13 +35,9 @@ export class DOMToWebGL {
   private html2canvasRef: typeof import('html2canvas')['default'] | null = null
   private viewportWidth: number
   private viewportHeight: number
-  private interceptMode: 'on' | 'off' | 'auto' = 'on'
 
   constructor(container: HTMLElement, options: DOMToWebGLOptions = {}) {
     this.container = container
-    const envObj = (typeof import.meta !== 'undefined' ? (import.meta as unknown as { env?: Record<string, string | undefined> }).env : undefined)
-    const envMode = envObj?.VITE_H2C_INTERCEPT as 'on' | 'off' | 'auto' | undefined
-    this.interceptMode = (options.interceptHtml2CanvasWrites ?? envMode ?? 'on')
     this.scene = new THREE.Scene()
     this.camera = new THREE.OrthographicCamera()
     this.renderer = new THREE.WebGLRenderer({ alpha: true, antialias: true })
@@ -96,9 +90,7 @@ export class DOMToWebGL {
 
   async captureElement(element: HTMLElement) {
     const html2canvas = await this.ensureHtml2Canvas()
-    if (this.interceptMode !== 'off') {
-      try { ensureHtml2CanvasInterception() } catch { /* no-op */ }
-    }
+    try { ensureHtml2CanvasInterception() } catch { /* no-op */ }
 
     // Ensure the element is visible during capture to avoid transparent textures
     const prev = {

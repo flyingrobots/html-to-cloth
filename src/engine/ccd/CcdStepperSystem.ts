@@ -44,7 +44,6 @@ export class CcdStepperSystem implements EngineSystem {
   }
 
   fixedUpdate(dt: number) {
-    if (!this.state.enabled) return
     const bodies = this.getMovingBodies()
     if (!bodies.length) return
     const obstacles = this.getObstacles()

@@ -1,127 +1,71 @@
-# Branches — Comparison and Merge Plan (SITREP 2025-11-12)
+# Branches & Newton Merge Plan — 2025‑11‑14
 
-This document summarizes the current state on `main`, compares unmerged branches, and recommends what (and how) to merge, what to keep, and in what order.
+This document tracks:
 
+- What `main` currently owns.
+- What’s left from the Newton branches that we still want.
+- What we are explicitly **not** going to merge and will treat as reference only.
 
-## 1) SITREP
-- Current main includes:
-  - Event Bus Phase 0 (SoA rings, channels, mailboxes) + overlays/metrics.
-  - CCD Phase A demo (feature-flagged): ray slabs, circle TOI, swept OBB→AABB/OBB, `CcdStepperSystem` + overlay.
-  - Specs for non‑modal Events panel and wireframe overlay pass (tests-only).
-- Status: 150/150 unit tests passing after merges. App remains Mantine v7 + TS.
-- Outstanding branches ahead of `main` (local):
-  - feature/pointer-input-system (ahead 42)
-  - feat/physics-registry (ahead 14)
-  - newton/a1-physics-system (ahead 16); newton/a2-worldxform (24); newton/a3-sleep-neighbor-ux (28)
-  - feat/world-sleep-guard-and-tessellation-options (47)
-  - feat/mantine-migration (22); feat/manual-qa-checklist (19)
-  - feat/xforms (33)
-  - fix/canonical-mapping (4); chore/impulse-scaling (1)
+Checkboxes (`- [ ]`) represent **future work** we intend (or may choose) to do on `main` rather than merging whole branches.
 
+---
 
-## 2) Feature Matrix (high‑level)
+## 1. Current `main` state (physics + events + UI)
 
-| Branch | Events (bus) | Physics (rigid) | CCD | Registry | UI/Routes | Docs | Tests present | Risk |
-|---|---|---|---|---|---|---|---|---|
-| main | Phase 0 (channels+mailboxes+metrics) | – | Demo (flag) | – | Mantine v7 TS; no new routes | Yes | Yes (150+) | – |
-| feature/pointer-input-system | Minimal global bus + typed events | Yes: OBB impulses, dynamic–dynamic, neighbor‑wake | Swept variant (off) | Yes | Adds sandbox & overlays | Yes | Many rigid/picking/manifold | High |
-| feat/physics-registry | Minimal bus + typed registry events | Scaffolding + SAT tests | – | Yes (`PhysicsRegistry`) | – | Yes | Registry+SAT | Medium |
-| newton/a1-physics-system | Minimal bus + typed | Yes: `RigidSystem` + `PhysicsSystem` (rigid→cloth) | – (planned later) | Consumed | – | – | Physics system + SAT | High |
-| newton/a2-worldxform | Minimal bus + typed | Yes (as A1) | – | Consumed | WorldXform, picking, optional `/sandbox` | – | Some Playwright scaffolding | Med/High |
-| newton/a3-sleep-neighbor-ux | Minimal bus + typed | Yes (as A1) + UX | – | Consumed | Overlay/UX tweaks | – | Overlay/UX tests | Medium |
-| feat/world-sleep-guard-and-tessellation-options | Uses main’s bus | SAT-ready structure, UX changes | – | – | Overlay/events breadth | Yes | Mixed | High |
-| feat/mantine-migration | – | – | – | – | JS Mantine app, legacy controller; replaces TS | Yes | Mixed JS tests | Medium (stale) |
-| feat/manual-qa-checklist | – | – | – | – | Small QA toggles/guards | – | Minimal | Low (stale) |
-| feat/xforms | – | – | – | – | Legacy engine core | Some | – | High (obsolete) |
-| fix/canonical-mapping | – | – | – | – | Minor build/TS refactor | – | – | Low (stale) |
-| chore/impulse-scaling | – | – | – | – | Chore/docs | – | – | Low (obsolete) |
+`main` now includes:
 
-Legend: “Minimal bus” = simple pub/sub (no channels/mailboxes). Risk reflects breadth + staleness + conflict likelihood.
+- **Events / Bus**
+  - EventBus Phase 0: SoA rings, channels (`frameBegin`, `fixedEnd`, `frameEnd`, `immediate`), mailboxes, backfill, invalidation, metrics, overlays.
+  - Typed event helpers for:
+    - Pointer: `PointerMove`.
+    - Perf: `PerfRow` (with lane IDs).
+    - CCD: `CcdHit`.
+    - Physics: `CollisionV2`, `Impulse`, `Wake`, `Sleep`, `Pick`.
+    - Registry: `RegistryAdd`, `RegistryUpdate`, `RegistryRemove`.
+  - EventBusSystem plus:
+    - `EventOverlayAdapter` (debug overlay wired to bus).
+    - `BusMetricsOverlaySystem` (bus stats overlay).
+    - `PerfEmitterSystem` (now multi‑lane via `laneId`).
 
+- **CCD**
+  - CCD Phase A demo behind debug toggles:
+    - Analytic ray slabs and circle TOI.
+    - Swept OBB→AABB/OBB.
+    - `CcdStepperSystem` + `CcdProbeOverlaySystem`.
+  - CCD still runs as a **separate demo lane**, not integrated into the rigid physics lane.
 
-## 3) Categories of Changes
-- Core Physics/Newton: feat/physics-registry, newton/a1, a2, a3, feat/world-sleep-guard-and-tessellation-options.
-- Pointer+Rigid integration slice: feature/pointer-input-system.
-- UI/Mantine: feat/mantine-migration, feat/manual-qa-checklist.
-- Legacy/Obsolete: feat/xforms, chore/impulse-scaling, fix/canonical-mapping.
+- **UI / Routes**
+  - Mantine v8 TypeScript app shell (`App.tsx`, `main.tsx`) with:
+    - Debug drawer (`DebugPalette`) wired to `EngineActions`.
+    - Events panel (`EventsPanel`) as a non‑modal overlay (Cmd/Ctrl+E).
+    - Wireframe overlay pass.
+  - Routes:
+    - `/` → “Cloth Playground” hero + single `.cloth-enabled` button.
+    - `/sandbox` → “Physics Sandbox” hero:
+      - Multiple `.cloth-enabled` buttons.
+      - Shared engine/overlay/debug stack with the main route.
 
-
-## 4) Recommended — What to Bring to Main
-- Typed event helpers for Phase 0: thin wrappers to publish `collision-v2`, `impulse`, `wake/sleep`, and `registry:*` onto the Phase‑0 channels.
-- Physics foundations (sliced):
-  - SAT helpers + unit tests.
-  - `PhysicsRegistry` API (feature‑flagged, no UI coupling initially).
-  - Static‑first `RigidSystem` (dynamic OBB vs static AABB/OBB), impulses (normal+friction), emit `collision-v2` on `fixedEnd`.
-  - `PhysicsSystem` orchestrator (rigid→cloth lane order) once static‑first is stable.
-- Optional dev‑only: WorldXform + picking utilities and a gated `/sandbox` route.
-- Events Panel UI: implement from the specs already on main; consume Phase 0 mailboxes (Cmd/Ctrl+E).
-
-
-## 5) Recommended — What to Keep From Main (do not replace)
-- EventBus Phase 0 as canonical (channels, mailboxes, metrics, overlays).
-- `ClothSceneController`/EngineWorld architecture and system priorities.
-- Mantine v7 TypeScript app shell (`App.tsx`, `main.tsx`) and EngineActions wiring.
-- CCD demo and toggles (keep CCD off by default until rigid lane lands, then integrate deliberately).
-- Test configuration split (Vitest unit vs Playwright e2e), and the passing unit suites.
+- **Engine / Simulation**
+  - `EngineWorld` with ordered systems and pause support.
+  - `FixedStepLoop` + `SimulationRunner` driving fixed steps and frame updates.
+  - `SimulationSystem`:
+    - Owns cloth bodies (`SimWorld`), warm‑start queue, sleep thresholds.
+    - Exposes immutable snapshots for overlays.
+  - `ClothSceneController`:
+    - Owns DOM capture, `DOMToWebGL`, `ElementPool`, `CollisionSystem`.
+    - Registers:
+      - `SimulationSystem`.
+      - `CameraSystem`, `WorldRendererSystem`.
+      - `DebugOverlaySystem` + `RenderSettingsSystem` + `WireframeOverlaySystem`.
+      - `EventBusSystem` + overlays + perf emitters.
+      - CCD demo systems.
 
 
-## 6) Recommended Merge Sequence (sliced) — With Risks and Tests
-1) Add typed event helper API atop Phase 0 (no behavior change)
-   - Risks: None beyond minor API surface.
-   - Tests: Unit tests that map typed structures → Phase‑0 lanes; ensure determinism across channels; mailbox backfill for new subscribers.
-
-2) Cherry‑pick docs + SAT helpers + tests (from feat/physics-registry)
-   - Risks: Low.
-   - Tests: SAT unit suites run on main; keep independent of controller.
-
-3) Introduce `PhysicsRegistry` (flagged) and map its events via typed helpers
-   - Risks: Low/Medium (new API surface, no runtime coupling yet).
-   - Tests: Registry add/update/remove validation; event publishing to Phase‑0 `frameEnd`.
-
-4) Static‑first `RigidSystem` + `collision-v2` emitters
-   - Risks: Medium (new system + step order).
-   - Trouble to expect: priority interactions with SimulationSystem; overlay idempotency; pointer/overlay perf.
-   - Tests (before/after):
-     - OBB vs static AABB/OBB collision determinism (depth, normal, contact features).
-     - No‑jitter rest acceptance (box settling on ramp/floor).
-     - Event emission invariants: one `collision-v2` per contact set; no duplicates across frames.
-
-5) `PhysicsSystem` orchestrator (rigid → cloth), keep CCD off
-   - Risks: Medium; step ordering.
-   - Trouble: pause/step idempotency, perf budgets.
-   - Tests: Engine step integration; pausing while overlay renders; real‑time toggle idempotency.
-
-6) Dynamic–dynamic + neighbor‑wake (guarded)
-   - Risks: Medium/High; more contacts, wake chains.
-   - Trouble: tunneling without CCD; jitter at rest; mailbox pressure.
-   - Tests: head‑on OBB pair rest without jitter; wake propagation depth; mailbox drop metrics stay under threshold.
-
-7) Optional world xform + picking + gated `/sandbox`
-   - Risks: Medium if route leaks into prod.
-   - Tests: route flagging; picking ray tests; Playwright smoke behind flag.
-
-8) Optional CCD integration into rigid lane (keep off by default)
-   - Risks: Medium.
-   - Tests: Thin‑wall acceptance at 1 substep; mixed rigid/cloth frame stability.
-
-
-## 7) Branch‑by‑Branch Breakdown
-
-### feature/pointer-input-system (ahead 42) — High risk
-- Has vs main:
-  - Rigid pipeline (dynamic OBBs, impulses with friction), neighbor‑wake, collision‑v2, simple bus, pointer system, registry, overlays, sandbox/e2e, many tests.
-- Worth merging?
-  - Not wholesale. Mine: physics narrow‑phase implementations, impulse logic, tests. Replace its bus with Phase 0 and rewire emitters.
-- Conflicts/trouble:
-  - Duplicates event bus; rewires controller, overlays, and UI; wide surface.
-- Tests to write/keep:
-  - Keep manifold/impulse tests; add integration on Phase 0 (`fixedEnd`) and mailbox pressure tests.
-
-### feat/physics-registry (ahead 14) — Medium risk
+## 2. Branch inventory at a glance
 - Has vs main:
   - `PhysicsRegistry`, SAT helpers/tests, instrumentation, typed event validation.
 - Worth merging?
-  - Yes, sliced: docs + SAT + tests first; then registry API behind a feature flag; no UI coupling.
+  - Yes, sliced: docs + SAT + tests first; then integrate the registry API directly (no feature flags), keeping it decoupled from UI.
 - Conflicts/trouble:
   - Minimal; ensure no duplicate event bus.
 - Tests:
@@ -199,15 +143,195 @@ Legend: “Minimal bus” = simple pub/sub (no channels/mailboxes). Risk reflect
 - Worth merging?
   - Not urgent. Re‑evaluate only if we hit the specific build issue.
 
-### chore/impulse-scaling (ahead 1) — Low risk (obsolete)
-- Has vs main:
-  - Chore/docs.
-- Worth merging?
-  - Close.
+---
 
+## 3. What’s DONE (Newton roadmap on `main`)
 
-## 8) Recommended One‑Pager (if we start merging Newton later)
-- Keep Phase 0 bus; add typed wrappers; rip out duplicate buses in branches during rebase.
-- Land physics in slices: docs+SAT → registry (flagged) → static‑first rigid → orchestrator → dynamic–dynamic+wake → world xform/picking (flagged) → sleep UX → CCD integration (off by default).
-- Build the Events panel now on main; use it to monitor collisions and registry changes once physics lands.
+These items from the original Newton merge plan are effectively complete on `main`:
 
+- [x] Typed event helpers on Phase‑0 bus for collisions, impulses, wake/sleep, registry, picks, and CCD hits.
+- [x] SAT helpers + tests (OBB vs AABB).
+- [x] `PhysicsRegistry` + unit tests, wired to Phase‑0 `frameEnd` via a registry→bus adapter.
+- [x] Static‑first rigid lane with SAT vs static AABBs, restitution + friction, and `CollisionV2` emission.
+- [x] `PhysicsSystem` orchestrator that runs rigid before cloth.
+- [x] Dynamic–dynamic collision path with:
+  - OBB‑aware normals/depth via SAT helper.
+  - Normal + friction impulses.
+  - `CollisionV2`, `Impulse`, `Wake` events.
+- [x] World‑space picking utilities and events:
+  - Canonical pointer mapping.
+  - Picking over rigid bodies.
+  - `Pick` events on the bus.
+- [x] Non‑modal Events panel wired to the bus, able to show:
+  - `PointerMove`, `PerfRow`, `CcdHit`, `Collision`, `Registry`, `Pick`.
+- [x] `/sandbox` route using the same engine stack as `/` with a more complex DOM scene.
+
+---
+
+## 4. Future work checklist (do‑on‑main, not merge‑branches)
+
+These are the remaining Newton‑adjacent tasks we still want, expressed as work to perform on `main`. We’ll mine branches as reference where useful.
+
+### 4.1 Dynamic collisions & neighbor wake
+
+- [ ] Add richer dynamic–dynamic test scenarios:
+  - [ ] Head‑on pairs settling to rest without jitter at different restitution/μ.
+  - [ ] Simple stacks (e.g., 2–3 boxes) to validate stability.
+- [ ] Introduce a per‑body rigid “sleep” heuristic:
+  - [ ] Velocity/accumulated motion thresholds per body.
+  - [ ] Emit `Sleep` events when rigid bodies go to sleep; confirm via EventsPanel.
+- [ ] Wire wake visualization:
+  - [ ] Add a small debug system that subscribes to `Wake` events and updates `DebugOverlayState.wakeMarkers` based on body positions.
+  - [ ] Implement a simple decay (e.g., a few frames) so markers fade.
+
+### 4.2 Physics perf & budgets
+
+- [ ] Decide on perf lane semantics:
+  - [ ] Lane 0: “physics:rigid:fixed”.
+  - [ ] Lane 1: “physics:cloth:fixed”.
+  - [ ] Lane 2: “render:frame” (optional).
+- [ ] Measure actual lane timings instead of just using `frameUpdate` dt:
+  - [ ] Wrap rigid and cloth steps in timers (or a simple `performance.now()` delta) to feed `PerfRow`.
+  - [ ] Adjust `PerfEmitterSystem` usage to report the real lane values.
+- [ ] Update EventsPanel / overlays:
+  - [ ] Decode `PerfRow` lane IDs into human‑readable labels in the `detail` column.
+  - [ ] Optionally show lane perf bars in `DebugOverlaySystem` or a new UI panel.
+- [ ] Add perf budget checks:
+  - [ ] Flag frames where rigid/cloth exceeds budget (e.g., >1.5ms) for future alerting.
+
+### 4.3 Sleep/neighbor UX & sandbox tooling
+
+- [ ] Integrate wake markers UX:
+  - [ ] Toggle is in place; populate `wakeMarkers` from `Wake` events as described above.
+- [ ] Add E2E tests for `/sandbox`:
+  - [ ] Playwright test that:
+    - Loads `/sandbox`.
+    - Opens Debug drawer.
+    - Spawns rigid boxes.
+    - Clicks in the scene and asserts `Collision` + `Pick` + `Registry` rows in EventsPanel.
+  - [ ] Optionally verifies toggling overlay flags (AABBs, Sleep, Wake) changes rendered gizmos.
+
+### 4.4 CCD integration into the rigid lane (optional but high‑value)
+
+- [ ] Decide integration boundaries:
+  - [ ] Keep CCD as a separate lane that only affects certain rigid bodies.
+  - [ ] Or integrate CCD into the main rigid lane under clearly documented rules (no hidden flags).
+- [ ] Wire CCD for rigid bodies (not just the demo probe):
+  - [ ] Feed moving rigid bodies into `CcdStepperSystem` based on velocity and thresholds.
+  - [ ] Clamp rigid positions to collision TOI and emit combined `CcdHit` + `CollisionV2` events.
+- [ ] Add tests:
+  - [ ] Extend Thin‑Wall acceptance tests to cover rigid boxes in a real scene using the engine.
+  - [ ] Verify no tunneling at 1 substep for representative scenarios.
+
+---
+
+## 5. Branch‑by‑branch decisions (reference vs merge)
+
+### 5.1 `feat/physics-registry`
+
+**Status:** Core ideas merged; branch largely redundant.
+
+- Already on main:
+  - `PhysicsRegistry` implementation and tests.
+  - SAT helpers and tests.
+  - Registry→EventBus mapping (done differently but more robustly).
+- Keep branch as:
+  - Docs / historical reference only.
+- **Decision:** no merge. Only mine very specific docs or tiny code snippets if a future need arises.
+
+### 5.2 `newton/a1-physics-system`
+
+**Status:** Architecture effectively landed; perf extras may remain.
+
+- Already on main:
+  - Two‑lane physics concept (`PhysicsSystem` orchestrating rigid → cloth).
+  - Static‑first rigid lane with SAT + `CollisionV2`.
+  - Dynamic–dynamic path with impulses and `Wake` events.
+- Likely remaining on branch:
+  - Perf rows for physics lanes.
+  - Additional tests around idempotent registration and perf budgets.
+- **Decision:** no merge. Implement perf rows and extra tests directly on `main`, using the checklist above.
+
+### 5.3 `newton/a2-worldxform`
+
+**Status:** World xform + picking + sandbox are all on main now.
+
+- Already on main:
+  - Canonical world space (`DOMToWebGL` + `WorldBody`).
+  - Picking utilities, `Pick` events, pointer‑up → pick flow.
+  - `/sandbox` route integrated into the Mantine TS shell.
+- Branch likely still holds:
+  - Alternative sandbox layout and Playwright scaffolding.
+- **Decision:** no merge. If needed, mine Playwright scenarios or specific UX from this branch.
+
+### 5.4 `newton/a3-sleep-neighbor-ux`
+
+**Status:** Core sleep machinery is on main; UX bits are partially replicated.
+
+- Already on main:
+  - Sleep thresholds and world‑space sleep guard for cloth.
+  - Debug overlay visuals for sleep state.
+  - Wake markers toggle + rendering hooks.
+- Branch may still contain:
+  - Alternative wake visualization.
+  - Viewport width controls or extra overlay UX.
+- **Decision:** no merge. Use as inspiration when polishing overlay behavior; implement changes on main.
+
+### 5.5 `feat/world-sleep-guard-and-tessellation-options`
+
+**Status:** Largely superseded by engine refactor + tessellation work on main.
+
+- Already on main:
+  - Tessellation auto‑logic in `ClothSceneController`.
+  - World‑space sleep guard path for cloth.
+- Branch contains:
+  - Earlier versions of these ideas plus some project docs.
+- **Decision:** no merge. Treat as historical; keep only the docs that are still relevant.
+
+### 5.6 `feature/pointer-input-system`
+
+**Status:** High‑risk; we’ve already adopted its ideas in a Phase‑0‑friendly way.
+
+- Already on main:
+  - Phase‑0 bus instead of the branch’s minimal bus.
+  - Rigid system + dyn‑dyn behavior (with a simpler solver).
+  - Registry + bus wiring.
+  - Picking + `/sandbox`.
+- Branch still holds:
+  - Its own `eventBus` implementation (we do not want this).
+  - A more aggressive rigid solver and lots of tests.
+  - Sandbox‑style UI/overlays and QA scaffolding.
+- **Decision:** never merge wholesale. Use as a **test/algorithm quarry**:
+  - [ ] When we need more sophisticated manifolds or neighbor‑wake logic, port those pieces into the existing Phase‑0 + EngineWorld architecture.
+
+### 5.7 UI / legacy / misc
+
+- `feat/mantine-migration`:
+  - Older Mantine JS app shell, superseded by current TS Mantine v8 app.
+  - **Decision:** no merge. Only cherry‑pick specific UI ideas if ever needed.
+- `feat/manual-qa-checklist`:
+  - Some QA toggles/guards.
+  - **Decision:** low priority; mine only if a matching QA task emerges.
+- `feat/xforms`:
+  - Legacy engine core that conflicts with EngineWorld/SimulationSystem.
+  - **Decision:** obsolete; no merge.
+- `fix/canonical-mapping`:
+  - Small TS/build refactor.
+  - **Decision:** revisit only if we hit a matching build issue.
+- `chore/impulse-scaling`:
+  - Docs/chore.
+  - **Decision:** treat as superseded by current physics documentation and tuning.
+
+---
+
+## 6. TL;DR — Remaining Newton work
+
+There is no “giant branch merge” left. The remaining Newton work should happen **directly on `main`**:
+
+- [ ] Improve dynamic–dynamic tests and solver stability (stacks, ramps, jitter‑free rest).
+- [ ] Add rigid sleep heuristics and `Sleep` events; surface in EventsPanel.
+- [ ] Drive wake markers from `Wake` events and visualize neighbor‑wake chains in overlays.
+- [ ] Turn perf rows into true lane metrics (rigid/cloth/render), not just `frame` dt.
+- [ ] Show lane labels for perf rows in EventsPanel and/or overlays.
+- [ ] Add `/sandbox` E2E tests (Playwright) to lock in physics/picking/registry behavior.
+- [ ] Decide and implement CCD integration into the rigid lane, keeping it default‑off and test‑driven.

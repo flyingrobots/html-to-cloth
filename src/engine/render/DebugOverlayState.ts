@@ -18,6 +18,10 @@ export class DebugOverlayState {
   drawSleep = false
   /** Whether to draw pin markers when visible. */
   drawPins = false
+  /** Whether to highlight recently woken bodies (neighbor-wake). */
+  drawWake = false
+  /** World-space positions of recently woken bodies (small pulsing markers). */
+  wakeMarkers: Array<{ x: number; y: number }> = []
   /** Static collision AABBs (canonical coordinates). */
   aabbs: CollisionAABB[] = []
   /** Simulation snapshot for sleeping/awake coloring of gizmos. */
