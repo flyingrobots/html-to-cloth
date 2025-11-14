@@ -6,6 +6,7 @@ export type PhysicsSystemOptions = {
   bus: EventBus
   getAabbs: () => AABB[]
   gravity?: number
+  enableDynamicPairs?: boolean
 }
 
 /**
@@ -20,7 +21,12 @@ export class PhysicsSystem implements EngineSystem {
   private readonly rigid: RigidStaticSystem
 
   constructor(opts: PhysicsSystemOptions) {
-    this.rigid = new RigidStaticSystem({ getAabbs: opts.getAabbs, bus: opts.bus, gravity: opts.gravity })
+    this.rigid = new RigidStaticSystem({
+      getAabbs: opts.getAabbs,
+      bus: opts.bus,
+      gravity: opts.gravity,
+      enableDynamicPairs: opts.enableDynamicPairs,
+    })
     this.id = 'physics-core'
     this.priority = 101 // run before SimulationSystem (100)
   }
@@ -31,5 +37,18 @@ export class PhysicsSystem implements EngineSystem {
 
   addRigidBody(b: RigidBody) { this.rigid.addBody(b) }
   removeRigidBody(id: number) { this.rigid.removeBody(id) }
-}
 
+  getRigidBodyCenter(id: number) {
+    if (typeof (this.rigid as any).getBodyCenter === 'function') {
+      return (this.rigid as any).getBodyCenter(id) as { x: number; y: number } | null
+    }
+    return null
+  }
+
+  pickAt(point: { x: number; y: number }) {
+    // Delegate to rigid system if it exposes a picking helper in the future.
+    if (typeof (this.rigid as any).pickAt === 'function') {
+      ;(this.rigid as any).pickAt(point)
+    }
+  }
+}

@@ -194,7 +194,7 @@ Progress gate: a cell is considered ✅ when we have TOI (t∈[0,1]), a contact 
 - [x] Rotated OBB↔OBB via swept-SAT across {A.ux,A.uy,B.ux,B.uy} (fixed orientation) with unit test (35086e7)
 - [x] Thin Wall acceptance spec at unit level via `advanceWithCCD` harness (no tunneling @ 1 substep); engine integration pending (b7c48cd, fdb9364)
 - [x] Ray slabs (AABB/OBB local-frame) and circle–circle analytic TOI with unit tests (9c4f056, d0dc200)
-- [x] Feature-flagged `CcdStepperSystem` + `CcdSettingsState` (skeleton) to advance supplied bodies via CCD (9c4f056)
+- [x] `CcdStepperSystem` + `CcdSettingsState` skeleton integrated to advance supplied bodies via CCD (no feature flags; controlled by thresholds) (9c4f056)
 - [ ] Replace discrete resolution with TOI-ordered resolution (engine scheduler)
 - [ ] Add ray/segment analytic tests and dashboard tooling
 - [ ] Implement general GJK‑TOI + EPA kernel; extend swept coverage to POLYGON and CIRCLE
@@ -217,7 +217,7 @@ Progress gate: a cell is considered ✅ when we have TOI (t∈[0,1]), a contact 
 - [ ] `src/engine/ccd/sweptSat.ts` — (optional) swept SAT fast path
 - [ ] `src/engine/queries/ray.ts` — ray/segment helpers (slabs, plane, circle)
 - [ ] `src/engine/ccd/__tests__/*` — unit/property tests
-- [ ] RigidSystem/PhysicsSystem integration (feature‑flagged path)
+- [ ] RigidSystem/PhysicsSystem integration (initial integration path, always on once merged)
 - [ ] Debug UI: CCD toggles + overlay of TOI point/normal
 - [ ] Docs: `docs/engine/ccd.md` (algorithms, epsilons, pitfalls)
 

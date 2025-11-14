@@ -10,7 +10,15 @@ export function EventsPanel({ open, onOpenChange, bus }: { open: boolean; onOpen
   const [paused, setPaused] = useState(false)
   const [autoScroll, setAutoScroll] = useState(true)
   const [enabledChannels, setEnabledChannels] = useState<Record<Channel, boolean>>({ frameBegin: true, fixedEnd: true, frameEnd: true, immediate: true })
-  const [enabledTypes, setEnabledTypes] = useState<Record<string, boolean>>({ PointerMove: true, PerfRow: true, CcdHit: true })
+  const [enabledTypes, setEnabledTypes] = useState<Record<string, boolean>>({
+    PointerMove: true,
+    PerfRow: true,
+    CcdHit: true,
+    Collision: true,
+    Registry: true,
+    Pick: true,
+    Sleep: true,
+  })
   const scrollerRef = useRef<HTMLDivElement | null>(null)
   const cursorRef = useRef<ReturnType<EventBus['subscribe']> | null>(null)
   const rafRef = useRef<number | null>(null)
@@ -21,7 +29,18 @@ export function EventsPanel({ open, onOpenChange, bus }: { open: boolean; onOpen
     // Subscribe to a minimal set: pointer moves (frameBegin) + perf rows (frameEnd)
     cursorRef.current = bus.subscribe('ui.eventsPanel', [
       { channel: 'frameBegin', ids: [EventIds.PointerMove] },
-      { channel: 'frameEnd', ids: [EventIds.PerfRow, EventIds.CcdHit] },
+      { channel: 'fixedEnd', ids: [EventIds.CollisionV2] },
+      {
+        channel: 'frameEnd',
+        ids: [
+          EventIds.PerfRow,
+          EventIds.CcdHit,
+          EventIds.RegistryAdd,
+          EventIds.RegistryUpdate,
+          EventIds.RegistryRemove,
+          EventIds.Pick,
+        ],
+      },
     ])
 
     const read = () => {
@@ -35,18 +54,50 @@ export function EventsPanel({ open, onOpenChange, bus }: { open: boolean; onOpen
             pushRow(h, 'frameBegin', 'PointerMove', `x=${x.toFixed(3)} y=${y.toFixed(3)}`)
           }, 128)
         }
+        if (enabledChannels.fixedEnd && enabledTypes.Collision) {
+          received += cur.read('fixedEnd', (h: EventHeaderView, r: EventReader) => {
+            if ((h.id >>> 0) !== EventIds.CollisionV2) return
+            const a = r.u32[0] >>> 0
+            const b = r.u32[1] >>> 0
+            const depth = r.f32[4]
+            pushRow(
+              h,
+              'fixedEnd',
+              'Collision',
+              `a=${a} b=${b} depth=${depth.toFixed(3)}`
+            )
+          }, 128)
+        }
         if (enabledChannels.frameEnd) {
           received += cur.read('frameEnd', (h: EventHeaderView, r: EventReader) => {
             // Distinguish by header id (Phase 0 stores numeric ids in header)
             const id = h.id >>> 0
             if (id === EventIds.PerfRow && enabledTypes.PerfRow) {
               const ms = r.f32[0]
-              pushRow(h, 'frameEnd', 'PerfRow', `${ms.toFixed(2)} ms`)
+              const lane = r.u32[0] >>> 0
+              const laneLabel =
+                lane === 0 ? 'rigid:fixed' :
+                lane === 1 ? 'cloth:fixed' :
+                lane === 2 ? 'render:frame' :
+                `lane-${lane}`
+              pushRow(h, 'frameEnd', 'PerfRow', `${laneLabel} ${ms.toFixed(2)} ms`)
             } else if (id === EventIds.CcdHit && enabledTypes.CcdHit) {
               const t = r.f32[0]
               const nx = r.f32[1]
               const ny = r.f32[2]
               pushRow(h, 'frameEnd', 'CcdHit', `t=${t.toFixed(3)} n=(${nx.toFixed(2)}, ${ny.toFixed(2)})`)
+            } else if (enabledTypes.Registry && (id === EventIds.RegistryAdd || id === EventIds.RegistryUpdate || id === EventIds.RegistryRemove)) {
+              const detail =
+                id === EventIds.RegistryAdd ? 'add' : id === EventIds.RegistryUpdate ? 'update' : 'remove'
+              pushRow(h, 'frameEnd', 'Registry', detail)
+            } else if (id === EventIds.Pick && enabledTypes.Pick) {
+              const eid = r.u32[0] >>> 0
+              const px = r.f32[0]
+              const py = r.f32[1]
+              pushRow(h, 'frameEnd', 'Pick', `id=${eid} p=(${px.toFixed(3)}, ${py.toFixed(3)})`)
+            } else if (id === EventIds.Sleep && enabledTypes.Sleep) {
+              const eid = r.u32[0] >>> 0
+              pushRow(h, 'frameEnd', 'Sleep', `id=${eid}`)
             }
           }, 128)
         }
@@ -113,7 +164,7 @@ export function EventsPanel({ open, onOpenChange, bus }: { open: boolean; onOpen
           </Group>
           <Group gap="xs">
             <Text size="sm" fw={600}>Types</Text>
-            {['PointerMove','PerfRow','CcdHit'].map((t) => (
+            {['PointerMove','PerfRow','CcdHit','Collision','Registry','Pick','Sleep'].map((t) => (
               <Checkbox key={t} label={t} checked={enabledTypes[t]} onChange={(e) => setEnabledTypes((prev) => ({ ...prev, [t]: e.currentTarget.checked }))} />
             ))}
           </Group>

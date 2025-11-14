@@ -78,8 +78,7 @@
       }
     ],
     "direction": "horizontal",
-    "width": 300,
-    "collapsed": true
+    "width": 300
   },
   "right": {
     "id": "16442523b6d20242",
@@ -162,12 +161,12 @@
               "title": "Chronology"
             }
           }
-        ]
+        ],
+        "currentTab": 4
       }
     ],
     "direction": "horizontal",
-    "width": 300,
-    "collapsed": true
+    "width": 300
   },
   "left-ribbon": {
     "hiddenItems": {
@@ -181,7 +180,7 @@
       "chronology:Open Chronology": false
     }
   },
-  "active": "aa44776f7279b1f6",
+  "active": "edfaa1d795ffda8b",
   "lastOpenFiles": [
     "src/engine/systems/__tests__/rigidStaticSystem.impulse.test.ts",
     "src/engine/systems/physicsSystem.ts",

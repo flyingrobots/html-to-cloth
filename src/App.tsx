@@ -56,6 +56,13 @@ function lsGetString<T extends string>(key: string, fallback: T): T {
 }
 function lsSetString(key: string, value: string) { lsSetRaw(key, value) }
 
+type DemoMode = 'playground' | 'sandbox'
+
+function resolveDemoMode(): DemoMode {
+  if (typeof window === 'undefined' || typeof window.location === 'undefined') return 'playground'
+  return window.location.pathname === '/sandbox' ? 'sandbox' : 'playground'
+}
+
 type DebugProps = {
   open: boolean
   onOpenChange: (open: boolean) => void
@@ -92,6 +99,8 @@ type DebugProps = {
   onDrawSleepChange: (value: boolean) => void
   drawPins: boolean
   onDrawPinsChange: (value: boolean) => void
+  drawWake: boolean
+  onDrawWakeChange: (value: boolean) => void
   pinMode: PinMode
   onPinModeChange: (value: PinMode) => void
   onStep: () => void
@@ -110,6 +119,7 @@ type DebugProps = {
   ccdToastEnabled: boolean
   onCcdToastEnabledChange: (value: boolean) => void
   onResetCcd: () => void
+  registrySummary: { cloth: number; rigidDynamic: number; rigidStatic: number } | null
 }
 
 function DebugPalette(props: DebugProps) {
@@ -143,6 +153,14 @@ function DebugPalette(props: DebugProps) {
     onPresetSelect,
     pointerColliderVisible,
     onPointerColliderVisibleChange,
+    drawAABBs,
+    onDrawAABBsChange,
+    drawSleep,
+    onDrawSleepChange,
+    drawPins,
+    onDrawPinsChange,
+    drawWake,
+    onDrawWakeChange,
     pinMode,
     onPinModeChange,
     onStep,
@@ -160,6 +178,7 @@ function DebugPalette(props: DebugProps) {
     ccdToastEnabled,
     onCcdToastEnabledChange,
     onResetCcd,
+    registrySummary,
   } = props
 
   // (labels kept close to Select entries)
@@ -223,7 +242,7 @@ function DebugPalette(props: DebugProps) {
                 <Text fw={600}>Debug AABBs</Text>
                 <Text size="sm" c="dimmed">Draw static collision bounds</Text>
               </Stack>
-              <Switch aria-label="Debug AABBs" checked={props.drawAABBs} onChange={(e) => props.onDrawAABBsChange(e.currentTarget.checked)} />
+              <Switch aria-label="Debug AABBs" checked={drawAABBs} onChange={(e) => onDrawAABBsChange(e.currentTarget.checked)} />
             </Group>
             <Group justify="space-between">
               <Stack gap={0}
@@ -231,7 +250,7 @@ function DebugPalette(props: DebugProps) {
                 <Text fw={600}>Sleep State</Text>
                 <Text size="sm" c="dimmed">Color centers (awake vs sleeping)</Text>
               </Stack>
-              <Switch aria-label="Sleep State" checked={props.drawSleep} onChange={(e) => props.onDrawSleepChange(e.currentTarget.checked)} />
+              <Switch aria-label="Sleep State" checked={drawSleep} onChange={(e) => onDrawSleepChange(e.currentTarget.checked)} />
             </Group>
             <Group justify="space-between">
               <Stack gap={0}
@@ -239,7 +258,15 @@ function DebugPalette(props: DebugProps) {
                 <Text fw={600}>Pin Markers</Text>
                 <Text size="sm" c="dimmed">Draw markers on pinned vertices</Text>
               </Stack>
-              <Switch aria-label="Pin Markers" checked={props.drawPins} onChange={(e) => props.onDrawPinsChange(e.currentTarget.checked)} />
+              <Switch aria-label="Pin Markers" checked={drawPins} onChange={(e) => onDrawPinsChange(e.currentTarget.checked)} />
+            </Group>
+            <Group justify="space-between">
+              <Stack gap={0}
+              >
+                <Text fw={600}>Wake Markers</Text>
+                <Text size="sm" c="dimmed">Highlight recently woken bodies</Text>
+              </Stack>
+              <Switch aria-label="Wake Markers" checked={drawWake} onChange={(e) => onDrawWakeChange(e.currentTarget.checked)} />
             </Group>
             <Stack gap={4}
             >
@@ -367,6 +394,14 @@ function DebugPalette(props: DebugProps) {
             </Group>
           </Stack>
           <Divider />
+          {registrySummary ? (
+            <Stack gap={4}>
+              <Text fw={600}>Physics Registry</Text>
+              <Text size="sm" c="dimmed">
+                cloth={registrySummary.cloth} rigidDynamic={registrySummary.rigidDynamic} rigidStatic={registrySummary.rigidStatic}
+              </Text>
+            </Stack>
+          ) : null}
       <Group justify="flex-end">
             <Button variant="outline" onClick={onSpawnRigid}>Spawn Rigid Box</Button>
             <Button variant="default" onClick={() => onOpenChange(false)}>Close</Button>
@@ -378,7 +413,67 @@ function DebugPalette(props: DebugProps) {
   )
 }
 
-function Demo() {
+function PlaygroundHero({ modifierKey }: { modifierKey: string }) {
+  return (
+    <>
+      <Group justify="center" style={{ minHeight: '100vh' }}>
+        <Stack align="center" gap="md">
+          <Title order={1}>Cloth Playground</Title>
+          <Text size="sm" maw={560} ta="center">
+            This minimal scene keeps the DOM simple while we tune the cloth overlay. Click the button below to peel it away.
+          </Text>
+          <Button className="cloth-enabled" size="lg">Peel Back</Button>
+        </Stack>
+      </Group>
+      <Affix position={{ bottom: 24, left: 0, right: 0 }}>
+        <Paper radius="xl" px="md" py={8} withBorder mx="auto" w="max-content">
+          <Group gap={6} align="center">
+            <Text size="sm">Press</Text>
+            <Kbd>{modifierKey}</Kbd>
+            <Text size="sm">+</Text>
+            <Kbd>J</Kbd>
+            <Text size="sm">to open the debug palette</Text>
+          </Group>
+        </Paper>
+      </Affix>
+    </>
+  )
+}
+
+function SandboxHero({ modifierKey }: { modifierKey: string }) {
+  return (
+    <>
+      <Group justify="center" style={{ minHeight: '100vh' }}>
+        <Stack align="center" gap="md">
+          <Title order={1}>Physics Sandbox</Title>
+          <Text size="sm" maw={720} ta="center">
+            This sandbox route provides a simple scene for testing rigid bodies and pick events.
+            Use the debug drawer to spawn rigid boxes and observe Collision, Impulse, Wake, Registry, and Pick events.
+          </Text>
+          <Group gap="md">
+            <Button className="cloth-enabled" size="lg">Sandbox Cloth A</Button>
+            <Button className="cloth-enabled" size="lg">Sandbox Cloth B</Button>
+          </Group>
+        </Stack>
+      </Group>
+      <Affix position={{ bottom: 24, left: 0, right: 0 }}>
+        <Paper radius="xl" px="md" py={8} withBorder mx="auto" w="max-content">
+          <Group gap={6} align="center">
+            <Text size="sm">Route:</Text>
+            <Text size="sm" fw={500}>/sandbox</Text>
+            <Text size="sm">· Press</Text>
+            <Kbd>{modifierKey}</Kbd>
+            <Text size="sm">+</Text>
+            <Kbd>J</Kbd>
+            <Text size="sm">for debug controls</Text>
+          </Group>
+        </Paper>
+      </Affix>
+    </>
+  )
+}
+
+function Demo({ mode }: { mode: DemoMode }) {
   const controllerRef = useRef<ClothSceneController | null>(null)
   const actionsRef = useRef<EngineActions | null>(null)
   const rigidIdRef = useRef(100)
@@ -404,6 +499,7 @@ function Demo() {
   const [drawAABBs, setDrawAABBs] = useState(() => lsGetBoolean('drawAABBs', false))
   const [drawSleep, setDrawSleep] = useState(() => lsGetBoolean('drawSleep', false))
   const [drawPins, setDrawPins] = useState(() => lsGetBoolean('drawPins', false))
+  const [drawWake, setDrawWake] = useState(false)
   // Events panel (non-modal) state
   const [eventsOpen, setEventsOpen] = useState(false)
   const [pinMode, setPinMode] = useState<PinMode>(() => lsGetString('pinMode', 'top' as PinMode))
@@ -412,6 +508,7 @@ function Demo() {
   const [ccdProbeSpeed, setCcdProbeSpeed] = useState(() => lsGetNumber('ccd.probeSpeed', 6))
   const [ccdSpeedThreshold, setCcdSpeedThreshold] = useState(() => lsGetNumber('ccd.speedThreshold', 5))
   const [ccdEpsilon, setCcdEpsilon] = useState(() => lsGetNumber('ccd.epsilon', 1e-4))
+  const [registrySummary, setRegistrySummary] = useState<{ cloth: number; rigidDynamic: number; rigidStatic: number } | null>(null)
   // One-time toast when user first changes a setting
   const initialSnapshotRef = useRef({
     wireframe, realTime, gravity, impulseMultiplier, tessellationSegments,
@@ -461,6 +558,21 @@ function Demo() {
         actionsRef.current.setConstraintIterations(constraintIterations)
         controller.setSleepConfig({ velocityThreshold: sleepVelocity, frameThreshold: sleepFrames })
         actionsRef.current.setSleepConfig(sleepVelocity, sleepFrames)
+
+        const registry = controller.getPhysicsRegistry?.()
+        if (registry) {
+          const entries = registry.entries()
+          const summary = entries.reduce(
+            (acc, cur) => {
+              if (cur.type === 'cloth') acc.cloth += 1
+              else if (cur.type === 'rigid-dynamic') acc.rigidDynamic += 1
+              else if (cur.type === 'rigid-static') acc.rigidStatic += 1
+              return acc
+            },
+            { cloth: 0, rigidDynamic: 0, rigidStatic: 0 }
+          )
+          setRegistrySummary(summary)
+        }
       } catch (err) {
         if (import.meta?.env?.MODE !== 'test') {
           console.warn('EngineActions init failed:', err)
@@ -578,6 +690,11 @@ function Demo() {
     const overlay = controllerRef.current?.getOverlayState?.() as DebugOverlayState | null
     if (overlay) overlay.drawPins = drawPins
   }, [drawPins])
+
+  useEffect(() => {
+    const overlay = controllerRef.current?.getOverlayState?.() as DebugOverlayState | null
+    if (overlay) overlay.drawWake = drawWake
+  }, [drawWake])
 
   useEffect(() => {
     actionsRef.current?.setPinMode(pinMode)
@@ -712,26 +829,9 @@ function Demo() {
 
   return (
     <>
-      <Group justify="center" style={{ minHeight: '100vh' }}>
-        <Stack align="center" gap="md">
-          <Title order={1}>Cloth Playground</Title>
-          <Text size="sm" maw={560} ta="center">
-            This minimal scene keeps the DOM simple while we tune the cloth overlay. Click the button below to peel it away.
-          </Text>
-          <Button className="cloth-enabled" size="lg">Peel Back</Button>
-        </Stack>
-      </Group>
-      <Affix position={{ bottom: 24, left: 0, right: 0 }}>
-        <Paper radius="xl" px="md" py={8} withBorder mx="auto" w="max-content">
-          <Group gap={6} align="center">
-            <Text size="sm">Press</Text>
-            <Kbd>{modifierKey}</Kbd>
-            <Text size="sm">+</Text>
-            <Kbd>J</Kbd>
-            <Text size="sm">to open the debug palette</Text>
-          </Group>
-        </Paper>
-      </Affix>
+      {mode === 'sandbox'
+        ? <SandboxHero modifierKey={modifierKey} />
+        : <PlaygroundHero modifierKey={modifierKey} />}
       <EventsPanel open={eventsOpen} onOpenChange={setEventsOpen} bus={controllerRef.current?.getEventBus?.() ?? null} />
       <DebugPalette
         open={debugOpen}
@@ -839,6 +939,7 @@ function Demo() {
           setCcdEpsilon(1e-4)
           notifications.show({ position: 'top-right', title: 'CCD reset', message: 'CCD settings restored to defaults', withBorder: true })
         }}
+        registrySummary={registrySummary}
         onSpawnRigid={() => {
           const id = rigidIdRef.current++
           actionsRef.current?.addRigidBody({
@@ -858,10 +959,11 @@ function Demo() {
 }
 
 function App() {
+  const [mode] = useState<DemoMode>(() => resolveDemoMode())
   return (
     <MantineProvider defaultColorScheme="dark">
       <Notifications position="top-right" zIndex={2100} />
-      <Demo />
+      <Demo mode={mode} />
     </MantineProvider>
   )
 }

@@ -25,6 +25,7 @@ export class DebugOverlaySystem implements EngineSystem {
   private aabbGroup?: THREE.Group
   private circleGroup?: THREE.Group
   private pinGroup?: THREE.Group
+  private wakeGroup?: THREE.Group
 
   constructor(options: DebugOverlayOptions) {
     this.view = options.view
@@ -62,6 +63,11 @@ export class DebugOverlaySystem implements EngineSystem {
       this.view.scene?.remove(this.circleGroup)
       this.circleGroup = undefined
     }
+    if (this.wakeGroup) {
+      this.clearOverlayGroup(this.wakeGroup)
+      this.view.scene?.remove(this.wakeGroup)
+      this.wakeGroup = undefined
+    }
   }
 
   frameUpdate() {
@@ -83,6 +89,7 @@ export class DebugOverlaySystem implements EngineSystem {
     this.drawAABBs(!!this.state.drawAABBs)
     this.drawSimCircles(!!this.state.drawSleep)
     this.drawPins(!!this.state.drawPins)
+    this.drawWakeMarkers(!!this.state.drawWake)
   }
 
   private ensurePointer() {
@@ -193,6 +200,37 @@ export class DebugOverlaySystem implements EngineSystem {
       })
       const loop = new THREE.LineLoop(geom, mat)
       this.circleGroup.add(loop)
+    }
+  }
+
+  private drawWakeMarkers(visible: boolean) {
+    if (!this.view.scene) return
+    if (!this.wakeGroup) {
+      this.wakeGroup = new THREE.Group()
+      this.wakeGroup.renderOrder = 1002
+      this.view.scene.add(this.wakeGroup)
+    }
+    this.wakeGroup.visible = visible
+    if (!visible) return
+    this.clearOverlayGroup(this.wakeGroup)
+    const size = 0.06
+    const color = new THREE.Color(0xfff066)
+    for (const p of this.state.wakeMarkers) {
+      const geom = new THREE.BufferGeometry()
+      const verts = new Float32Array([
+        p.x - size, p.y - size, 0.14,
+        p.x + size, p.y - size, 0.14,
+        p.x + size, p.y - size, 0.14,
+        p.x + size, p.y + size, 0.14,
+        p.x + size, p.y + size, 0.14,
+        p.x - size, p.y + size, 0.14,
+        p.x - size, p.y + size, 0.14,
+        p.x - size, p.y - size, 0.14,
+      ])
+      geom.setAttribute('position', new THREE.BufferAttribute(verts, 3))
+      const mat = new THREE.LineBasicMaterial({ color, transparent: true, opacity: 0.9 })
+      const lines = new THREE.LineSegments(geom, mat)
+      this.wakeGroup.add(lines)
     }
   }
 }
