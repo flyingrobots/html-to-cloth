@@ -194,7 +194,7 @@ These are the remaining Newton‑adjacent tasks we still want, expressed as work
   - [ ] Wrap rigid and cloth steps in timers (or a simple `performance.now()` delta) to feed `PerfRow`.
   - [ ] Adjust `PerfEmitterSystem` usage to report the real lane values.
 - [ ] Update EventsPanel / overlays:
-  - [ ] Decode `PerfRow` lane IDs into human‑readable labels in the `detail` column.
+  - [x] Decode `PerfRow` lane IDs into human‑readable labels in the `detail` column.
   - [ ] Optionally show lane perf bars in `DebugOverlaySystem` or a new UI panel.
 - [ ] Add perf budget checks:
   - [ ] Flag frames where rigid/cloth exceeds budget (e.g., >1.5ms) for future alerting.
@@ -203,8 +203,8 @@ These are the remaining Newton‑adjacent tasks we still want, expressed as work
 
 - [ ] Integrate wake markers UX:
   - [ ] Toggle is in place; populate `wakeMarkers` from `Wake` events as described above.
-- [ ] Add E2E tests for `/sandbox`:
-  - [ ] Playwright test that:
+- [x] Add E2E tests for `/sandbox`:
+  - [x] Playwright test that:
     - Loads `/sandbox`.
     - Opens Debug drawer.
     - Spawns rigid boxes.
@@ -332,6 +332,6 @@ There is no “giant branch merge” left. The remaining Newton work should happ
 - [ ] Add rigid sleep heuristics and `Sleep` events; surface in EventsPanel.
 - [ ] Drive wake markers from `Wake` events and visualize neighbor‑wake chains in overlays.
 - [ ] Turn perf rows into true lane metrics (rigid/cloth/render), not just `frame` dt.
-- [ ] Show lane labels for perf rows in EventsPanel and/or overlays.
-- [ ] Add `/sandbox` E2E tests (Playwright) to lock in physics/picking/registry behavior.
+- [x] Show lane labels for perf rows in EventsPanel and/or overlays.
+- [x] Add `/sandbox` E2E tests (Playwright) to lock in physics/picking/registry behavior.
 - [ ] Decide and implement CCD integration into the rigid lane, keeping it default‑off and test‑driven.

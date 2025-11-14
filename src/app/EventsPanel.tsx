@@ -73,7 +73,13 @@ export function EventsPanel({ open, onOpenChange, bus }: { open: boolean; onOpen
             const id = h.id >>> 0
             if (id === EventIds.PerfRow && enabledTypes.PerfRow) {
               const ms = r.f32[0]
-              pushRow(h, 'frameEnd', 'PerfRow', `${ms.toFixed(2)} ms`)
+              const lane = r.u32[0] >>> 0
+              const laneLabel =
+                lane === 0 ? 'rigid:fixed' :
+                lane === 1 ? 'cloth:fixed' :
+                lane === 2 ? 'render:frame' :
+                `lane-${lane}`
+              pushRow(h, 'frameEnd', 'PerfRow', `${laneLabel} ${ms.toFixed(2)} ms`)
             } else if (id === EventIds.CcdHit && enabledTypes.CcdHit) {
               const t = r.f32[0]
               const nx = r.f32[1]
