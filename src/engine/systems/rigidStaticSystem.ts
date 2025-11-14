@@ -1,6 +1,6 @@
 import type { EngineSystem } from '../types'
 import type { EventBus } from '../events/bus'
-import { publishCollisionV2, publishImpulse, publishWake, publishPick } from '../events/typed'
+import { publishCollisionV2, publishImpulse, publishWake, publishSleep, publishPick } from '../events/typed'
 import { obbVsAabb, type OBB } from '../../lib/collision/satObbAabb'
 
 export type AABB = { min: { x: number; y: number }; max: { x: number; y: number } }
@@ -27,12 +27,25 @@ export class RigidStaticSystem implements EngineSystem {
   private readonly bodies: RigidBody[] = []
   private gravity = 9.81
   private readonly enableDynamicPairs: boolean
+  private readonly sleepVelocityThresholdSq: number
+  private readonly sleepFramesThreshold: number
+  private readonly sleepState = new WeakMap<RigidBody, { framesBelow: number; sleeping: boolean }>()
 
-  constructor(opts: { getAabbs: () => AABB[]; bus: EventBus; gravity?: number; enableDynamicPairs?: boolean }) {
+  constructor(opts: {
+    getAabbs: () => AABB[]
+    bus: EventBus
+    gravity?: number
+    enableDynamicPairs?: boolean
+    sleepVelocityThreshold?: number
+    sleepFramesThreshold?: number
+  }) {
     this.getAabbs = opts.getAabbs
     this.bus = opts.bus
     if (typeof opts.gravity === 'number') this.gravity = opts.gravity
     this.enableDynamicPairs = Boolean(opts.enableDynamicPairs)
+    const v = typeof opts.sleepVelocityThreshold === 'number' ? Math.max(0, opts.sleepVelocityThreshold) : 0.01
+    this.sleepVelocityThresholdSq = v * v
+    this.sleepFramesThreshold = Math.max(1, Math.round(opts.sleepFramesThreshold ?? 60))
     this.id = 'rigid-static'
     this.priority = 96
   }
@@ -52,6 +65,32 @@ export class RigidStaticSystem implements EngineSystem {
   fixedUpdate(dt: number) {
     const aabbs = this.getAabbs()
     for (const b of this.bodies) {
+      let state = this.sleepState.get(b)
+      if (!state) {
+        state = { framesBelow: 0, sleeping: false }
+        this.sleepState.set(b, state)
+      }
+
+      // If body is already asleep, skip integration and collisions.
+      if (state.sleeping) {
+        continue
+      }
+
+      // Simple velocity-based sleep heuristic.
+      const speedSq = b.velocity.x * b.velocity.x + b.velocity.y * b.velocity.y
+      if (speedSq < this.sleepVelocityThresholdSq) {
+        state.framesBelow += 1
+        if (state.framesBelow >= this.sleepFramesThreshold) {
+          state.sleeping = true
+          b.velocity.x = 0
+          b.velocity.y = 0
+          publishSleep(this.bus, 'fixedEnd', { entityId: b.id >>> 0 })
+          continue
+        }
+      } else {
+        state.framesBelow = 0
+      }
+
       // Integrate velocity (gravity in -Y canonical) and position
       b.velocity.y -= this.gravity * dt
       b.center.x += b.velocity.x * dt
@@ -112,6 +151,14 @@ export class RigidStaticSystem implements EngineSystem {
         const b = bodies[j]
         this.handleDynamicPair(a, b)
       }
+    }
+  }
+
+  private markAwake(body: RigidBody) {
+    const state = this.sleepState.get(body)
+    if (state) {
+      state.sleeping = false
+      state.framesBelow = 0
     }
   }
 
@@ -206,6 +253,9 @@ export class RigidStaticSystem implements EngineSystem {
         impulse: { x: -jx - fx, y: -jy - fy },
       })
 
+      // Wake both bodies if they were sleeping.
+      this.markAwake(a)
+      this.markAwake(b)
       publishWake(this.bus, 'fixedEnd', { entityId: a.id >>> 0 })
       publishWake(this.bus, 'fixedEnd', { entityId: b.id >>> 0 })
     }

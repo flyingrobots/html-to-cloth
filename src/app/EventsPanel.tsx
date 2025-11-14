@@ -17,6 +17,7 @@ export function EventsPanel({ open, onOpenChange, bus }: { open: boolean; onOpen
     Collision: true,
     Registry: true,
     Pick: true,
+    Sleep: true,
   })
   const scrollerRef = useRef<HTMLDivElement | null>(null)
   const cursorRef = useRef<ReturnType<EventBus['subscribe']> | null>(null)
@@ -94,6 +95,9 @@ export function EventsPanel({ open, onOpenChange, bus }: { open: boolean; onOpen
               const px = r.f32[0]
               const py = r.f32[1]
               pushRow(h, 'frameEnd', 'Pick', `id=${eid} p=(${px.toFixed(3)}, ${py.toFixed(3)})`)
+            } else if (id === EventIds.Sleep && enabledTypes.Sleep) {
+              const eid = r.u32[0] >>> 0
+              pushRow(h, 'frameEnd', 'Sleep', `id=${eid}`)
             }
           }, 128)
         }
@@ -160,7 +164,7 @@ export function EventsPanel({ open, onOpenChange, bus }: { open: boolean; onOpen
           </Group>
           <Group gap="xs">
             <Text size="sm" fw={600}>Types</Text>
-            {['PointerMove','PerfRow','CcdHit','Collision','Registry','Pick'].map((t) => (
+            {['PointerMove','PerfRow','CcdHit','Collision','Registry','Pick','Sleep'].map((t) => (
               <Checkbox key={t} label={t} checked={enabledTypes[t]} onChange={(e) => setEnabledTypes((prev) => ({ ...prev, [t]: e.currentTarget.checked }))} />
             ))}
           </Group>
