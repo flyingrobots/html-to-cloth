@@ -48,6 +48,7 @@ export class DOMToWebGL {
         setPixelRatio: () => {},
         setSize: () => {},
         render: () => {},
+        dispose: () => {},
       }
       ;(fakeRenderer.domElement as any).style = {} as any
       this.renderer = fakeRenderer as THREE.WebGLRenderer

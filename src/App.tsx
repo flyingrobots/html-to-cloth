@@ -15,6 +15,7 @@ import {
   Divider,
   Select,
   Kbd,
+  Menu,
 } from "@mantine/core"
 import type { DebugOverlayState } from './engine/render/DebugOverlayState'
 
@@ -422,7 +423,12 @@ function PlaygroundHero({ modifierKey }: { modifierKey: string }) {
           <Text size="sm" maw={560} ta="center">
             This minimal scene keeps the DOM simple while we tune the cloth overlay. Click the button below to peel it away.
           </Text>
-          <Button className="cloth-enabled" size="lg">Peel Back</Button>
+          <Group gap="md">
+            <Button className="cloth-enabled" size="lg">Peel Back</Button>
+            <a href="/sandbox">
+              <Button variant="outline" size="lg">Sandbox</Button>
+            </a>
+          </Group>
         </Stack>
       </Group>
       <Affix position={{ bottom: 24, left: 0, right: 0 }}>
@@ -443,32 +449,43 @@ function PlaygroundHero({ modifierKey }: { modifierKey: string }) {
 function SandboxHero({ modifierKey }: { modifierKey: string }) {
   return (
     <>
-      <Group justify="center" style={{ minHeight: '100vh' }}>
-        <Stack align="center" gap="md">
-          <Title order={1}>Physics Sandbox</Title>
-          <Text size="sm" maw={720} ta="center">
-            This sandbox route provides a simple scene for testing rigid bodies and pick events.
-            Use the debug drawer to spawn rigid boxes and observe Collision, Impulse, Wake, Registry, and Pick events.
-          </Text>
+      <Group justify="space-between" align="flex-start" style={{ minHeight: '100vh', padding: '2rem' }}>
+        <Stack gap="xl">
+          <Title
+            order={1}
+            style={{ fontSize: 'min(14vw, 200px)' }}
+          >
+            SANDBOX
+          </Title>
           <Group gap="md">
-            <Button className="cloth-enabled" size="lg">Sandbox Cloth A</Button>
-            <Button className="cloth-enabled" size="lg">Sandbox Cloth B</Button>
+            <Menu>
+              <Menu.Target>
+                <Button variant="outline">Tests</Button>
+              </Menu.Target>
+              <Menu.Dropdown>
+                <Menu.Item>Cloth: C1 – Settling</Menu.Item>
+                <Menu.Item>Cloth: C2 – Sleep/Wake</Menu.Item>
+                <Menu.Item>Rigid: Thin Wall CCD</Menu.Item>
+                <Menu.Item>Rigid: Stack Rest</Menu.Item>
+              </Menu.Dropdown>
+            </Menu>
+            <Menu>
+              <Menu.Target>
+                <Button variant="outline">Demos</Button>
+              </Menu.Target>
+              <Menu.Dropdown>
+                <Menu.Item disabled>Coming soon</Menu.Item>
+              </Menu.Dropdown>
+            </Menu>
           </Group>
         </Stack>
+        <Stack gap={4} align="flex-end">
+          <Text fw={700}>Welcome to the Sandbox</Text>
+          <Text size="sm" c="dimmed">Choose a scene to test</Text>
+          <Text size="sm" c="dimmed">cmd + j -&gt; Inspector</Text>
+          <Text size="sm" c="dimmed">cmd + e -&gt; Event Log</Text>
+        </Stack>
       </Group>
-      <Affix position={{ bottom: 24, left: 0, right: 0 }}>
-        <Paper radius="xl" px="md" py={8} withBorder mx="auto" w="max-content">
-          <Group gap={6} align="center">
-            <Text size="sm">Route:</Text>
-            <Text size="sm" fw={500}>/sandbox</Text>
-            <Text size="sm">· Press</Text>
-            <Kbd>{modifierKey}</Kbd>
-            <Text size="sm">+</Text>
-            <Kbd>J</Kbd>
-            <Text size="sm">for debug controls</Text>
-          </Group>
-        </Paper>
-      </Affix>
     </>
   )
 }
