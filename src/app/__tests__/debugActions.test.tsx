@@ -64,12 +64,16 @@ beforeEach(() => {
   document.body.innerHTML = ''
 })
 
+function openDebugPalette() {
+  // Use Backquote (`) / tilde key to open the debug drawer.
+  // We simulate the Backquote key with code and key for robustness.
+  fireEvent.keyDown(window, { key: '`', code: 'Backquote' })
+}
+
 describe('Debug UI → EngineActions integration (App)', () => {
   it('toggles real-time via EngineActions (SimulationRunner.setRealTime)', async () => {
     render(<App />)
-
-    // Open the debug palette via keyboard shortcut
-    fireEvent.keyDown(window, { key: 'j', ctrlKey: true })
+    openDebugPalette()
 
     // Find the Real-Time row and toggle (Mantine Switch input role is "switch")
     const realTimeLabel = await screen.findByText('Real-Time')
@@ -85,7 +89,7 @@ describe('Debug UI → EngineActions integration (App)', () => {
 
   it('updates camera target zoom via EngineActions when Camera Zoom changes and inspector reads snapshot', async () => {
     render(<App />)
-    fireEvent.keyDown(window, { key: 'j', ctrlKey: true })
+    openDebugPalette()
 
     const zoomLabel = await screen.findByText('Camera Zoom')
     const zoomRow = zoomLabel.closest('div')?.parentElement as HTMLElement
@@ -101,7 +105,7 @@ describe('Debug UI → EngineActions integration (App)', () => {
 
   it('broadcasts gravity and constraint iterations via EngineActions when sliders change', async () => {
     render(<App />)
-    fireEvent.keyDown(window, { key: 'j', ctrlKey: true })
+    openDebugPalette()
 
     // Gravity
     const gravityLabel = await screen.findByText('Gravity')
@@ -122,7 +126,7 @@ describe('Debug UI → EngineActions integration (App)', () => {
 
   it('updates sleep thresholds and warm-start via actions when controls change', async () => {
     render(<App />)
-    fireEvent.keyDown(window, { key: 'j', ctrlKey: true })
+    openDebugPalette()
 
     // Sleep velocity threshold
     const sleepVelLabel = await screen.findByText('Sleep Velocity Threshold')
@@ -147,7 +151,7 @@ describe('Debug UI → EngineActions integration (App)', () => {
 
   it('applies a preset and routes multiple engine actions', async () => {
     render(<App />)
-    fireEvent.keyDown(window, { key: 'j', ctrlKey: true })
+    openDebugPalette()
 
     const user = userEvent.setup()
     const select = await screen.findByPlaceholderText('Choose preset')
@@ -162,7 +166,7 @@ describe('Debug UI → EngineActions integration (App)', () => {
 
   it('routes Pin Mode changes via EngineActions', async () => {
     render(<App />)
-    fireEvent.keyDown(window, { key: 'j', ctrlKey: true })
+    openDebugPalette()
 
     const user = userEvent.setup()
     const pinLabel = await screen.findByText('Pin Mode')

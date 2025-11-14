@@ -435,9 +435,7 @@ function PlaygroundHero({ modifierKey }: { modifierKey: string }) {
         <Paper radius="xl" px="md" py={8} withBorder mx="auto" w="max-content">
           <Group gap={6} align="center">
             <Text size="sm">Press</Text>
-            <Kbd>{modifierKey}</Kbd>
-            <Text size="sm">+</Text>
-            <Kbd>J</Kbd>
+            <Kbd>~</Kbd>
             <Text size="sm">to open the debug palette</Text>
           </Group>
         </Paper>
@@ -598,7 +596,13 @@ function Demo({ mode }: { mode: DemoMode }) {
     })
 
     const handler = (event: KeyboardEvent) => {
-      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "j") {
+      const key = event.key
+      const code = (event as any).code as string | undefined
+      const isBackquote =
+        key === '`' ||
+        key === '~' ||
+        code === 'Backquote'
+      if (isBackquote && !event.metaKey && !event.ctrlKey && !event.altKey) {
         event.preventDefault()
         setDebugOpen((open) => !open)
         return
