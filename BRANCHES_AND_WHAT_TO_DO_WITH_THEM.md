@@ -201,8 +201,8 @@ These are the remaining Newton‑adjacent tasks we still want, expressed as work
 
 ### 4.3 Sleep/neighbor UX & sandbox tooling
 
-- [ ] Integrate wake markers UX:
-  - [ ] Toggle is in place; populate `wakeMarkers` from `Wake` events as described above.
+- [x] Integrate wake markers UX:
+  - [x] Toggle is in place; populate `wakeMarkers` from `Wake` events as described above.
 - [x] Add E2E tests for `/sandbox`:
   - [x] Playwright test that:
     - Loads `/sandbox`.

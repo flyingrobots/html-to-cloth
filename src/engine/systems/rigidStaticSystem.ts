@@ -43,6 +43,12 @@ export class RigidStaticSystem implements EngineSystem {
     if (i !== -1) this.bodies.splice(i, 1)
   }
 
+  getBodyCenter(id: number) {
+    const body = this.bodies.find((b) => b.id === id)
+    if (!body) return null
+    return { x: body.center.x, y: body.center.y }
+  }
+
   fixedUpdate(dt: number) {
     const aabbs = this.getAabbs()
     for (const b of this.bodies) {

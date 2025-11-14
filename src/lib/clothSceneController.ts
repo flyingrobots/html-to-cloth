@@ -362,6 +362,7 @@ export class ClothSceneController {
   private eventBusSystem: import('../engine/events/EventBusSystem').EventBusSystem | null = null
   private eventOverlayAdapter: import('../engine/events/EventOverlayAdapter').EventOverlayAdapter | null = null
   private busMetricsOverlay: import('../engine/events/BusMetricsOverlaySystem').BusMetricsOverlaySystem | null = null
+  private wakeMarkerSystem: import('../engine/events/WakeMarkerSystem').WakeMarkerSystem | null = null
   // CCD demo integration
   private ccdSettings: import('../engine/ccd/CcdSettingsState').CcdSettingsState | null = null
   private ccdStepper: import('../engine/ccd/CcdStepperSystem').CcdStepperSystem | null = null
@@ -723,6 +724,7 @@ export class ClothSceneController {
       if (this.eventOverlayAdapter) this.engine.removeSystemInstance(this.eventOverlayAdapter)
       if (this.eventBusSystem) this.engine.removeSystemInstance(this.eventBusSystem)
       if (this.busMetricsOverlay) this.engine.removeSystemInstance(this.busMetricsOverlay)
+      if (this.wakeMarkerSystem) this.engine.removeSystemInstance(this.wakeMarkerSystem)
       if (this.physicsSystem) this.engine.removeSystemInstance(this.physicsSystem)
       if (this.wireframeOverlaySystem) this.engine.removeSystemInstance(this.wireframeOverlaySystem)
       if (this.ccdOverlay) this.engine.removeSystemInstance(this.ccdOverlay)
@@ -734,6 +736,7 @@ export class ClothSceneController {
       this.eventOverlayAdapter = null
       this.eventBusSystem = null
       this.busMetricsOverlay = null
+      this.wakeMarkerSystem = null
       this.physicsSystem = null
       this.wireframeOverlaySystem = null
       this.ccdOverlay = null
@@ -816,6 +819,21 @@ export class ClothSceneController {
     const { BusMetricsOverlaySystem } = require('../engine/events/BusMetricsOverlaySystem.ts') as typeof import('../engine/events/BusMetricsOverlaySystem')
     this.busMetricsOverlay = new BusMetricsOverlaySystem({ view: this.domToWebGL, bus: this.eventBusSystem.getBus() })
     try { this.engine.addSystem(this.busMetricsOverlay, { id: 'bus-metrics-overlay', priority: 6, allowWhilePaused: true }) } catch {}
+
+    // Wake markers debug system: bridge Wake events to overlay markers.
+    const { WakeMarkerSystem } = require('../engine/events/WakeMarkerSystem.ts') as typeof import('../engine/events/WakeMarkerSystem')
+    this.wakeMarkerSystem = new WakeMarkerSystem({
+      bus: this.eventBusSystem.getBus(),
+      overlay: this.overlayState!,
+      getPosition: (entityId: number) => {
+        if (!this.physicsSystem) return null
+        return this.physicsSystem.getRigidBodyCenter(entityId)
+      },
+      lifetimeFrames: 12,
+    })
+    try {
+      this.engine.addSystem(this.wakeMarkerSystem, { id: 'wake-markers', priority: 8, allowWhilePaused: true })
+    } catch {}
 
     // CCD demo: overlay + stepper (feature-flagged)
     this.ccdSettings = new CcdSettingsState()

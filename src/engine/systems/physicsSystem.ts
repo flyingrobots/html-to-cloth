@@ -38,6 +38,13 @@ export class PhysicsSystem implements EngineSystem {
   addRigidBody(b: RigidBody) { this.rigid.addBody(b) }
   removeRigidBody(id: number) { this.rigid.removeBody(id) }
 
+  getRigidBodyCenter(id: number) {
+    if (typeof (this.rigid as any).getBodyCenter === 'function') {
+      return (this.rigid as any).getBodyCenter(id) as { x: number; y: number } | null
+    }
+    return null
+  }
+
   pickAt(point: { x: number; y: number }) {
     // Delegate to rigid system if it exposes a picking helper in the future.
     if (typeof (this.rigid as any).pickAt === 'function') {
