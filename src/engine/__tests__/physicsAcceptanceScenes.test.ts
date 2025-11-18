@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest'
 import * as THREE from 'three'
 
 import { ClothPhysics } from '../../lib/clothPhysics'
+import { createClothScenario } from '../scenarios/physicsScenarios'
 
 function makeCloth(widthVertices = 3, heightVertices = 3) {
   const geometry = new THREE.PlaneGeometry(1, 1, widthVertices - 1, heightVertices - 1)
@@ -13,17 +14,19 @@ function makeCloth(widthVertices = 3, heightVertices = 3) {
 
 describe('Physics Acceptance Scenes', () => {
   it('Cloth patch with initial turbulence settles without jitter once asleep', () => {
-    const { cloth } = makeCloth(5, 5)
-
-    cloth.setGravity(new THREE.Vector3(0, 0, 0))
-    cloth.addTurbulence(0.01)
+    const { cloth, step } = createClothScenario('cloth-c1-settling', {
+      three: THREE,
+      makeClothPatch: (widthVertices = 5, heightVertices = 5) => {
+        return makeCloth(widthVertices, heightVertices).cloth
+      },
+    })
 
     const dt = 0.016
     const steps = 240
     const centerYHistory: number[] = []
 
     for (let i = 0; i < steps; i++) {
-      cloth.update(dt)
+      step(dt)
       const sphere = cloth.getBoundingSphere()
       centerYHistory.push(sphere.center.y)
     }
@@ -38,12 +41,15 @@ describe('Physics Acceptance Scenes', () => {
   })
 
   it('Cloth patch falls asleep and reliably wakes when a point enters its bounds', () => {
-    const { cloth } = makeCloth(3, 3)
-
-    cloth.setGravity(new THREE.Vector3(0, 0, 0))
+    const { cloth, step } = createClothScenario('cloth-c2-sleep-wake', {
+      three: THREE,
+      makeClothPatch: (widthVertices = 3, heightVertices = 3) => {
+        return makeCloth(widthVertices, heightVertices).cloth
+      },
+    })
 
     for (let i = 0; i < 160; i++) {
-      cloth.update(0.016)
+      step(0.016)
     }
 
     expect(cloth.isSleeping()).toBe(true)
@@ -57,7 +63,7 @@ describe('Physics Acceptance Scenes', () => {
 
     const before = cloth.getVertexPositions()[0].clone()
     cloth.applyPointForce(insidePoint, new THREE.Vector2(0.5, 0), 1, 1)
-    cloth.update(0.016)
+    step(0.016)
     const after = cloth.getVertexPositions()[0]
     expect(after.x).not.toBeCloseTo(before.x)
   })
