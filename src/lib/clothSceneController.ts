@@ -68,6 +68,7 @@ type ClothItem = {
   adapter?: ClothBodyAdapter
   entity?: Entity
   releasePinsTimeout?: number
+  hideOnNextFrame?: boolean
 }
 
 /**
@@ -442,6 +443,17 @@ export class ClothSceneController {
     const viewport = this.domToWebGL.getViewportPixels()
     this.collisionSystem.setViewportDimensions(viewport.width, viewport.height)
 
+    // Seed static collision geometry for any DOM elements explicitly marked
+    // as rigid-static. This allows simple sandbox scenes (e.g. a text area
+    // acting as a floor) to participate in cloth/rigid collisions without
+    // additional wiring.
+    const staticElements = Array.from(
+      document.querySelectorAll<HTMLElement>('.rigid-static')
+    )
+    for (const el of staticElements) {
+      this.collisionSystem.addStaticBody(el)
+    }
+
     const clothElements = Array.from(
       document.querySelectorAll<HTMLElement>('.cloth-enabled')
     )
@@ -592,7 +604,6 @@ export class ClothSceneController {
       const record = pool.getRecord(element)
 
       const originalOpacity = element.style.opacity
-      element.style.opacity = '0'
 
       const clickHandler = (event: MouseEvent) => {
         event.preventDefault()
@@ -619,6 +630,9 @@ export class ClothSceneController {
     if (!item || item.isActive) return
 
     item.isActive = true
+    // Mark DOM element to be hidden on the next animation frame, after
+    // the captured mesh has had a chance to render at least once.
+    item.hideOnNextFrame = true
     this.collisionSystem.removeStaticBody(element)
     this.resetPointer()
 
@@ -692,6 +706,16 @@ export class ClothSceneController {
     this.simulationRunner.getEngine().frame(delta)
 
     this.decayPointerImpulse()
+    this.hideActivatedDomElements()
+  }
+
+  private hideActivatedDomElements() {
+    for (const item of this.items.values()) {
+      if (item.isActive && item.hideOnNextFrame) {
+        item.element.style.opacity = '0'
+        item.hideOnNextFrame = false
+      }
+    }
   }
 
   private handleResize() {

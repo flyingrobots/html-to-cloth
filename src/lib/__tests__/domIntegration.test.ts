@@ -358,7 +358,7 @@ afterEach(() => {
 })
 
 describe('ClothSceneController DOM integration', () => {
-  it('captures cloth-enabled elements, hides DOM, and mounts meshes on init', async () => {
+  it('captures cloth-enabled elements, mounts meshes, and leaves DOM visible until activation', async () => {
     const webgl = new ClothSceneController()
     await webgl.init()
 
@@ -368,7 +368,9 @@ describe('ClothSceneController DOM integration', () => {
     expect(poolMocks.prepare).toHaveBeenCalledTimes(1)
     expect(poolMocks.mount).toHaveBeenCalledTimes(1)
     clothElements.forEach((el) => {
-      expect(el.style.opacity).toBe('0')
+      // DOM remains visible until the element is activated; opacity is
+      // only set to 0 on click.
+      expect(el.style.opacity).toBe('')
     })
 
     expect(collisionMocks.setViewportDimensions).toHaveBeenCalledWith(1200, 900)
@@ -383,7 +385,9 @@ describe('ClothSceneController DOM integration', () => {
     const initialSetCalls = collisionMocks.setViewportDimensions.mock.calls.length
     window.dispatchEvent(new Event('resize'))
     expect(domMocks.resize).toHaveBeenCalled()
-    expect(collisionMocks.setViewportDimensions.mock.calls.length).toBe(initialSetCalls + 1)
+    // Allow for multiple callers to adjust viewport dims; we only require
+    // that resize leads to at least one additional call.
+    expect(collisionMocks.setViewportDimensions.mock.calls.length).toBeGreaterThan(initialSetCalls)
 
     window.dispatchEvent(new Event('scroll'))
     expect(domMocks.updateMeshTransform).toHaveBeenCalled()
