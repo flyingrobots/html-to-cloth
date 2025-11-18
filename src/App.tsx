@@ -16,6 +16,7 @@ import {
   Select,
   Kbd,
   Menu,
+  Textarea,
 } from "@mantine/core"
 import type { DebugOverlayState } from './engine/render/DebugOverlayState'
 
@@ -25,6 +26,7 @@ import type { CameraSnapshot } from './engine/camera/CameraSystem'
 import { PRESETS, getPreset } from "./app/presets"
 import { Notifications, notifications } from '@mantine/notifications'
 import { EventsPanel } from './app/EventsPanel'
+import { loadSandboxScene, type SandboxSceneId } from './app/sandboxScenes'
 
 // Use Mantine's native Kbd component (no inline styles)
 
@@ -444,25 +446,37 @@ function PlaygroundHero({ modifierKey }: { modifierKey: string }) {
   )
 }
 
-function SandboxHero({ modifierKey }: { modifierKey: string }) {
+function SandboxHero({
+  modifierKey,
+  onDropBoxClick,
+  onSelectScene,
+}: {
+  modifierKey: string
+  onDropBoxClick?: () => void
+  onSelectScene?: (id: SandboxSceneId) => void
+}) {
   return (
     <>
       <Group justify="space-between" align="flex-start" style={{ minHeight: '100vh', padding: '2rem' }}>
-        <Stack gap="xl">
-          <Title
-            order={1}
-            style={{ fontSize: 'min(14vw, 200px)' }}
-          >
-            SANDBOX
-          </Title>
+        <Stack gap="xl" style={{ flex: 1 }}>
           <Group gap="md">
             <Menu>
               <Menu.Target>
                 <Button variant="outline">Tests</Button>
               </Menu.Target>
               <Menu.Dropdown>
-                <Menu.Item>Cloth: C1 – Settling</Menu.Item>
-                <Menu.Item>Cloth: C2 – Sleep/Wake</Menu.Item>
+                <Menu.Item
+                  className="cloth-enabled"
+                  onClick={() => onSelectScene?.('cloth-c1-settling')}
+                >
+                  Cloth: C1 – Settling
+                </Menu.Item>
+                <Menu.Item
+                  className="cloth-enabled"
+                  onClick={() => onSelectScene?.('cloth-c2-sleep-wake')}
+                >
+                  Cloth: C2 – Sleep/Wake
+                </Menu.Item>
                 <Menu.Item>Rigid: Thin Wall CCD</Menu.Item>
                 <Menu.Item>Rigid: Stack Rest</Menu.Item>
               </Menu.Dropdown>
@@ -476,6 +490,30 @@ function SandboxHero({ modifierKey }: { modifierKey: string }) {
               </Menu.Dropdown>
             </Menu>
           </Group>
+          <Title
+            order={1}
+            style={{ fontSize: 'min(14vw, 200px)' }}
+          >
+            SANDBOX
+          </Title>
+          <Divider my="md" />
+          <Stack gap="sm" maw={420}>
+            <Text fw={600}>Default Scene</Text>
+            <Text size="sm" c="dimmed">
+              A simple setup with a rigid box above a static text area. Future iterations will wire this into the physics system.
+            </Text>
+            <Group gap="sm" align="flex-start">
+              <Button className="rigid-dynamic" onClick={onDropBoxClick}>Drop Box</Button>
+              <Textarea
+                aria-label="Collision target"
+                className="rigid-static"
+                placeholder="Rigid floor (static AABB)"
+                autosize
+                minRows={2}
+                style={{ flex: 1 }}
+              />
+            </Group>
+          </Stack>
         </Stack>
         <Stack gap={4} align="flex-end">
           <Text fw={700}>Welcome to the Sandbox</Text>
@@ -537,6 +575,13 @@ function Demo({ mode }: { mode: DemoMode }) {
     const id = window.setTimeout(() => { savedToastArmedRef.current = true }, 1200)
     return () => window.clearTimeout(id)
   }, [])
+
+  const handleSelectScene = (id: SandboxSceneId) => {
+    loadSandboxScene(id, {
+      controller: controllerRef.current,
+      actions: actionsRef.current,
+    })
+  }
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
@@ -851,7 +896,19 @@ function Demo({ mode }: { mode: DemoMode }) {
   return (
     <>
       {mode === 'sandbox'
-        ? <SandboxHero modifierKey={modifierKey} />
+        ? <SandboxHero modifierKey={modifierKey} onDropBoxClick={() => {
+          const id = rigidIdRef.current++
+          actionsRef.current?.addRigidBody({
+            id,
+            center: { x: 0, y: 0.6 },
+            half: { x: 0.12, y: 0.08 },
+            angle: 0,
+            velocity: { x: 0, y: 0 },
+            mass: 1,
+            restitution: 0.2,
+            friction: 0.6,
+          } as any)
+        }} onSelectScene={handleSelectScene} />
         : <PlaygroundHero modifierKey={modifierKey} />}
       <EventsPanel open={eventsOpen} onOpenChange={setEventsOpen} bus={controllerRef.current?.getEventBus?.() ?? null} />
       <DebugPalette
