@@ -458,9 +458,9 @@ export class ClothSceneController {
       document.querySelectorAll<HTMLElement>('.cloth-enabled')
     )
 
-    if (!clothElements.length) return
-
-    await this.prepareElements(clothElements)
+    if (clothElements.length > 0) {
+      await this.prepareElements(clothElements)
+    }
     this.updateOverlayDebug()
 
     window.addEventListener('resize', this.onResize, { passive: true })

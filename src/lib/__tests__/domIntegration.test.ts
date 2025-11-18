@@ -526,6 +526,27 @@ describe('ClothSceneController DOM integration', () => {
     webgl.dispose()
   })
 
+  it('initializes static collision bodies and ticks the simulation when only rigid-static elements are present', async () => {
+    // Override the default DOM to contain only a rigid-static element and no cloth-enabled buttons.
+    document.body.innerHTML = `
+      <main class="demo">
+        <textarea id="floor" class="rigid-static"></textarea>
+      </main>
+    `
+
+    const webgl = new ClothSceneController()
+    await webgl.init()
+
+    // Static collision body should be registered from the DOM.
+    expect(collisionMocks.addStaticBody).toHaveBeenCalledTimes(1)
+
+    // Simulation runner should have been ticked at least once via the animate loop.
+    const runner = getSimulationRunner()
+    expect(runner.update).toHaveBeenCalled()
+
+    webgl.dispose()
+  })
+
   it('resets pointer state and geometry before activating a cloth body', async () => {
     const webgl = new ClothSceneController()
     await webgl.init()
