@@ -901,16 +901,22 @@ function Demo({ mode }: { mode: DemoMode }) {
           const overlay = controllerRef.current?.getOverlayState?.() as DebugOverlayState | null
           let centerX = 0
           let centerY = 0.6
+          let halfX = 0.12
+          let halfY = 0.08
           if (overlay && overlay.aabbs.length > 0) {
             const box = overlay.aabbs[0]
             centerX = (box.min.x + box.max.x) * 0.5
+            const width = box.max.x - box.min.x
             const height = box.max.y - box.min.y
-            centerY = box.max.y + height * 1.5
+            // Keep the rigid box comfortably smaller than the floor AABB.
+            halfX = Math.max(width * 0.15, 0.01)
+            halfY = Math.max(height * 0.35, 0.012)
+            centerY = box.max.y + halfY * 2.2
           }
           actionsRef.current?.addRigidBody({
             id,
             center: { x: centerX, y: centerY },
-            half: { x: 0.12, y: 0.08 },
+            half: { x: halfX, y: halfY },
             angle: 0,
             velocity: { x: 0, y: 0 },
             mass: 1,
