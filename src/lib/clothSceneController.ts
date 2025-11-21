@@ -9,6 +9,8 @@ import { CollisionSystem } from './collisionSystem'
 import { EventBusSystem } from '../engine/events/EventBusSystem'
 import { EventOverlayAdapter } from '../engine/events/EventOverlayAdapter'
 import { PerfEmitterSystem } from '../engine/events/PerfEmitterSystem'
+import { BusMetricsOverlaySystem } from '../engine/events/BusMetricsOverlaySystem'
+import { WakeMarkerSystem } from '../engine/events/WakeMarkerSystem'
 import { EventIds } from '../engine/events/ids'
 import { CANONICAL_HEIGHT_METERS } from './units'
 import { ElementPool } from './elementPool'
@@ -840,15 +842,13 @@ export class ClothSceneController {
       this.engine.addSystem(perfCloth, { id: 'perf-emitter-cloth', priority: 997, allowWhilePaused: true })
     } catch {}
     // Bus metrics overlay bars
-    const { BusMetricsOverlaySystem } = require('../engine/events/BusMetricsOverlaySystem.ts') as typeof import('../engine/events/BusMetricsOverlaySystem')
     this.busMetricsOverlay = new BusMetricsOverlaySystem({ view: this.domToWebGL, bus: this.eventBusSystem.getBus() })
     try { this.engine.addSystem(this.busMetricsOverlay, { id: 'bus-metrics-overlay', priority: 6, allowWhilePaused: true }) } catch {}
 
     // Wake markers debug system: bridge Wake events to overlay markers.
-    // Skip in test environments to avoid dynamic require in jsdom.
+    // Skip in test environments if desired to keep jsdom lean.
     const mode = (import.meta as any)?.env?.MODE
     if (mode !== 'test') {
-      const { WakeMarkerSystem } = require('../engine/events/WakeMarkerSystem.ts') as typeof import('../engine/events/WakeMarkerSystem')
       this.wakeMarkerSystem = new WakeMarkerSystem({
         bus: this.eventBusSystem.getBus(),
         overlay: this.overlayState!,
