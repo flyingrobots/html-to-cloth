@@ -29,7 +29,7 @@ export function EventsPanel({ open, onOpenChange, bus }: { open: boolean; onOpen
     // Subscribe to a minimal set: pointer moves (frameBegin) + perf rows (frameEnd)
     cursorRef.current = bus.subscribe('ui.eventsPanel', [
       { channel: 'frameBegin', ids: [EventIds.PointerMove] },
-      { channel: 'fixedEnd', ids: [EventIds.CollisionV2] },
+      { channel: 'fixedEnd', ids: [EventIds.CollisionV2, EventIds.Sleep] },
       {
         channel: 'frameEnd',
         ids: [
@@ -54,18 +54,23 @@ export function EventsPanel({ open, onOpenChange, bus }: { open: boolean; onOpen
             pushRow(h, 'frameBegin', 'PointerMove', `x=${x.toFixed(3)} y=${y.toFixed(3)}`)
           }, 128)
         }
-        if (enabledChannels.fixedEnd && enabledTypes.Collision) {
+        if (enabledChannels.fixedEnd) {
           received += cur.read('fixedEnd', (h: EventHeaderView, r: EventReader) => {
-            if ((h.id >>> 0) !== EventIds.CollisionV2) return
-            const a = r.u32[0] >>> 0
-            const b = r.u32[1] >>> 0
-            const depth = r.f32[4]
-            pushRow(
-              h,
-              'fixedEnd',
-              'Collision',
-              `a=${a} b=${b} depth=${depth.toFixed(3)}`
-            )
+            const id = h.id >>> 0
+            if (id === EventIds.CollisionV2 && enabledTypes.Collision) {
+              const a = r.u32[0] >>> 0
+              const b = r.u32[1] >>> 0
+              const depth = r.f32[4]
+              pushRow(
+                h,
+                'fixedEnd',
+                'Collision',
+                `a=${a} b=${b} depth=${depth.toFixed(3)}`
+              )
+            } else if (id === EventIds.Sleep && enabledTypes.Sleep) {
+              const eid = r.u32[0] >>> 0
+              pushRow(h, 'fixedEnd', 'Sleep', `id=${eid}`)
+            }
           }, 128)
         }
         if (enabledChannels.frameEnd) {

@@ -898,9 +898,18 @@ function Demo({ mode }: { mode: DemoMode }) {
       {mode === 'sandbox'
         ? <SandboxHero modifierKey={modifierKey} onDropBoxClick={() => {
           const id = rigidIdRef.current++
+          const overlay = controllerRef.current?.getOverlayState?.() as DebugOverlayState | null
+          let centerX = 0
+          let centerY = 0.6
+          if (overlay && overlay.aabbs.length > 0) {
+            const box = overlay.aabbs[0]
+            centerX = (box.min.x + box.max.x) * 0.5
+            const height = box.max.y - box.min.y
+            centerY = box.max.y + height * 1.5
+          }
           actionsRef.current?.addRigidBody({
             id,
-            center: { x: 0, y: 0.6 },
+            center: { x: centerX, y: centerY },
             half: { x: 0.12, y: 0.08 },
             angle: 0,
             velocity: { x: 0, y: 0 },
