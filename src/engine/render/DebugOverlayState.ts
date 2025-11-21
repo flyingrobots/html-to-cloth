@@ -28,4 +28,6 @@ export class DebugOverlayState {
   simSnapshot?: Readonly<SimSnapshot>
   /** World-space pin markers (small crosses). */
   pinMarkers: Array<{ x: number; y: number }> = []
+  /** Debug representation of rigid bodies (centers + half extents). */
+  rigidBodies: Array<{ id: number; center: { x: number; y: number }; half: { x: number; y: number } }> = []
 }

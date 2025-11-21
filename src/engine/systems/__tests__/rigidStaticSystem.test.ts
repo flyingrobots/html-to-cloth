@@ -25,5 +25,31 @@ describe('RigidStaticSystem (static-first)', () => {
     })
     expect(count).toBeGreaterThan(0)
   })
-})
 
+  it('exposes a debug snapshot of rigid bodies', () => {
+    const bus = new EventBus({ capacity: 64, mailboxCapacity: 64 })
+    const sys = new RigidStaticSystem({
+      bus,
+      getAabbs: () => [],
+      gravity: 0,
+    })
+
+    sys.addBody({
+      id: 1,
+      center: { x: 1, y: 2 },
+      half: { x: 0.5, y: 0.25 },
+      angle: 0,
+      velocity: { x: 0, y: 0 },
+      restitution: 0.1,
+      friction: 0.5,
+    } as any)
+
+    const bodies = sys.debugGetBodies()
+    expect(bodies).toHaveLength(1)
+    expect(bodies[0]).toMatchObject({
+      id: 1,
+      center: { x: 1, y: 2 },
+      half: { x: 0.5, y: 0.25 },
+    })
+  })
+})

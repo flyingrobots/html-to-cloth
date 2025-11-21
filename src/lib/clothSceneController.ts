@@ -1059,6 +1059,12 @@ export class ClothSceneController {
       max: { x: b.max.x, y: b.max.y },
     }))
     this.overlayState.aabbs = aabbs
+    // Rigid bodies (for debug markers)
+    if (this.physicsSystem && typeof (this.physicsSystem as any).debugGetRigidBodies === 'function') {
+      this.overlayState.rigidBodies = (this.physicsSystem as any).debugGetRigidBodies()
+    } else {
+      this.overlayState.rigidBodies = []
+    }
     // Simulation snapshot (sleeping/awake)
     try {
       const snapshot = this.simulationSystem.getSnapshot()

@@ -51,4 +51,16 @@ export class PhysicsSystem implements EngineSystem {
       ;(this.rigid as any).pickAt(point)
     }
   }
+
+  /** Debug helper: expose rigid body snapshot for overlays. */
+  debugGetRigidBodies() {
+    if (typeof (this.rigid as any).debugGetBodies === 'function') {
+      return (this.rigid as any).debugGetBodies() as Array<{
+        id: number
+        center: { x: number; y: number }
+        half: { x: number; y: number }
+      }>
+    }
+    return []
+  }
 }

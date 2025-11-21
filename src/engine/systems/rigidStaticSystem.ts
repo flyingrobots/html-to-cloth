@@ -62,6 +62,15 @@ export class RigidStaticSystem implements EngineSystem {
     return { x: body.center.x, y: body.center.y }
   }
 
+  /** Debug helper: returns a snapshot of all rigid bodies (id, center, half). */
+  debugGetBodies() {
+    return this.bodies.map((b) => ({
+      id: b.id,
+      center: { x: b.center.x, y: b.center.y },
+      half: { x: b.half.x, y: b.half.y },
+    }))
+  }
+
   fixedUpdate(dt: number) {
     const aabbs = this.getAabbs()
     for (const b of this.bodies) {

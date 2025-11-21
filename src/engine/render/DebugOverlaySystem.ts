@@ -23,6 +23,7 @@ export class DebugOverlaySystem implements EngineSystem {
   private pointer?: THREE.Mesh
   private attached = false
   private aabbGroup?: THREE.Group
+  private rigidGroup?: THREE.Group
   private circleGroup?: THREE.Group
   private pinGroup?: THREE.Group
   private wakeGroup?: THREE.Group
@@ -68,6 +69,11 @@ export class DebugOverlaySystem implements EngineSystem {
       this.view.scene?.remove(this.wakeGroup)
       this.wakeGroup = undefined
     }
+    if (this.rigidGroup) {
+      this.clearOverlayGroup(this.rigidGroup)
+      this.view.scene?.remove(this.rigidGroup)
+      this.rigidGroup = undefined
+    }
   }
 
   frameUpdate() {
@@ -87,6 +93,7 @@ export class DebugOverlaySystem implements EngineSystem {
     }
     // Render other gizmos independently of pointer visibility
     this.drawAABBs(!!this.state.drawAABBs)
+    this.drawRigidBodies(!!this.state.drawAABBs)
     this.drawSimCircles(!!this.state.drawSleep)
     this.drawPins(!!this.state.drawPins)
     this.drawWakeMarkers(!!this.state.drawWake)
@@ -231,6 +238,41 @@ export class DebugOverlaySystem implements EngineSystem {
       const mat = new THREE.LineBasicMaterial({ color, transparent: true, opacity: 0.9 })
       const lines = new THREE.LineSegments(geom, mat)
       this.wakeGroup.add(lines)
+    }
+  }
+
+  private drawRigidBodies(visible: boolean) {
+    if (!this.view.scene) return
+    if (!this.rigidGroup) {
+      this.rigidGroup = new THREE.Group()
+      this.rigidGroup.renderOrder = 1003
+      this.view.scene.add(this.rigidGroup)
+    }
+    this.rigidGroup.visible = visible
+    if (!visible) return
+    this.clearOverlayGroup(this.rigidGroup)
+    const color = new THREE.Color(0x00ff88)
+    for (const body of this.state.rigidBodies) {
+      const { center, half } = body
+      const minX = center.x - half.x
+      const maxX = center.x + half.x
+      const minY = center.y - half.y
+      const maxY = center.y + half.y
+      const geom = new THREE.BufferGeometry()
+      const vertices = new Float32Array([
+        minX, minY, 0.16,
+        maxX, minY, 0.16,
+        maxX, minY, 0.16,
+        maxX, maxY, 0.16,
+        maxX, maxY, 0.16,
+        minX, maxY, 0.16,
+        minX, maxY, 0.16,
+        minX, minY, 0.16,
+      ])
+      geom.setAttribute('position', new THREE.BufferAttribute(vertices, 3))
+      const mat = new THREE.LineBasicMaterial({ color, transparent: true, opacity: 0.85 })
+      const lines = new THREE.LineSegments(geom, mat)
+      this.rigidGroup.add(lines)
     }
   }
 }
