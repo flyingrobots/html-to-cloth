@@ -1,7 +1,6 @@
 import * as THREE from 'three'
 import {
-  CANONICAL_HEIGHT_METERS,
-  CANONICAL_WIDTH_METERS,
+  PX_PER_METER,
   fromPointerToCanonical,
   toCanonicalHeightMeters,
   toCanonicalWidthMeters,
@@ -97,6 +96,7 @@ export class DOMToWebGL {
     this.viewportWidth = window.innerWidth
     this.viewportHeight = window.innerHeight
     this.renderer.setSize(this.viewportWidth, this.viewportHeight)
+    this.updateCamera()
   }
 
   render() {
@@ -227,10 +227,12 @@ export class DOMToWebGL {
   }
 
   private updateCamera() {
-    this.camera.left = -CANONICAL_WIDTH_METERS / 2
-    this.camera.right = CANONICAL_WIDTH_METERS / 2
-    this.camera.top = CANONICAL_HEIGHT_METERS / 2
-    this.camera.bottom = -CANONICAL_HEIGHT_METERS / 2
+    const widthMeters = this.viewportWidth / PX_PER_METER
+    const heightMeters = this.viewportHeight / PX_PER_METER
+    this.camera.left = -widthMeters / 2
+    this.camera.right = widthMeters / 2
+    this.camera.top = heightMeters / 2
+    this.camera.bottom = -heightMeters / 2
     this.camera.near = -1000
     this.camera.far = 1000
     this.camera.position.set(0, 0, 500)

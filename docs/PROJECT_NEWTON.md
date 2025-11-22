@@ -30,6 +30,8 @@ Rationale: The demo needs believable rigid interactions, robust cloth, and a cle
 
 ## 3. Coordinate System & Time
 - World units: canonical meters (existing convention). +Y is up; gravity = (0, −g, 0).
+- Screen scale: `PX_PER_METER = 256` — one world-space meter corresponds to 256 CSS pixels.
+- Canonical viewport: at 1024×768 the visible world slice is 4m×3m (`[-2, 2] × [-1.5, 1.5]`) before camera zoom is applied.
 - Fixed step dt = 1/60 by default; substeps configurable (2–4 typical).
 - Cloth constraint iterations independent from substeps (slider‑controlled).
 

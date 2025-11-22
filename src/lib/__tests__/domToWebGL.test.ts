@@ -192,4 +192,33 @@ describe('DOMToWebGL canonical mapping', () => {
     expect(canonical.y).toBeCloseTo(0)
     dom.detach()
   })
+
+  it('treats a full-viewport element as a 4m×3m mesh at the 1024×768 baseline', () => {
+    Object.defineProperty(window, 'innerWidth', { configurable: true, value: 1024 })
+    Object.defineProperty(window, 'innerHeight', { configurable: true, value: 768 })
+    const dom = new DOMToWebGL(document.body)
+
+    const element = document.createElement('div')
+    const rect = defaultRect(0, 0, 1024, 768)
+    element.getBoundingClientRect = () => rect
+    const texture = { dispose: vi.fn() } as any
+
+    const record = dom.createMesh(element, texture, 1)
+
+    // A full-viewport element at the baseline resolution should span 4m×3m in world space
+    expect(record.widthMeters).toBeCloseTo(4, 3)
+    expect(record.heightMeters).toBeCloseTo(3, 3)
+    // And its center should land at the world origin
+    expect(record.mesh.position.x).toBeCloseTo(0, 6)
+    expect(record.mesh.position.y).toBeCloseTo(0, 6)
+
+    // The orthographic camera should frame this world slice symmetrically.
+    const cam = dom.camera
+    expect(cam.left).toBeCloseTo(-2, 3)
+    expect(cam.right).toBeCloseTo(2, 3)
+    expect(cam.top).toBeCloseTo(1.5, 3)
+    expect(cam.bottom).toBeCloseTo(-1.5, 3)
+
+    dom.detach()
+  })
 })
