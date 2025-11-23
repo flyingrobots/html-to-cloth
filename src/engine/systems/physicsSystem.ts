@@ -38,6 +38,12 @@ export class PhysicsSystem implements EngineSystem {
   addRigidBody(b: RigidBody) { this.rigid.addBody(b) }
   removeRigidBody(id: number) { this.rigid.removeBody(id) }
 
+  configureCcd(opts: { speedThreshold?: number; epsilon?: number; enabled?: boolean }) {
+    if (typeof (this.rigid as any).configureCcd === 'function') {
+      ;(this.rigid as any).configureCcd(opts)
+    }
+  }
+
   getRigidBodyCenter(id: number) {
     if (typeof (this.rigid as any).getBodyCenter === 'function') {
       return (this.rigid as any).getBodyCenter(id) as { x: number; y: number } | null

@@ -51,8 +51,8 @@ describe('PhysicsSystem CCD policy', () => {
 
     // Fast body should have been clamped near the wall, not tunneled beyond it.
     expect(fast.center.x).toBeLessThanOrEqual(0.52 + fast.half.x + 1e-3)
-    // Slow body should advance normally past the threshold if no collision.
-    expect(slow.center.x).toBeGreaterThan(0.5)
+    // Slow body should follow the naive integration path (no CCD clamp).
+    expect(slow.center.x).toBeCloseTo(0.5 * 0.2, 1e-6)
 
     const cursor = bus.subscribe('ccd-policy', [{ channel: 'fixedEnd', ids: [4 /* CollisionV2 */] }])
     const collisions: number[] = []

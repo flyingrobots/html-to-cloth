@@ -15,6 +15,8 @@ export type RigidBody = {
   angularVelocity?: number
   restitution: number
   friction: number
+  /** Optional override: force CCD on (true) or off (false) regardless of speed threshold. */
+  ccd?: boolean
 }
 
 export class RigidStaticSystem implements EngineSystem {
@@ -30,6 +32,9 @@ export class RigidStaticSystem implements EngineSystem {
   private readonly sleepVelocityThresholdSq: number
   private readonly sleepFramesThreshold: number
   private readonly sleepState = new WeakMap<RigidBody, { framesBelow: number; sleeping: boolean }>()
+  private ccdEnabled = false
+  private ccdSpeedThreshold = Infinity
+  private ccdEpsilon = 1e-4
 
   constructor(opts: {
     getAabbs: () => AABB[]
@@ -60,6 +65,20 @@ export class RigidStaticSystem implements EngineSystem {
     const body = this.bodies.find((b) => b.id === id)
     if (!body) return null
     return { x: body.center.x, y: body.center.y }
+  }
+
+  configureCcd(opts: { speedThreshold?: number; epsilon?: number; enabled?: boolean }) {
+    if (typeof opts.speedThreshold === 'number') {
+      this.ccdSpeedThreshold = Math.max(0, opts.speedThreshold)
+    }
+    if (typeof opts.epsilon === 'number') {
+      this.ccdEpsilon = Math.max(1e-6, opts.epsilon)
+    }
+    if (typeof opts.enabled === 'boolean') {
+      this.ccdEnabled = opts.enabled
+    } else {
+      this.ccdEnabled = true
+    }
   }
 
   /** Debug helper: returns a snapshot of all rigid bodies (id, center, half). */
