@@ -89,6 +89,8 @@ export class RigidStaticSystem implements EngineSystem {
       id: b.id,
       center: { x: b.center.x, y: b.center.y },
       half: { x: b.half.x, y: b.half.y },
+      velocity: { x: b.velocity.x, y: b.velocity.y },
+      mass: b.mass ?? 1,
     }))
   }
 
@@ -163,7 +165,7 @@ export class RigidStaticSystem implements EngineSystem {
         if (vn > 0) { n = { x: -n.x, y: -n.y }; vn = -vn }
         if (vn < 0) {
           const e = Math.max(0, Math.min(1, b.restitution))
-          const jn = (-(1 + e) * vn) / (invMass > 0 ? 1 / invMass : 1)
+          const jn = invMass > 0 ? (-(1 + e) * vn) / invMass : 0
           // Apply normal impulse
           b.velocity.x += (jn * n.x) * invMass
           b.velocity.y += (jn * n.y) * invMass
@@ -380,7 +382,7 @@ export class RigidStaticSystem implements EngineSystem {
     }
     if (vn < 0) {
       const e = Math.max(0, Math.min(1, body.restitution))
-      const jn = (-(1 + e) * vn) / (invMass > 0 ? 1 / invMass : 1)
+      const jn = invMass > 0 ? (-(1 + e) * vn) / invMass : 0
       body.velocity.x += (jn * n.x) * invMass
       body.velocity.y += (jn * n.y) * invMass
     }
