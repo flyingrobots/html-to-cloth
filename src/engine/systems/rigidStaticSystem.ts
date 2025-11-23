@@ -1,7 +1,9 @@
 import type { EngineSystem } from '../types'
 import type { EventBus } from '../events/bus'
 import { publishCollisionV2, publishImpulse, publishWake, publishSleep, publishPick } from '../events/typed'
-import { obbVsAabb, type OBB } from '../../lib/collision/satObbAabb'
+import { advanceWithCCD } from '../ccd/engineStepper'
+import type { OBB as CcdObb, AABB as CcdAabb } from '../ccd/sweep'
+import { obbVsAabb, type OBB as SatObb } from '../../lib/collision/satObbAabb'
 
 export type AABB = { min: { x: number; y: number }; max: { x: number; y: number } }
 
@@ -92,6 +94,14 @@ export class RigidStaticSystem implements EngineSystem {
 
   fixedUpdate(dt: number) {
     const aabbs = this.getAabbs()
+    const ccdObstacles: CcdAabb[] | null = this.ccdEnabled
+      ? aabbs.map((box) => ({
+          kind: 'aabb' as const,
+          min: { x: box.min.x, y: box.min.y },
+          max: { x: box.max.x, y: box.max.y },
+        }))
+      : null
+
     for (const b of this.bodies) {
       let state = this.sleepState.get(b)
       if (!state) {
@@ -121,12 +131,25 @@ export class RigidStaticSystem implements EngineSystem {
 
       // Integrate velocity (gravity in -Y canonical) and position
       b.velocity.y -= this.gravity * dt
-      b.center.x += b.velocity.x * dt
-      b.center.y += b.velocity.y * dt
-      const obb: OBB = { center: b.center, half: b.half, rotation: b.angle }
+      const speedSqAfter = b.velocity.x * b.velocity.x + b.velocity.y * b.velocity.y
+
+      let ccdHit: { normal: { x: number; y: number }; point?: { x: number; y: number } } | null = null
+      if (this.shouldUseCcd(b, speedSqAfter) && ccdObstacles && ccdObstacles.length > 0) {
+        const sweep = this.advanceBodyWithCcd(b, dt, ccdObstacles)
+        if (sweep?.collided) {
+          ccdHit = { normal: sweep.normal, point: sweep.point }
+        }
+      } else {
+        b.center.x += b.velocity.x * dt
+        b.center.y += b.velocity.y * dt
+      }
+
+      const obb: SatObb = { center: b.center, half: b.half, rotation: b.angle }
+      let hadCollision = false
       for (const box of aabbs) {
         const res = obbVsAabb(obb, box)
         if (!res.collided) continue
+        hadCollision = true
         // Separate along MTV to resolve overlap (simple positional correction)
         b.center.x += res.mtv.x
         b.center.y += res.mtv.y
@@ -163,6 +186,21 @@ export class RigidStaticSystem implements EngineSystem {
           depth: Math.hypot(res.mtv.x, res.mtv.y),
         })
       }
+
+      if (ccdHit && !hadCollision) {
+        this.applyCcdVelocityResponse(b, ccdHit.normal)
+        const contact = ccdHit.point ?? {
+          x: b.center.x - ccdHit.normal.x * b.half.x,
+          y: b.center.y - ccdHit.normal.y * b.half.y,
+        }
+        publishCollisionV2(this.bus, 'fixedEnd', {
+          entityAId: b.id >>> 0,
+          entityBId: 0,
+          normal: ccdHit.normal,
+          contact,
+          depth: this.ccdEpsilon,
+        })
+      }
     }
 
     if (this.enableDynamicPairs && this.bodies.length > 1) {
@@ -192,8 +230,8 @@ export class RigidStaticSystem implements EngineSystem {
 
   private handleDynamicPair(a: RigidBody, b: RigidBody) {
     // Treat dynamic bodies as OBBs and use the same SAT helper as static collisions.
-    const obbA: OBB = { center: { x: a.center.x, y: a.center.y }, half: a.half, rotation: a.angle }
-    const obbB: OBB = { center: { x: b.center.x, y: b.center.y }, half: b.half, rotation: b.angle }
+    const obbA: SatObb = { center: { x: a.center.x, y: a.center.y }, half: a.half, rotation: a.angle }
+    const obbB: SatObb = { center: { x: b.center.x, y: b.center.y }, half: b.half, rotation: b.angle }
     const resAB = obbVsAabb(obbA, {
       min: { x: obbB.center.x - obbB.half.x, y: obbB.center.y - obbB.half.y },
       max: { x: obbB.center.x + obbB.half.x, y: obbB.center.y + obbB.half.y },
@@ -302,5 +340,49 @@ export class RigidStaticSystem implements EngineSystem {
       entityId: hit.id >>> 0,
       point: hit.point,
     })
+  }
+
+  private shouldUseCcd(body: RigidBody, speedSq: number) {
+    if (!this.ccdEnabled) return false
+    if (body.ccd === true) return true
+    if (body.ccd === false) return false
+    return Math.sqrt(speedSq) >= this.ccdSpeedThreshold
+  }
+
+  private advanceBodyWithCcd(body: RigidBody, dt: number, obstacles: CcdAabb[]) {
+    if (obstacles.length === 0) {
+      body.center.x += body.velocity.x * dt
+      body.center.y += body.velocity.y * dt
+      return null
+    }
+    const shape: CcdObb = {
+      kind: 'obb',
+      center: { x: body.center.x, y: body.center.y },
+      half: { x: body.half.x, y: body.half.y },
+      angle: body.angle,
+    }
+    const sweep = advanceWithCCD(shape, { x: body.velocity.x, y: body.velocity.y }, dt, obstacles, {
+      epsilon: this.ccdEpsilon,
+    })
+    body.center.x = sweep.center.x
+    body.center.y = sweep.center.y
+    return sweep
+  }
+
+  private applyCcdVelocityResponse(body: RigidBody, normal: { x: number; y: number }) {
+    const mass = body.mass && body.mass > 0 ? body.mass : 1
+    const invMass = 1 / mass
+    let n = normal
+    let vn = body.velocity.x * n.x + body.velocity.y * n.y
+    if (vn > 0) {
+      n = { x: -n.x, y: -n.y }
+      vn = -vn
+    }
+    if (vn < 0) {
+      const e = Math.max(0, Math.min(1, body.restitution))
+      const jn = (-(1 + e) * vn) / (invMass > 0 ? 1 / invMass : 1)
+      body.velocity.x += (jn * n.x) * invMass
+      body.velocity.y += (jn * n.y) * invMass
+    }
   }
 }
