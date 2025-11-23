@@ -35,4 +35,62 @@ describe('PhysicsSystem CCD with rotated moving bodies', () => {
     expect(body.center.x).toBeLessThanOrEqual(0.22 + body.half.x + 1e-3)
     expect(body.velocity.x).toBeLessThanOrEqual(0) // inward velocity should be removed
   })
+
+  it('handles diagonal approach with rotation (normal remains normalized)', () => {
+    const bus = new EventBus({ capacity: 128, mailboxCapacity: 64 })
+    const physics = new PhysicsSystem({
+      bus,
+      getAabbs: () => [{ min: { x: 0.35, y: -0.2 }, max: { x: 0.37, y: 0.2 } }],
+      gravity: 0,
+      enableDynamicPairs: false,
+    }) as any
+
+    physics.configureCcd?.({ speedThreshold: 1, epsilon: 1e-4 })
+
+    physics.addRigidBody({
+      id: 1,
+      center: { x: 0, y: 0.1 },
+      half: { x: 0.06, y: 0.06 },
+      angle: Math.PI / 10, // 18°
+      velocity: { x: 6, y: -1 }, // diagonal downward
+      restitution: 0,
+      friction: 0,
+    })
+
+    physics.fixedUpdate(0.08)
+
+    const body = physics.debugGetRigidBodies().find((b: any) => b.id === 1)!
+    expect(body.center.x).toBeLessThanOrEqual(0.37 + body.half.x + 1e-3)
+    // X velocity should have flipped or zeroed; Y should not explode.
+    expect(body.velocity.x).toBeLessThanOrEqual(0)
+    expect(Math.abs(body.velocity.y)).toBeLessThanOrEqual(2)
+  })
+
+  it('keeps rotation-only (no translation) from falsely triggering CCD', () => {
+    const bus = new EventBus({ capacity: 128, mailboxCapacity: 64 })
+    const physics = new PhysicsSystem({
+      bus,
+      getAabbs: () => [{ min: { x: 0.3, y: -1 }, max: { x: 0.32, y: 1 } }],
+      gravity: 0,
+      enableDynamicPairs: false,
+    }) as any
+
+    physics.configureCcd?.({ speedThreshold: 1, epsilon: 1e-4 })
+
+    physics.addRigidBody({
+      id: 1,
+      center: { x: 0.1, y: 0 },
+      half: { x: 0.05, y: 0.05 },
+      angle: Math.PI / 6, // 30°
+      velocity: { x: 0, y: 0 }, // rotational only in a future angular CCD model; here should not move
+      restitution: 0,
+      friction: 0,
+    })
+
+    physics.fixedUpdate(0.1)
+
+    const body = physics.debugGetRigidBodies().find((b: any) => b.id === 1)!
+    // No translation: should remain in place (within epsilon) and never collide.
+    expect(body.center.x).toBeCloseTo(0.1, 6)
+  })
 })
