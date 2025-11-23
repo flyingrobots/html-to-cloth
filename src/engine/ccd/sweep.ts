@@ -268,6 +268,14 @@ export function sweepTOI(A: OBB | AABB, vRel: Vec2, B: OBB | AABB, dt: number): 
   } else if (A.kind === 'obb' && B.kind === 'aabb') {
     const aAligned = Math.abs(A.angle) < eps || Math.abs(Math.abs(A.angle) - Math.PI) < eps
     if (aAligned) return sweepObbAabbAxisAligned(A, vRel, B, dt)
+    // Treat the AABB as an OBB (angle 0) for swept SAT when the mover is rotated.
+    const obbB: OBB = {
+      kind: 'obb',
+      center: { x: (B.min.x + B.max.x) * 0.5, y: (B.min.y + B.max.y) * 0.5 },
+      half: { x: (B.max.x - B.min.x) * 0.5, y: (B.max.y - B.min.y) * 0.5 },
+      angle: 0,
+    }
+    return sweepObbObbSweptSAT(A, vRel, obbB, dt)
   }
 
   // Not yet supported
