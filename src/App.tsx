@@ -17,16 +17,20 @@ import {
   Kbd,
   Menu,
   Textarea,
+  Tooltip,
+  ActionIcon,
 } from "@mantine/core"
 import type { DebugOverlayState } from './engine/render/DebugOverlayState'
 
 import { ClothSceneController, type PinMode } from "./lib/clothSceneController"
+import { IconPlayerPause, IconPlayerPlay, IconPlayerTrackNext, IconListDetails, IconSettings } from '@tabler/icons-react'
 import { EngineActions } from "./engine/debug/engineActions"
 import type { CameraSnapshot } from './engine/camera/CameraSystem'
 import { PRESETS, getPreset } from "./app/presets"
 import { Notifications, notifications } from '@mantine/notifications'
 import { EventsPanel } from './app/EventsPanel'
 import { loadSandboxScene, type SandboxSceneId } from './app/sandboxScenes'
+import { toCanonicalX, toCanonicalY, toCanonicalWidthMeters, toCanonicalHeightMeters, PX_PER_METER } from './lib/units'
 
 // Use Mantine's native Kbd component (no inline styles)
 
@@ -229,7 +233,13 @@ function DebugPalette(props: DebugProps) {
                 <Text fw={600}>Real-Time</Text>
                 <Text size="sm" c="dimmed">Pause simulation to step manually</Text>
               </Stack>
-              <Switch aria-label="Real-Time" checked={realTime} onChange={(e) => onRealTimeChange(e.currentTarget.checked)} />
+              <Switch
+                data-testid="real-time-toggle"
+                wrapperProps={{ 'data-testid': 'real-time-toggle-wrapper' }}
+                aria-label="Real-Time"
+                checked={realTime}
+                onChange={(e) => onRealTimeChange(e.currentTarget.checked)}
+              />
             </Group>
             <Group justify="space-between">
               <Stack gap={0}
@@ -447,14 +457,56 @@ function PlaygroundHero() {
 }
 
 function SandboxHero({
+  realTime,
+  onRealTimeToggle,
+  onStep,
+  onOpenEvents,
+  onOpenDebug,
   onDropBoxClick,
   onSelectScene,
 }: {
+  realTime: boolean
+  onRealTimeToggle: (value: boolean) => void
+  onStep: () => void
+  onOpenEvents: () => void
+  onOpenDebug: () => void
   onDropBoxClick?: () => void
   onSelectScene?: (id: SandboxSceneId) => void
 }) {
+  const playPauseLabel = realTime ? 'Pause (toggle real-time)' : 'Play (toggle real-time)'
   return (
     <>
+      <Group justify="center" gap="sm" mt="md">
+        <Switch
+          data-testid="sandbox-play-pause"
+          onLabel={<IconPlayerPlay size={14} />}
+          offLabel={<IconPlayerPause size={14} />}
+          checked={realTime}
+          aria-label={playPauseLabel}
+          onChange={(e) => onRealTimeToggle(e.currentTarget.checked)}
+        />
+        <Tooltip label="Step once (when paused)">
+          <ActionIcon
+            variant="outline"
+            aria-label="Step once"
+            disabled={realTime}
+            onClick={onStep}
+          >
+            <IconPlayerTrackNext size={16} />
+          </ActionIcon>
+        </Tooltip>
+        <Tooltip label="Open events log">
+          <ActionIcon variant="outline" aria-label="Open events" onClick={onOpenEvents}>
+            <IconListDetails size={16} />
+          </ActionIcon>
+        </Tooltip>
+        <Tooltip label="Open debug settings">
+          <ActionIcon variant="outline" aria-label="Open debug settings" onClick={onOpenDebug}>
+            <IconSettings size={16} />
+          </ActionIcon>
+        </Tooltip>
+      </Group>
+
       <Group justify="space-between" align="flex-start" style={{ minHeight: '100vh', padding: '2rem' }}>
         <Stack gap="xl" style={{ flex: 1 }}>
           <Group gap="md">
@@ -582,7 +634,17 @@ function Demo({ mode }: { mode: DemoMode }) {
     return () => window.clearTimeout(id)
   }, [])
 
+  const applySceneDefaults = (_id: SandboxSceneId) => {
+    // Defaults: turn on wireframe and AABBs for scene visibility; open events panel
+    setWireframe(true)
+    setDrawAABBs(true)
+    setEventsOpen(true)
+    // Keep pointer overlay hidden unless user toggles; leave sleep/pins as-is
+    // Future: per-scene overrides could be added here.
+  }
+
   const handleSelectScene = (id: SandboxSceneId) => {
+    applySceneDefaults(id)
     loadSandboxScene(id, {
       controller: controllerRef.current,
       actions: actionsRef.current,
@@ -900,11 +962,17 @@ function Demo({ mode }: { mode: DemoMode }) {
   return (
     <>
       {mode === 'sandbox'
-        ? <SandboxHero onDropBoxClick={() => {
+        ? <SandboxHero
+          realTime={realTime}
+          onRealTimeToggle={setRealTime}
+          onStep={() => actionsRef.current?.stepOnce()}
+          onOpenEvents={() => setEventsOpen(true)}
+          onOpenDebug={() => setDebugOpen(true)}
+          onDropBoxClick={() => {
           const id = rigidIdRef.current++
           const overlay = controllerRef.current?.getOverlayState?.() as DebugOverlayState | null
           let centerX = 0
-          let centerY = 0.6
+          let centerY = 0.9
           let halfX = 0.12
           let halfY = 0.08
           if (overlay && overlay.aabbs.length > 0) {
@@ -915,7 +983,7 @@ function Demo({ mode }: { mode: DemoMode }) {
             // Keep the rigid box comfortably smaller than the floor AABB.
             halfX = Math.max(width * 0.15, 0.01)
             halfY = Math.max(height * 0.35, 0.012)
-            centerY = box.max.y + halfY * 2.2
+            centerY = box.max.y + Math.max(halfY * 3.8, 0.22)
           }
           actionsRef.current?.addRigidBody({
             id,
@@ -927,7 +995,9 @@ function Demo({ mode }: { mode: DemoMode }) {
             restitution: 0.2,
             friction: 0.6,
           } as any)
-        }} onSelectScene={handleSelectScene} />
+        }}
+          onSelectScene={handleSelectScene}
+        />
         : <PlaygroundHero />}
       <EventsPanel open={eventsOpen} onOpenChange={setEventsOpen} bus={controllerRef.current?.getEventBus?.() ?? null} />
       <DebugPalette

@@ -81,6 +81,13 @@ function resetActiveScene(deps: SandboxSceneDeps) {
     activeRigidIds = []
   }
   deps.controller?.clearSandboxObjects?.()
+  // Reset overlays to avoid stale gizmos between scenes.
+  const overlay = deps.controller?.getOverlayState?.()
+  if (overlay) {
+    overlay.rigidBodies = []
+    overlay.pinMarkers = []
+    overlay.simSnapshot = undefined
+  }
 }
 
 /**
@@ -111,6 +118,7 @@ export function loadSandboxScene(id: SandboxSceneId, deps: SandboxSceneDeps) {
       }
       const { cloth } = createClothScenario('cloth-c1-settling', ctx)
       cloth.mesh.position.set(0, 0.8, 0)
+      ;(cloth.mesh.material as THREE.MeshBasicMaterial).wireframe = true
 
       const sim = deps.controller?.getSimulationSystem?.()
       const overlay = deps.controller?.getOverlayState?.()
@@ -162,6 +170,7 @@ export function loadSandboxScene(id: SandboxSceneId, deps: SandboxSceneDeps) {
       }
       const { cloth } = createClothScenario('cloth-c2-sleep-wake', ctx)
       cloth.mesh.position.set(0, 0.8, 0)
+      ;(cloth.mesh.material as THREE.MeshBasicMaterial).wireframe = true
 
       const sim = deps.controller?.getSimulationSystem?.()
       const addSceneObject = deps.controller?.addSceneObject?.bind(deps.controller)

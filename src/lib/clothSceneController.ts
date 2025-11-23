@@ -707,7 +707,10 @@ export class ClothSceneController {
     const delta = Math.min(this.clock.getDelta(), 0.05)
 
     this.simulationRunner.update(delta)
-    this.simulationRunner.getEngine().frame(delta)
+    // Skip frame updates while paused to avoid emitting overlay/perf events when the sim is paused.
+    if (!this.engine.isPaused()) {
+      this.simulationRunner.getEngine().frame(delta)
+    }
 
     this.decayPointerImpulse()
     this.hideActivatedDomElements()
