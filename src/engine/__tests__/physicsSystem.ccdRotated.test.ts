@@ -93,4 +93,89 @@ describe('PhysicsSystem CCD with rotated moving bodies', () => {
     // No translation: should remain in place (within epsilon) and never collide.
     expect(body.center.x).toBeCloseTo(0.1, 6)
   })
+
+  // TODO: Enable once PhysicsSystem can supply rotated static obstacles to CCD (currently AABB-only).
+  it.skip('handles rotated mover against rotated obstacle (swept SAT path)', () => {
+    const bus = new EventBus({ capacity: 128, mailboxCapacity: 64 })
+    const physics = new PhysicsSystem({
+      bus,
+      getAabbs: () => [],
+      gravity: 0,
+      enableDynamicPairs: false,
+    }) as any
+
+    physics.configureCcd?.({ speedThreshold: 1, epsilon: 1e-4 })
+
+    physics.addRigidBody({
+      id: 99,
+      center: { x: 0.35, y: 0 },
+      half: { x: 0.08, y: 0.2 },
+      angle: Math.PI / 8, // ~22.5°
+      velocity: { x: 0, y: 0 },
+      mass: 0,
+      restitution: 0,
+      friction: 0,
+    })
+
+    physics.addRigidBody({
+      id: 1,
+      center: { x: 0, y: 0.05 },
+      half: { x: 0.06, y: 0.06 },
+      angle: Math.PI / 12, // 15°
+      velocity: { x: 7, y: -0.3 },
+      restitution: 0,
+      friction: 0,
+    })
+
+    physics.fixedUpdate(0.06)
+
+    const body = physics.debugGetRigidBodies().find((b: any) => b.id === 1)!
+    expect(body.center.x).toBeLessThanOrEqual(0.35 + body.half.x + 1e-3)
+    expect(body.velocity.x).toBeLessThanOrEqual(0)
+  })
+
+  // TODO: Enable once CCD obstacle feed supports rotated/static OBBs instead of AABB-only.
+  it.skip('earliest TOI wins in a rotated obstacle gauntlet (no leapfrog)', () => {
+    const bus = new EventBus({ capacity: 256, mailboxCapacity: 128 })
+    const physics = new PhysicsSystem({
+      bus,
+      getAabbs: () => [],
+      gravity: 0,
+      enableDynamicPairs: false,
+    }) as any
+
+    physics.configureCcd?.({ speedThreshold: 1, epsilon: 1e-4 })
+
+    const obstacles = [
+      { id: 201, center: { x: 0.28, y: 0 }, half: { x: 0.05, y: 0.18 }, angle: Math.PI / 16 },
+      { id: 202, center: { x: 0.55, y: 0.02 }, half: { x: 0.05, y: 0.18 }, angle: -Math.PI / 10 },
+    ]
+    for (const o of obstacles) {
+      physics.addRigidBody({
+        id: o.id,
+        center: o.center,
+        half: o.half,
+        angle: o.angle,
+        velocity: { x: 0, y: 0 },
+        mass: 0,
+        restitution: 0,
+        friction: 0,
+      })
+    }
+
+    physics.addRigidBody({
+      id: 1,
+      center: { x: -0.05, y: 0 },
+      half: { x: 0.06, y: 0.06 },
+      angle: Math.PI / 14,
+      velocity: { x: 9, y: 0.1 },
+      restitution: 0,
+      friction: 0,
+    })
+
+    physics.fixedUpdate(0.05)
+
+    const body = physics.debugGetRigidBodies().find((b: any) => b.id === 1)!
+    expect(body.center.x).toBeLessThanOrEqual(0.28 + body.half.x + 1e-3)
+  })
 })
