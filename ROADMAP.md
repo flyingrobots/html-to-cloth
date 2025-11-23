@@ -288,6 +288,7 @@ This section is an at-a-glance summary of where the project stands and what is h
 ### Recent Additions
 
 - Promoted CCD policy into `PhysicsSystem`, wiring `advanceWithCCD` sweeps ahead of SAT and enabling PhysicsSystem-level thin-wall + policy specs.
+- Added CCD response spec for heavy bodies and corrected impulse math so inward velocity is cancelled even when mass > 1.
 - Introduced `ROADMAP.md` as the single source of truth for all tasks and milestones.
 - Extended `docs/PROJECT_NEWTON.md` with a detailed roadmap (v1/v2/v3+).
 - Added world-scale tests and refactored `units.ts` and `DOMToWebGL` to use `PX_PER_METER = 256`.
