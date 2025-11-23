@@ -29,3 +29,31 @@
 For the latest cross‑browser manual runbook and results template, see:
 
 - docs/qa/manual-qa-2025-10-29.md
+
+---
+
+## Appendix A — Automated Test Inventory (Vitest)
+
+Current suite (as of 2025-11-23) grouped by area. Tests live under `src/**/__tests__` unless noted.
+
+- **Engine Core & Loop**
+  - `engineWorld.test.ts`, `fixedStepLoop.test.ts`, `simulationRunner.test.ts`, `simulationSystem.test.ts`
+- **Events & Bus**
+  - `channels.test.ts`, `cursor.test.ts`, `metrics.test.ts`, `stats.test.ts`, `mailbox.test.ts`, `mailbox.behavior.test.ts`, `edgecases.ring-seq.test.ts`, `eventRing.test.ts`, `subscription.test.ts`, `subscription.multi-channel.test.ts`, `determinism.test.ts`, `invalidation.test.ts`, `typed.core.test.ts`, `typed.registry.test.ts`, `wakeMarkerSystem.test.ts`, `reentrancy.test.ts`
+- **Physics / CCD**
+  - CCD kernel: `ccd/thinWall.test.ts`, `ccd/raySlabs.test.ts`, `ccd/circleTOI.test.ts`, `ccd/sweepTOI.*.test.ts`, `ccd/obb-obb-rot.test.ts`
+  - PhysicsSystem CCD policy & stress: `physicsSystem.ccdPolicy.test.ts`, `physicsSystem.ccdThinWall.test.ts`, `physicsSystem.ccdResponse.test.ts`, `physicsSystem.ccdStress.test.ts`, `physicsSystem.ccdRotated.test.ts`
+  - Rigid collisions/sleep/impulses: `rigidStaticSystem.test.ts`, `rigidStaticSystem.rest.test.ts`, `rigidStaticSystem.impulse.test.ts`, `rigidStaticSystem.dynamic.test.ts`, `rigidStaticSystem.sleep.test.ts`
+  - Picking: `physics/__tests__/picking.test.ts`
+  - Acceptance: `physicsAcceptanceScenes.test.ts`, `dropBoxAcceptance.test.ts`
+- **Cloth & Simulation Helpers**
+  - `clothPhysics.test.ts`, `impulse.test.ts`, `simWorld.test.ts`, `simulationScheduler.test.ts`, `units.scale.test.ts`, `satObbAabb.test.ts`, `collisionSystem.worldMapping.test.ts`, `elementPool.test.ts`
+- **Render & Camera**
+  - `render/worldRendererSystem.test.ts`, `render/debugOverlaySystem.test.ts`, `renderSettingsSystem.test.ts`, `render/overlayWireframe.spec.ts`, `render/pausedRenderIntegration.test.ts`, `render/controllerReinitIdempotent.test.ts`, `render/controllerDisposeRenderSystems.test.ts`
+  - Camera: `camera/cameraSystem.test.ts`
+- **App / UI Integration**
+  - `app/__tests__/sandboxLayout.spec.tsx`, `sandboxScenes.spec.tsx`, `sandboxDropBox.spec.tsx`, `eventsPanel.spec.tsx`, `debugActions.test.tsx`
+- **Scenario DSL**
+  - `engine/scenarios/__tests__/physicsScenarios.test.ts` (N1 coverage; N2 scenarios currently skipped in `physicsScenarios.n2.test.ts`)
+- **Sandbox / DSL Pending**
+  - Skipped placeholders: `app/__tests__/sandboxDslScenes.spec.tsx`, `engine/__tests__/clothRigidAcceptance*.test.ts`, `engine/scenarios/__tests__/physicsScenarios.n2.test.ts`
