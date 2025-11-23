@@ -56,7 +56,7 @@ Current suite (as of 2025-11-23) grouped by area. Tests live under `src/**/__tes
 - **Scenario DSL**
   - `engine/scenarios/__tests__/physicsScenarios.test.ts` (N1 coverage; N2 scenarios currently skipped in `physicsScenarios.n2.test.ts`)
 - **CCD Rotations & Stress**
-  - Rotated movers vs AABB: `physicsSystem.ccdRotated.test.ts` (two rotated-obstacle gauntlet cases currently skipped until CCD can ingest rotated static obstacles).
+  - Rotated movers vs AABB/OBB: `physicsSystem.ccdRotated.test.ts` (includes rotated-obstacle gauntlet cases; static rotated obstacles now fed into CCD).
   - Speed/threshold/graze/gauntlet: `physicsSystem.ccdStress.test.ts`
 
 ## Appendix B — Structured Test Case Descriptions
