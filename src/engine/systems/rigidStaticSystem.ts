@@ -3,6 +3,7 @@ import type { EventBus } from '../events/bus'
 import { publishCollisionV2, publishImpulse, publishWake, publishSleep, publishPick } from '../events/typed'
 import { advanceWithCCD } from '../ccd/engineStepper'
 import type { OBB as CcdObb, AABB as CcdAabb } from '../ccd/sweep'
+type CcdShape = CcdObb | CcdAabb
 import { obbVsAabb, type OBB as SatObb } from '../../lib/collision/satObbAabb'
 
 export type AABB = { min: { x: number; y: number }; max: { x: number; y: number } }
@@ -96,20 +97,35 @@ export class RigidStaticSystem implements EngineSystem {
 
   fixedUpdate(dt: number) {
     const aabbs = this.getAabbs()
-    const ccdObstacles: CcdAabb[] | null = this.ccdEnabled
+    const ccdAabbs: CcdAabb[] = this.ccdEnabled
       ? aabbs.map((box) => ({
           kind: 'aabb' as const,
           min: { x: box.min.x, y: box.min.y },
           max: { x: box.max.x, y: box.max.y },
         }))
-      : null
+      : []
+    const ccdObbs: CcdObb[] = this.ccdEnabled
+      ? this.bodies
+          .filter((b) => this.isStaticObstacle(b))
+          .map((b) => ({
+            kind: 'obb' as const,
+            center: { x: b.center.x, y: b.center.y },
+            half: { x: b.half.x, y: b.half.y },
+            angle: b.angle,
+          }))
+      : []
+    const ccdObstacles: CcdShape[] = this.ccdEnabled ? [...ccdAabbs, ...ccdObbs] : []
 
     for (const b of this.bodies) {
+      const isStatic = this.isStaticObstacle(b)
       let state = this.sleepState.get(b)
       if (!state) {
         state = { framesBelow: 0, sleeping: false }
         this.sleepState.set(b, state)
       }
+
+      // Static obstacles (mass <= 0) are treated as CCD obstacles only; they do not integrate.
+      if (isStatic) continue
 
       // If body is already asleep, skip integration and collisions.
       if (state.sleeping) {
@@ -215,8 +231,10 @@ export class RigidStaticSystem implements EngineSystem {
     const n = bodies.length
     for (let i = 0; i < n; i++) {
       const a = bodies[i]
+      if (this.isStaticObstacle(a)) continue
       for (let j = i + 1; j < n; j++) {
         const b = bodies[j]
+        if (this.isStaticObstacle(b)) continue
         this.handleDynamicPair(a, b)
       }
     }
@@ -346,12 +364,13 @@ export class RigidStaticSystem implements EngineSystem {
 
   private shouldUseCcd(body: RigidBody, speedSq: number) {
     if (!this.ccdEnabled) return false
+    if (this.isStaticObstacle(body)) return false
     if (body.ccd === true) return true
     if (body.ccd === false) return false
     return Math.sqrt(speedSq) >= this.ccdSpeedThreshold
   }
 
-  private advanceBodyWithCcd(body: RigidBody, dt: number, obstacles: CcdAabb[]) {
+  private advanceBodyWithCcd(body: RigidBody, dt: number, obstacles: CcdShape[]) {
     if (obstacles.length === 0) {
       body.center.x += body.velocity.x * dt
       body.center.y += body.velocity.y * dt
@@ -386,5 +405,21 @@ export class RigidStaticSystem implements EngineSystem {
       body.velocity.x += (jn * n.x) * invMass
       body.velocity.y += (jn * n.y) * invMass
     }
+    // Ensure no residual inward velocity due to numerical drift.
+    const vnAfter = body.velocity.x * n.x + body.velocity.y * n.y
+    if (vnAfter > 0) {
+      body.velocity.x -= vnAfter * n.x
+      body.velocity.y -= vnAfter * n.y
+    }
+    if (Math.abs(n.x) > 0.25 && body.velocity.x * n.x > 0) {
+      body.velocity.x = 0
+    }
+    if (Math.abs(n.y) > 0.25 && body.velocity.y * n.y > 0) {
+      body.velocity.y = 0
+    }
+  }
+
+  private isStaticObstacle(body: RigidBody) {
+    return typeof body.mass === 'number' && body.mass <= 0
   }
 }

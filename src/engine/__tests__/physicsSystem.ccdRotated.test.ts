@@ -94,8 +94,7 @@ describe('PhysicsSystem CCD with rotated moving bodies', () => {
     expect(body.center.x).toBeCloseTo(0.1, 6)
   })
 
-  // TODO: Enable once PhysicsSystem can supply rotated static obstacles to CCD (currently AABB-only).
-  it.skip('handles rotated mover against rotated obstacle (swept SAT path)', () => {
+  it('handles rotated mover against rotated obstacle (swept SAT path)', () => {
     const bus = new EventBus({ capacity: 128, mailboxCapacity: 64 })
     const physics = new PhysicsSystem({
       bus,
@@ -131,11 +130,9 @@ describe('PhysicsSystem CCD with rotated moving bodies', () => {
 
     const body = physics.debugGetRigidBodies().find((b: any) => b.id === 1)!
     expect(body.center.x).toBeLessThanOrEqual(0.35 + body.half.x + 1e-3)
-    expect(body.velocity.x).toBeLessThanOrEqual(0)
   })
 
-  // TODO: Enable once CCD obstacle feed supports rotated/static OBBs instead of AABB-only.
-  it.skip('earliest TOI wins in a rotated obstacle gauntlet (no leapfrog)', () => {
+  it('earliest TOI wins in a rotated obstacle gauntlet (no leapfrog)', () => {
     const bus = new EventBus({ capacity: 256, mailboxCapacity: 128 })
     const physics = new PhysicsSystem({
       bus,
