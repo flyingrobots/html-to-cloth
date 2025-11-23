@@ -55,5 +55,8 @@ Current suite (as of 2025-11-23) grouped by area. Tests live under `src/**/__tes
   - `app/__tests__/sandboxLayout.spec.tsx`, `sandboxScenes.spec.tsx`, `sandboxDropBox.spec.tsx`, `eventsPanel.spec.tsx`, `debugActions.test.tsx`
 - **Scenario DSL**
   - `engine/scenarios/__tests__/physicsScenarios.test.ts` (N1 coverage; N2 scenarios currently skipped in `physicsScenarios.n2.test.ts`)
+- **CCD Rotations & Stress**
+  - Rotated movers vs AABB: `physicsSystem.ccdRotated.test.ts` (two rotated-obstacle gauntlet cases currently skipped until CCD can ingest rotated static obstacles).
+  - Speed/threshold/graze/gauntlet: `physicsSystem.ccdStress.test.ts`
 - **Sandbox / DSL Pending**
   - Skipped placeholders: `app/__tests__/sandboxDslScenes.spec.tsx`, `engine/__tests__/clothRigidAcceptance*.test.ts`, `engine/scenarios/__tests__/physicsScenarios.n2.test.ts`
