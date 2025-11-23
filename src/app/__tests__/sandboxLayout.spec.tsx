@@ -1,6 +1,7 @@
 import { describe, it, beforeEach, expect } from 'vitest'
 import React from 'react'
 import { render, screen, fireEvent } from '@testing-library/react'
+import { act } from 'react'
 
 import App from '../../App'
 
@@ -9,17 +10,17 @@ describe('Sandbox navigation and layout', () => {
     document.body.innerHTML = ''
   })
 
-  it('shows a Sandbox CTA on the homepage linking to /sandbox', () => {
+  it('shows a Sandbox CTA on the homepage linking to /sandbox', async () => {
     window.history.pushState({}, '', '/')
-    render(<App />)
+    await act(async () => { render(<App />) })
 
     const sandboxLink = screen.getByRole('link', { name: /sandbox/i })
     expect(sandboxLink).toHaveAttribute('href', '/sandbox')
   })
 
-  it('renders Sandbox layout with title, legend, and Tests/Demos menus', () => {
+  it('renders Sandbox layout with title, legend, and Tests/Demos menus', async () => {
     window.history.pushState({}, '', '/sandbox')
-    render(<App />)
+    await act(async () => { render(<App />) })
 
     // Big Sandbox heading
     const heading = screen.getByRole('heading', { name: /sandbox/i })
@@ -39,9 +40,9 @@ describe('Sandbox navigation and layout', () => {
     expect(demosButton).toBeInTheDocument()
   })
 
-  it('marks at least one Sandbox test menu item as cloth-enabled so it can become a cloth scene element', () => {
+  it('marks at least one Sandbox test menu item as cloth-enabled so it can become a cloth scene element', async () => {
     window.history.pushState({}, '', '/sandbox')
-    render(<App />)
+    await act(async () => { render(<App />) })
 
     // For this layout-level test we only assert that the Tests button exists;
     // behaviour of the dropdown contents is covered elsewhere.
@@ -49,9 +50,9 @@ describe('Sandbox navigation and layout', () => {
     expect(testsButton).toBeInTheDocument()
   })
 
-  it('renders a default rigid button and static textarea for the sandbox scene', () => {
+  it('renders a default rigid button and static textarea for the sandbox scene', async () => {
     window.history.pushState({}, '', '/sandbox')
-    render(<App />)
+    await act(async () => { render(<App />) })
 
     const rigidButton = screen.getByRole('button', { name: /drop box/i })
     expect(rigidButton).toHaveClass('rigid-dynamic')

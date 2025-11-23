@@ -110,7 +110,7 @@ export function EventsPanel({ open, onOpenChange, bus }: { open: boolean; onOpen
       // Keep pumping
       rafRef.current = window.requestAnimationFrame(read)
     }
-    const pushRow = (h: EventHeaderView, ch: Channel, type: string, detail: string) => {
+    const pushRow = (_h: EventHeaderView, ch: Channel, type: string, detail: string) => {
       setRows((prev) => {
         const next = prev.length > 200 ? prev.slice(prev.length - 200) : prev.slice(0)
         next.push({ time: Date.now(), ch, type, detail })

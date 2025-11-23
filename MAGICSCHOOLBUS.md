@@ -12,58 +12,54 @@ We’re going to build the best event bus we have no business owning. This doc t
 
 ---
 
-## [ ] Phase 0 — Foundations (Types + Store)
+## Phase 0 — Foundations (Types + Store)
 
-- [ ] Define `EngineEvent` discriminated union in `src/engine/events/types.ts`
-  - [ ] Core: `wake|sleep|activate|deactivate|step|frame` (time/frame indices)
-  - [ ] Input: `pointer:move|down|up` (canonical coords)
-  - [ ] Physics: `collision`, `impulse`, `ccd:hit`, `pick`
-  - [ ] Debug/Perf: `perf:row`, `overlay:*`
-- [ ] `EventRing<T>`: bounded ring buffer with monotonic `seq`
-  - [ ] API: `push(event)`, `sliceSince(seq)`, `clearTo(seq)`
-  - [ ] GC‑light: struct‑of‑arrays or pooled objects
-- [ ] `EventStore` with phase channels
-  - [ ] Channels: `fixedEnd`, `frameBegin`, `frameEnd`, `immediate` (dev‑only)
-  - [ ] Publish API enqueues into a channel; immediate only when explicitly enabled
-  - [ ] Sequence generators per channel (u64 counter)
-- [ ] `EventCursor` per subscriber (system) with watermarks per channel
-  - [ ] API: `read(channel, fn)` processes events since last `seq`
-  - [ ] No callbacks from the bus; systems pull during their update slot
+- Define `EngineEvent` discriminated union in `src/engine/events/types.ts`.
+- `EventRing<T>`: bounded ring buffer with monotonic `seq`.
+  - API: `push(event)`, `sliceSince(seq)`, `clearTo(seq)`.
+  - GC‑light: struct‑of‑arrays or pooled objects.
+- `EventStore` with phase channels:
+  - Channels: `fixedEnd`, `frameBegin`, `frameEnd`, `immediate` (dev‑only).
+  - Publish API enqueues into a channel; immediate only when explicitly enabled.
+  - Sequence generators per channel (u64 counter).
+- `EventCursor` per subscriber (system) with watermarks per channel:
+  - API: `read(channel, fn)` processes events since last `seq`.
+  - No callbacks from the bus; systems pull during their update slot.
 
-## [ ] Phase 1 — Engine Integration
+## Phase 1 — Engine Integration
 
-- [ ] Add `EventBusSystem` that advances phase channels:
-  - [ ] On `fixedUpdate(dt)`: flush internal `fixedEnd` ring into “ready” for consumers
-  - [ ] On `frameUpdate(dt)`: flush `frameBegin` at start and `frameEnd` at end
-  - [ ] Expose `getBus()` on `EngineWorld`
-- [ ] Add clocks: `frameIndex`, `fixedIndex`, timestamps; stamp events at publish time
-- [ ] Telemetry: counters per channel (enqueued, dropped, delivered); histograms of batch sizes
+- Add `EventBusSystem` that advances phase channels:
+  - On `fixedUpdate(dt)`: flush internal `fixedEnd` ring into “ready” for consumers.
+  - On `frameUpdate(dt)`: flush `frameBegin` at start and `frameEnd` at end.
+  - Expose `getBus()` on `EngineWorld`.
+- Add clocks: `frameIndex`, `fixedIndex`, timestamps; stamp events at publish time.
+- Telemetry: counters per channel (enqueued, dropped, delivered); histograms of batch sizes.
 
-## [ ] Phase 2 — Producers (Publishers)
+## Phase 2 — Producers (Publishers)
 
-- [ ] PointerInputSystem → publish `pointer:*` to `frameBegin`
-- [ ] Simulation/Physics → publish `wake|sleep` and `impulse|collision` to `fixedEnd`
-- [ ] CCD stepper → publish `ccd:hit` to `fixedEnd`
-- [ ] Perf wrapper → publish `perf:row` to `frameEnd`
+- PointerInputSystem → publish `pointer:*` to `frameBegin`.
+- Simulation/Physics → publish `wake|sleep` and `impulse|collision` to `fixedEnd`.
+- CCD stepper → publish `ccd:hit` to `fixedEnd`.
+- Perf wrapper → publish `perf:row` to `frameEnd`.
 
-## [ ] Phase 3 — Consumers (Subscribers)
+## Phase 3 — Consumers (Subscribers)
 
-- [ ] DebugOverlaySystem → consumes `pointer`, `perf:row`, `collision`, `ccd:hit`
-- [ ] Collision overlay (if present) → consumes `collision`, `impulse`, `ccd:hit`
-- [ ] Inspector/Events panel → consumes everything; filterable
-- [ ] Future RigidSystem/AI systems → consume `wake|sleep|collision`
+- DebugOverlaySystem → consumes `pointer`, `perf:row`, `collision`, `ccd:hit`.
+- Collision overlay (if present) → consumes `collision`, `impulse`, `ccd:hit`.
+- Inspector/Events panel → consumes everything; filterable.
+- Future RigidSystem/AI systems → consume `wake|sleep|collision`.
 
-## [ ] Phase 4 — UX + Tooling
+## Phase 4 — UX + Tooling
 
-- [ ] Dev toggle to switch immediate vs deferred (debug only)
-- [ ] Bus panel: rates, back‑pressure, dropped counts, per‑type charts
-- [ ] Log recorder: ring -> JSON export with replay script
+- Dev toggle to switch immediate vs deferred (debug only).
+- Bus panel: rates, back‑pressure, dropped counts, per‑type charts.
+- Log recorder: ring -> JSON export with replay script.
 
-## [ ] Phase 5 — Perf + Robustness
+## Phase 5 — Perf + Robustness
 
-- [ ] Benchmarks: synthetic producers/consumers @ 60Hz & stress scenes
-- [ ] Memory budget: cap per channel (evict oldest with counter)
-- [ ] Fuzz tests: ordering, watermarks monotonicity, no re‑entrancy
+- Benchmarks: synthetic producers/consumers @ 60Hz & stress scenes.
+- Memory budget: cap per channel (evict oldest with counter).
+- Fuzz tests: ordering, watermarks monotonicity, no re‑entrancy.
 
 ---
 
@@ -135,11 +131,10 @@ Determinism
 
 ---
 
-## Acceptance Checklist
+## Acceptance Notes
 
-- [ ] All existing overlay/inspector use events; no direct cross‑system reads
-- [ ] No re‑entrant callbacks from physics/input
-- [ ] ≤ 0.5 ms overhead @ 60 Hz with current scenes
-- [ ] Telemetry panel shows event rates, drops, and queue depth
-- [ ] Unit + integration tests for ordering, watermarks, and phase boundaries
-
+- All overlay/inspector behaviour should be driven by events; avoid new direct cross‑system reads where possible.
+- No re‑entrant callbacks from physics/input.
+- Overhead target: ≤ 0.5 ms @ 60 Hz with current scenes.
+- Telemetry panel should show event rates, drops, and queue depth.
+- Unit + integration tests should validate ordering, watermarks, and phase boundaries.

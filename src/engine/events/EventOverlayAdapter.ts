@@ -27,7 +27,7 @@ export class EventOverlayAdapter implements EngineSystem {
   }
 
   frameUpdate(): void {
-    this.cursor.read('frameBegin', (h, r) => {
+    this.cursor.read('frameBegin', (_h, r) => {
       // f32[0]=x, f32[1]=y
       const x = r.f32[0]
       const y = r.f32[1]
@@ -35,4 +35,3 @@ export class EventOverlayAdapter implements EngineSystem {
     })
   }
 }
-

@@ -416,7 +416,7 @@ function DebugPalette(props: DebugProps) {
   )
 }
 
-function PlaygroundHero({ modifierKey }: { modifierKey: string }) {
+function PlaygroundHero() {
   return (
     <>
       <Group justify="center" style={{ minHeight: '100vh' }}>
@@ -447,11 +447,9 @@ function PlaygroundHero({ modifierKey }: { modifierKey: string }) {
 }
 
 function SandboxHero({
-  modifierKey,
   onDropBoxClick,
   onSelectScene,
 }: {
-  modifierKey: string
   onDropBoxClick?: () => void
   onSelectScene?: (id: SandboxSceneId) => void
 }) {
@@ -477,8 +475,16 @@ function SandboxHero({
                 >
                   Cloth: C2 – Sleep/Wake
                 </Menu.Item>
-                <Menu.Item>Rigid: Thin Wall CCD</Menu.Item>
-                <Menu.Item>Rigid: Stack Rest</Menu.Item>
+                <Menu.Item
+                  onClick={() => onSelectScene?.('rigid-stack-rest')}
+                >
+                  Rigid: Stack Rest
+                </Menu.Item>
+                <Menu.Item
+                  onClick={() => onSelectScene?.('rigid-drop-onto-static')}
+                >
+                  Rigid: Drop Onto Static
+                </Menu.Item>
               </Menu.Dropdown>
             </Menu>
             <Menu>
@@ -873,8 +879,6 @@ function Demo({ mode }: { mode: DemoMode }) {
     return () => actionsRef.current?.onCcdCollision(null)
   }, [ccdToastEnabled, actionsRef.current])
 
-  const modifierKey = typeof navigator !== "undefined" && navigator?.platform?.toLowerCase().includes("mac") ? "⌘" : "Ctrl"
-
   // Keyboard shortcuts: Cmd/Ctrl+J for Debug, Cmd/Ctrl+E for Events panel
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
@@ -896,7 +900,7 @@ function Demo({ mode }: { mode: DemoMode }) {
   return (
     <>
       {mode === 'sandbox'
-        ? <SandboxHero modifierKey={modifierKey} onDropBoxClick={() => {
+        ? <SandboxHero onDropBoxClick={() => {
           const id = rigidIdRef.current++
           const overlay = controllerRef.current?.getOverlayState?.() as DebugOverlayState | null
           let centerX = 0
@@ -924,7 +928,7 @@ function Demo({ mode }: { mode: DemoMode }) {
             friction: 0.6,
           } as any)
         }} onSelectScene={handleSelectScene} />
-        : <PlaygroundHero modifierKey={modifierKey} />}
+        : <PlaygroundHero />}
       <EventsPanel open={eventsOpen} onOpenChange={setEventsOpen} bus={controllerRef.current?.getEventBus?.() ?? null} />
       <DebugPalette
         open={debugOpen}
@@ -970,6 +974,8 @@ function Demo({ mode }: { mode: DemoMode }) {
         onDrawSleepChange={setDrawSleep}
         drawPins={drawPins}
         onDrawPinsChange={setDrawPins}
+        drawWake={drawWake}
+        onDrawWakeChange={setDrawWake}
         pinMode={pinMode}
         onPinModeChange={setPinMode}
         onStep={() => actionsRef.current?.stepOnce()}

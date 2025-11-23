@@ -1,6 +1,6 @@
 import type { EngineSystem } from '../types'
 import type { EngineWorld } from '../world'
-import { EventBus, type Channel } from './bus'
+import { EventBus } from './bus'
 
 export class EventBusSystem implements EngineSystem<EngineWorld> {
   id?: string
@@ -28,4 +28,3 @@ export class EventBusSystem implements EngineSystem<EngineWorld> {
     this.frameIndex++
   }
 }
-

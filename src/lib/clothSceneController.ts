@@ -343,6 +343,7 @@ export class ClothSceneController {
   private domToWebGL: DOMToWebGL | null = null
   private collisionSystem = new CollisionSystem()
   private items = new Map<HTMLElement, ClothItem>()
+  private sandboxObjects = new Set<THREE.Object3D>()
   private rafId: number | null = null
   private clock = new THREE.Clock()
   private disposed = false
@@ -512,6 +513,7 @@ export class ClothSceneController {
     }
 
     this.collisionSystem.clear()
+    this.clearSandboxObjects()
 
     if (this.domToWebGL) {
       this.domToWebGL.detach()
@@ -932,6 +934,39 @@ export class ClothSceneController {
   /** Returns the render settings state for EngineActions. */
   getRenderSettingsState() {
     return this.renderSettingsState
+  }
+
+  /** Adds a standalone Three.js object to the render scene (used by sandbox scenarios). */
+  addSceneObject(obj: THREE.Object3D) {
+    if (!obj) return
+    if (!this.domToWebGL) return
+    try {
+      this.domToWebGL.addMesh(obj)
+      this.sandboxObjects.add(obj)
+    } catch (error) {
+      console.warn?.('Failed to add scene object', error)
+    }
+  }
+
+  /** Removes a previously added scene object from the render scene. */
+  removeSceneObject(obj: THREE.Object3D) {
+    if (!obj) return
+    try {
+      this.domToWebGL?.removeMesh(obj)
+    } catch (error) {
+      console.warn?.('Failed to remove scene object', error)
+    }
+    this.sandboxObjects.delete(obj)
+  }
+
+  /** Removes all sandbox-managed scene objects (used on dispose/scene swap). */
+  clearSandboxObjects() {
+    for (const obj of this.sandboxObjects.values()) {
+      try {
+        this.domToWebGL?.removeMesh(obj)
+      } catch {}
+    }
+    this.sandboxObjects.clear()
   }
 
   /** Returns the event bus instance for advanced integrations. */

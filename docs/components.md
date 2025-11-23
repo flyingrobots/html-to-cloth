@@ -45,8 +45,8 @@ flowchart LR
   Scene -->|Register bodies| SimSystem
   SimSystem -->|Snapshots| Scene
 
-  Loop -->|tick(dt)| World
-  World -->|fixedUpdate(dt)| SimSystem
+  Loop -->|"tick(dt)"| World
+  World -->|"fixedUpdate(dt)"| SimSystem
   SimSystem --> SimWorld
   SimWorld --> Scheduler
   SimWorld -->|collision bounds| Collision

@@ -35,7 +35,7 @@ export class DOMToWebGL {
   private viewportWidth: number
   private viewportHeight: number
 
-  constructor(container: HTMLElement, options: DOMToWebGLOptions = {}) {
+  constructor(container: HTMLElement, _options: DOMToWebGLOptions = {}) {
     this.container = container
     this.scene = new THREE.Scene()
     this.camera = new THREE.OrthographicCamera()
