@@ -111,23 +111,23 @@ Goal: integrate CCD into the main rigid lane for high-speed bodies, introduce cl
 ### N2.1 CCD in PhysicsSystem
 
 - [ ] Define a CCD policy for `PhysicsSystem`:
-  - [ ] Use `CcdSettingsState` or a new config to specify:
-    - [ ] `speedThreshold` above which CCD must be used.
-    - [ ] `epsilon` / tolerances for sweeps.
-  - [ ] (Optional) Per-body flag to force CCD on/off.
-- [ ] Refactor `RigidStaticSystem` / `PhysicsSystem` integration path:
-  - [ ] Separate “advance velocities” from “resolve contacts”.
-  - [ ] For high-speed bodies:
-    - [ ] Call `advanceWithCCD` against static obstacles to compute TOI and contact normal.
-    - [ ] Adjust body position/velocity based on that TOI.
-  - [ ] Run existing SAT + impulse solver on the adjusted state.
-- [ ] Promote R1 thin-wall into a PhysicsSystem-level acceptance test:
-  - [ ] Fast OBB vs thin wall in the real rigid lane must not tunnel.
-  - [ ] At least one `CollisionV2` event must be emitted.
-- [ ] Keep existing rigid tests green under CCD integration:
-  - [ ] Stack rest jitter window.
-  - [ ] Drop-onto-static jitter window.
-  - [ ] Rigid sleep tests.
+  - [x] Use `CcdSettingsState` or a new config to specify:
+    - [x] `speedThreshold` above which CCD must be used.
+    - [x] `epsilon` / tolerances for sweeps.
+  - [x] (Optional) Per-body flag to force CCD on/off.
+- [x] Refactor `RigidStaticSystem` / `PhysicsSystem` integration path:
+  - [x] Separate “advance velocities” from “resolve contacts”.
+  - [x] For high-speed bodies:
+    - [x] Call `advanceWithCCD` against static obstacles to compute TOI and contact normal.
+    - [x] Adjust body position/velocity based on that TOI.
+  - [x] Run existing SAT + impulse solver on the adjusted state.
+- [x] Promote R1 thin-wall into a PhysicsSystem-level acceptance test:
+  - [x] Fast OBB vs thin wall in the real rigid lane must not tunnel.
+  - [x] At least one `CollisionV2` event must be emitted.
+- [x] Keep existing rigid tests green under CCD integration:
+  - [x] Stack rest jitter window.
+  - [x] Drop-onto-static jitter window.
+  - [x] Rigid sleep tests.
 
 ### N2.2 Cloth↔Rigid Collisions v1
 
@@ -271,6 +271,7 @@ This section is an at-a-glance summary of where the project stands and what is h
   - Sleep heuristics and Sleep/Wake events are in place with tests.
 - CCD:
   - CCD kernel is implemented and tested for OBB vs AABB/OBB thin-wall scenarios (R1 acceptance scene).
+  - PhysicsSystem applies a CCD policy (speed threshold + epsilon, per-body override) so high-speed rigid bodies sweep static obstacles before SAT resolution, emitting `CollisionV2` in thin-wall scenarios.
   - A CCD demo lane with `CcdStepperSystem` + `CcdProbeOverlaySystem` and UI toggles is wired into the engine.
 - Sandbox:
   - `/sandbox` route with “SANDBOX” hero, Tests/Demos menus, default Drop Box scene, and textarea floor.
@@ -286,6 +287,7 @@ This section is an at-a-glance summary of where the project stands and what is h
 
 ### Recent Additions
 
+- Promoted CCD policy into `PhysicsSystem`, wiring `advanceWithCCD` sweeps ahead of SAT and enabling PhysicsSystem-level thin-wall + policy specs.
 - Introduced `ROADMAP.md` as the single source of truth for all tasks and milestones.
 - Extended `docs/PROJECT_NEWTON.md` with a detailed roadmap (v1/v2/v3+).
 - Added world-scale tests and refactored `units.ts` and `DOMToWebGL` to use `PX_PER_METER = 256`.
@@ -298,7 +300,7 @@ This section is an at-a-glance summary of where the project stands and what is h
   - Run and record manual browser/network/memory QA passes; prepare demo script + visuals that explain the engine + DOM capture architecture.
   - Keep sandbox smoke tests green while tuning behaviours and overlays.
 - Medium-term (Newton v2):
-  - Design and implement a CCD policy inside `PhysicsSystem` for high-speed bodies and add a PhysicsSystem-level R1 acceptance test.
+  - Tune CCD policy thresholds (speed, epsilon) against stress scenes and keep PhysicsSystem R1 thin-wall spec passing.
   - Implement cloth↔rigid collision v1, starting with simple cloth-over-box and ball-into-cloth scenes.
   - Move all sandbox Test/Demo scenes onto the scenario DSL.
 - Longer-term:
@@ -332,18 +334,13 @@ This section highlights the highest-priority tasks for the next 1–2 weeks. It 
     - EngineWorld + SimulationSystem/Sandbox architecture.
     - How acceptance scenes map to sandbox scenes.
 
-### Week 2 – CCD Policy Design & Cloth↔Rigid Planning (N2 Kickoff)
+### Week 2 – CCD Policy Tuning & Cloth↔Rigid Planning (N2 Kickoff)
 
-**Focus:** Design and begin implementing CCD policy in `PhysicsSystem` and plan cloth↔rigid v1.
+**Focus:** Validate the new CCD policy under stress scenes and lock the plan for cloth↔rigid v1.
 
-- CCD policy & PhysicsSystem integration (N2.1)
-  - Design the CCD policy:
-    - Choose initial `speedThreshold` and tolerance values.
-    - Decide how to mark bodies as CCD candidates (speed-based only vs per-body flags).
-  - Add a PhysicsSystem-level R1 test:
-    - Fast OBB vs thin wall using the real rigid lane.
-    - Assert no tunnelling and a `CollisionV2` event.
-  - Begin refactoring `RigidStaticSystem`/`PhysicsSystem` to separate integration from resolution in a way that can support CCD.
+- CCD policy tuning (N2.1)
+  - Sweep fast-body stress cases (multiple static obstacles, grazing impacts) to choose stable `speedThreshold`/`epsilon`.
+  - Capture any regressions as additional PhysicsSystem-level specs if needed.
 
 - Cloth↔rigid integration planning (N2.2)
   - Finalize the collision model for cloth↔rigid v1:
@@ -367,3 +364,5 @@ This section records changes made to `ROADMAP.md` itself. New entries should be 
   - Added Engine Refactor follow-ups and PhysicsRegistry/Discovery tasks sourced from `docs/engine-refactor.md` and `docs/issues/physics-registry.md`.
 - **2025-11-22**
   - Completed N1.6 sandbox alignment: wired C2 cloth sleep/wake, rigid stack-rest, and rigid drop-onto-static scenes into `/sandbox` with smoke tests.
+- **2025-11-23**
+  - Marked N2.1 CCD policy tasks complete after integrating CCD sweeps into `PhysicsSystem` and enabling PhysicsSystem-level CCD specs.
