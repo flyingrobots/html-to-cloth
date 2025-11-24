@@ -156,7 +156,8 @@ describe('Debug UI → EngineActions integration (App)', () => {
     const user = userEvent.setup()
     const select = await screen.findByPlaceholderText('Choose preset')
     await user.click(select)
-    const heavy = await screen.findByRole('option', { name: 'Heavy' })
+    const listbox = await screen.findByRole('listbox')
+    const heavy = within(listbox).getByText('Heavy')
     await user.click(heavy)
 
     await Promise.resolve()

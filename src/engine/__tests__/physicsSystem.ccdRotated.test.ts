@@ -176,8 +176,7 @@ describe('PhysicsSystem CCD with rotated moving bodies', () => {
     expect(body.center.x).toBeLessThanOrEqual(0.28 + body.half.x + 1e-3)
   })
 
-  // Mixed-motion stress: currently skipped because CCD treats obstacles as static; relative motion sweep not implemented yet.
-  it.skip('handles rotated moving obstacle (relative motion CCD future work)', () => {
+  it('handles rotated moving obstacle (relative motion CCD)', () => {
     const bus = new EventBus({ capacity: 256, mailboxCapacity: 128 })
     const physics = new PhysicsSystem({
       bus,
@@ -214,5 +213,6 @@ describe('PhysicsSystem CCD with rotated moving bodies', () => {
 
     const body = physics.debugGetRigidBodies().find((b: any) => b.id === 1)!
     expect(body.center.x).toBeLessThanOrEqual(0.3 + body.half.x + 1e-3)
+    expect(body.velocity.x).toBeLessThanOrEqual(0)
   })
 })

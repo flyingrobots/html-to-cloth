@@ -4,6 +4,11 @@ import { publishCollisionV2, publishImpulse, publishWake, publishSleep, publishP
 import { advanceWithCCD } from '../ccd/engineStepper'
 import type { OBB as CcdObb, AABB as CcdAabb } from '../ccd/sweep'
 type CcdShape = CcdObb | CcdAabb
+type CcdObstacle = { id?: number; shape: CcdShape; velocity: { x: number; y: number } }
+type CcdSweepResult =
+  | (ReturnType<typeof advanceWithCCD> & { obstacleVelocity: { x: number; y: number } })
+  | null
+type CcdShape = CcdObb | CcdAabb
 import { obbVsAabb, type OBB as SatObb } from '../../lib/collision/satObbAabb'
 
 export type AABB = { min: { x: number; y: number }; max: { x: number; y: number } }
@@ -97,24 +102,32 @@ export class RigidStaticSystem implements EngineSystem {
 
   fixedUpdate(dt: number) {
     const aabbs = this.getAabbs()
-    const ccdAabbs: CcdAabb[] = this.ccdEnabled
-      ? aabbs.map((box) => ({
-          kind: 'aabb' as const,
-          min: { x: box.min.x, y: box.min.y },
-          max: { x: box.max.x, y: box.max.y },
-        }))
-      : []
-    const ccdObbs: CcdObb[] = this.ccdEnabled
-      ? this.bodies
-          .filter((b) => this.isStaticObstacle(b))
-          .map((b) => ({
+    const ccdObstacles: CcdObstacle[] = []
+    if (this.ccdEnabled) {
+      for (const box of aabbs) {
+        ccdObstacles.push({
+          id: undefined,
+          shape: {
+            kind: 'aabb' as const,
+            min: { x: box.min.x, y: box.min.y },
+            max: { x: box.max.x, y: box.max.y },
+          },
+          velocity: { x: 0, y: 0 },
+        })
+      }
+      for (const other of this.bodies) {
+        ccdObstacles.push({
+          id: other.id,
+          shape: {
             kind: 'obb' as const,
-            center: { x: b.center.x, y: b.center.y },
-            half: { x: b.half.x, y: b.half.y },
-            angle: b.angle,
-          }))
-      : []
-    const ccdObstacles: CcdShape[] = this.ccdEnabled ? [...ccdAabbs, ...ccdObbs] : []
+            center: { x: other.center.x, y: other.center.y },
+            half: { x: other.half.x, y: other.half.y },
+            angle: other.angle,
+          },
+          velocity: { x: other.velocity.x, y: other.velocity.y },
+        })
+      }
+    }
 
     for (const b of this.bodies) {
       const isStatic = this.isStaticObstacle(b)
@@ -151,11 +164,11 @@ export class RigidStaticSystem implements EngineSystem {
       b.velocity.y -= this.gravity * dt
       const speedSqAfter = b.velocity.x * b.velocity.x + b.velocity.y * b.velocity.y
 
-      let ccdHit: { normal: { x: number; y: number }; point?: { x: number; y: number } } | null = null
-      if (this.shouldUseCcd(b, speedSqAfter) && ccdObstacles && ccdObstacles.length > 0) {
+      let ccdHit: { normal: { x: number; y: number }; point?: { x: number; y: number }; obstacleVelocity?: { x: number; y: number } } | null = null
+      if (this.shouldUseCcd(b, speedSqAfter) && ccdObstacles.length > 0) {
         const sweep = this.advanceBodyWithCcd(b, dt, ccdObstacles)
         if (sweep?.collided) {
-          ccdHit = { normal: sweep.normal, point: sweep.point }
+          ccdHit = { normal: sweep.normal, point: sweep.point, obstacleVelocity: sweep.obstacleVelocity }
         }
       } else {
         b.center.x += b.velocity.x * dt
@@ -206,7 +219,7 @@ export class RigidStaticSystem implements EngineSystem {
       }
 
       if (ccdHit && !hadCollision) {
-        this.applyCcdVelocityResponse(b, ccdHit.normal)
+        this.applyCcdVelocityResponse(b, ccdHit.normal, ccdHit.obstacleVelocity ?? { x: 0, y: 0 })
         const contact = ccdHit.point ?? {
           x: b.center.x - ccdHit.normal.x * b.half.x,
           y: b.center.y - ccdHit.normal.y * b.half.y,
@@ -370,52 +383,66 @@ export class RigidStaticSystem implements EngineSystem {
     return Math.sqrt(speedSq) >= this.ccdSpeedThreshold
   }
 
-  private advanceBodyWithCcd(body: RigidBody, dt: number, obstacles: CcdShape[]) {
+  private advanceBodyWithCcd(body: RigidBody, dt: number, obstacles: CcdObstacle[]): CcdSweepResult {
     if (obstacles.length === 0) {
       body.center.x += body.velocity.x * dt
       body.center.y += body.velocity.y * dt
       return null
     }
-    const shape: CcdObb = {
+    const moverShape: CcdObb = {
       kind: 'obb',
       center: { x: body.center.x, y: body.center.y },
       half: { x: body.half.x, y: body.half.y },
       angle: body.angle,
     }
-    const sweep = advanceWithCCD(shape, { x: body.velocity.x, y: body.velocity.y }, dt, obstacles, {
-      epsilon: this.ccdEpsilon,
-    })
-    body.center.x = sweep.center.x
-    body.center.y = sweep.center.y
-    return sweep
+
+    let best: ReturnType<typeof advanceWithCCD> | null = null
+    let bestVel: { x: number; y: number } | null = null
+    for (const obs of obstacles) {
+      // Skip self
+      if (obs.id !== undefined && body.id !== undefined && obs.id === body.id) continue
+      const vRel = {
+        x: body.velocity.x - obs.velocity.x,
+        y: body.velocity.y - obs.velocity.y,
+      }
+      const sweep = advanceWithCCD(moverShape, vRel, dt, [obs.shape], { epsilon: this.ccdEpsilon })
+      if (sweep.collided && (best === null || sweep.t < best.t)) {
+        best = sweep
+        bestVel = obs.velocity
+      }
+    }
+
+    if (best) {
+      body.center.x = best.center.x
+      body.center.y = best.center.y
+      return { ...best, obstacleVelocity: bestVel ?? { x: 0, y: 0 } }
+    }
+
+    body.center.x += body.velocity.x * dt
+    body.center.y += body.velocity.y * dt
+    return null
   }
 
-  private applyCcdVelocityResponse(body: RigidBody, normal: { x: number; y: number }) {
+  private applyCcdVelocityResponse(body: RigidBody, normal: { x: number; y: number }, obstacleVelocity: { x: number; y: number }) {
     const mass = body.mass && body.mass > 0 ? body.mass : 1
     const invMass = 1 / mass
     let n = normal
-    let vn = body.velocity.x * n.x + body.velocity.y * n.y
-    if (vn > 0) {
+    let vnRel = (body.velocity.x - obstacleVelocity.x) * n.x + (body.velocity.y - obstacleVelocity.y) * n.y
+    if (vnRel > 0) {
       n = { x: -n.x, y: -n.y }
-      vn = -vn
+      vnRel = -vnRel
     }
-    if (vn < 0) {
+    if (vnRel < 0) {
       const e = Math.max(0, Math.min(1, body.restitution))
-      const jn = invMass > 0 ? (-(1 + e) * vn) / invMass : 0
+      const jn = invMass > 0 ? (-(1 + e) * vnRel) / invMass : 0
       body.velocity.x += (jn * n.x) * invMass
       body.velocity.y += (jn * n.y) * invMass
     }
-    // Ensure no residual inward velocity due to numerical drift.
-    const vnAfter = body.velocity.x * n.x + body.velocity.y * n.y
+    // Remove any residual inward relative component.
+    const vnAfter = (body.velocity.x - obstacleVelocity.x) * n.x + (body.velocity.y - obstacleVelocity.y) * n.y
     if (vnAfter > 0) {
       body.velocity.x -= vnAfter * n.x
       body.velocity.y -= vnAfter * n.y
-    }
-    if (Math.abs(n.x) > 0.25 && body.velocity.x * n.x > 0) {
-      body.velocity.x = 0
-    }
-    if (Math.abs(n.y) > 0.25 && body.velocity.y * n.y > 0) {
-      body.velocity.y = 0
     }
   }
 
