@@ -74,7 +74,8 @@ Current suite (as of 2025-11-23) grouped by area. Tests live under `src/**/__tes
 | TC-CCD-009 | Rotated mover diagonal approach | Rotation + diagonal velocity | Rotate mover 18°, vx=6, vy=-1 toward AABB; `fixedUpdate(0.08)` | Body clamped; velocity.x ≤ 0; |vy| ≤ 2 |
 | TC-CCD-010 | Rotation-only does not trigger CCD | Zero linear velocity | Rotate mover 30°, v=0; `fixedUpdate(0.1)` | Position unchanged (≈0.1); no collisions |
 | TC-CCD-011 (skipped) | Rotated mover vs rotated obstacle | Future support for static rotated obstacles | Add static rotated obstacle (mass 0); fast rotated mover; `fixedUpdate(0.06)` | Body clamped at first obstacle, vx ≤ 0 |
-| TC-CCD-012 (skipped) | Rotated obstacle gauntlet earliest TOI | Future rotated-obstacle feed | Two rotated obstacles; fast mover; `fixedUpdate(0.05)` | Clamp at first obstacle (≤0.28+half) |
+| TC-CCD-012 (active) | Rotated obstacle gauntlet earliest TOI | CCD handles multiple rotated static obstacles | Two rotated static obstacles (mass 0); fast rotated mover; `fixedUpdate(0.05)` | Clamp at first obstacle (≤0.28+half) |
+| TC-CCD-013 (skipped) | Rotated moving obstacle relative CCD | Future relative-motion CCD | Rotated obstacle with velocity toward mover; rotated fast mover; `fixedUpdate(0.05)` | Body clamped near obstacle (no tunneling) |
 | TC-ENG-001 | EngineWorld tick order | Ensure systems run in priority order | Step EngineWorld with mock systems; inspect calls | Systems invoked by priority ascending |
 | TC-LOOP-001 | FixedStepLoop catches up | Catch-up with substeps | Advance loop with large dt; count substeps | Substep count matches ceil(dt/step) |
 | TC-SIM-001 | SimulationSystem wakes sleeping cloth | Sleep thresholds then wake via event | Put cloth to sleep; publish Wake; tick | Cloth active after wake |

@@ -175,4 +175,44 @@ describe('PhysicsSystem CCD with rotated moving bodies', () => {
     const body = physics.debugGetRigidBodies().find((b: any) => b.id === 1)!
     expect(body.center.x).toBeLessThanOrEqual(0.28 + body.half.x + 1e-3)
   })
+
+  // Mixed-motion stress: currently skipped because CCD treats obstacles as static; relative motion sweep not implemented yet.
+  it.skip('handles rotated moving obstacle (relative motion CCD future work)', () => {
+    const bus = new EventBus({ capacity: 256, mailboxCapacity: 128 })
+    const physics = new PhysicsSystem({
+      bus,
+      getAabbs: () => [],
+      gravity: 0,
+      enableDynamicPairs: false,
+    }) as any
+
+    physics.configureCcd?.({ speedThreshold: 1, epsilon: 1e-4 })
+
+    // Moving rotated obstacle (treated as dynamic for now).
+    physics.addRigidBody({
+      id: 301,
+      center: { x: 0.3, y: 0 },
+      half: { x: 0.06, y: 0.18 },
+      angle: Math.PI / 9,
+      velocity: { x: -2, y: 0 }, // moving left toward mover
+      mass: 5, // dynamic, not static
+      restitution: 0,
+      friction: 0,
+    })
+
+    physics.addRigidBody({
+      id: 1,
+      center: { x: 0, y: 0.05 },
+      half: { x: 0.06, y: 0.06 },
+      angle: Math.PI / 11,
+      velocity: { x: 8, y: -0.2 },
+      restitution: 0,
+      friction: 0,
+    })
+
+    physics.fixedUpdate(0.05)
+
+    const body = physics.debugGetRigidBodies().find((b: any) => b.id === 1)!
+    expect(body.center.x).toBeLessThanOrEqual(0.3 + body.half.x + 1e-3)
+  })
 })
