@@ -11,7 +11,7 @@ export type PerfLaneId = 0 | 1 | 2
 export class PerfEmitterSystem implements EngineSystem {
   id?: string
   priority?: number
-  allowWhilePaused = true
+  allowWhilePaused = false
   private readonly bus: EventBus
   private readonly labelId: PerfLaneId
 

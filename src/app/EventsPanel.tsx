@@ -1,14 +1,17 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Affix, Group, Paper, ScrollArea, Table, Text, TextInput, Button, Checkbox } from '@mantine/core'
+import { Affix, Group, Paper, ScrollArea, Table, Text, TextInput, Button, Checkbox, Tabs, Slider } from '@mantine/core'
 import type { EventBus, Channel, EventHeaderView, EventReader, BusStats } from '../engine/events/bus'
 import { EventIds } from '../engine/events/ids'
 
 export function EventsPanel({ open, onOpenChange, bus }: { open: boolean; onOpenChange: (v: boolean) => void; bus?: EventBus | null }) {
   const [query, setQuery] = useState('')
   const [rows, setRows] = useState<Array<{ time: number; ch: Channel; type: string; detail: string }>>([])
+  const [latest, setLatest] = useState<Record<string, { ch: Channel; detail: string; time: number }>>({})
   const [stats, setStats] = useState<BusStats | null>(null)
   const [paused, setPaused] = useState(false)
   const [autoScroll, setAutoScroll] = useState(true)
+  const [activeTab, setActiveTab] = useState<'stream' | 'latest' | 'stats'>('stream')
+  const [panelHeight, setPanelHeight] = useState(45)
   const [enabledChannels, setEnabledChannels] = useState<Record<Channel, boolean>>({ frameBegin: true, fixedEnd: true, frameEnd: true, immediate: true })
   const [enabledTypes, setEnabledTypes] = useState<Record<string, boolean>>({
     PointerMove: true,
@@ -116,6 +119,7 @@ export function EventsPanel({ open, onOpenChange, bus }: { open: boolean; onOpen
         next.push({ time: Date.now(), ch, type, detail })
         return next
       })
+      setLatest((prev) => ({ ...prev, [type]: { ch, detail, time: Date.now() } }))
     }
     rafRef.current = window.requestAnimationFrame(read)
     const statsTimer = window.setInterval(() => {
@@ -149,7 +153,7 @@ export function EventsPanel({ open, onOpenChange, bus }: { open: boolean; onOpen
   if (!open) return null
   return (
     <Affix position={{ left: 12, right: 12, bottom: 12 }}>
-      <Paper withBorder radius="md" shadow="sm" style={{ height: '45vh' }}>
+      <Paper withBorder radius="md" shadow="sm" style={{ height: `${panelHeight}vh`, minHeight: 220 }}>
         <Group p="sm" justify="space-between" wrap="nowrap">
           <Text fw={600}>Events</Text>
           <Group gap="xs" wrap="nowrap">
@@ -159,6 +163,10 @@ export function EventsPanel({ open, onOpenChange, bus }: { open: boolean; onOpen
             <Button size="xs" variant="default" onClick={() => setPaused((v) => !v)}>{paused ? 'Resume' : 'Pause'}</Button>
             <Button size="xs" variant="default" onClick={() => onOpenChange(false)}>Close</Button>
           </Group>
+        </Group>
+        <Group pl="sm" pr="sm" pb={6} gap="md" align="center">
+          <Text size="xs" fw={600}>Height</Text>
+          <Slider value={panelHeight} onChange={setPanelHeight} min={30} max={75} step={1} style={{ width: 200 }} marks={[{ value: 30, label: '30vh' }, { value: 50, label: '50vh' }, { value: 70, label: '70vh' }]} />
         </Group>
         <Group pl="sm" pr="sm" gap="xl" wrap="wrap">
           <Group gap="xs">
@@ -174,87 +182,117 @@ export function EventsPanel({ open, onOpenChange, bus }: { open: boolean; onOpen
             ))}
           </Group>
         </Group>
-        <ScrollArea style={{ height: 'calc(45vh - 160px)' }} viewportRef={scrollerRef}>
-          <Table striped highlightOnHover stickyHeader>
-            <Table.Thead>
-              <Table.Tr>
-                <Table.Th>Ch</Table.Th>
-                <Table.Th>Type</Table.Th>
-                <Table.Th>Detail</Table.Th>
-              </Table.Tr>
-            </Table.Thead>
-            <Table.Tbody>
-              {filtered.map((r, i) => (
-                <Table.Tr key={i}>
-                  <Table.Td>{r.ch}</Table.Td>
-                  <Table.Td>{r.type}</Table.Td>
-                  <Table.Td>{r.detail}</Table.Td>
-                </Table.Tr>
-              ))}
-            </Table.Tbody>
-          </Table>
-          {/* Under-the-hood stats (watermarks, subs, drops) */}
-          {stats ? (
-            <>
-              <Text size="sm" fw={600} pl="sm" pr="sm" pt="xs">Bus internals</Text>
-              <Table withTableBorder withColumnBorders>
+        <ScrollArea style={{ height: `calc(${panelHeight}vh - 180px)` }} viewportRef={scrollerRef}>
+          <Tabs value={activeTab} onChange={(v) => setActiveTab(v as any)} keepMounted={false}>
+            <Tabs.List>
+              <Tabs.Tab value="stream">Stream</Tabs.Tab>
+              <Tabs.Tab value="latest">Latest</Tabs.Tab>
+              <Tabs.Tab value="stats">Stats</Tabs.Tab>
+            </Tabs.List>
+            <Tabs.Panel value="stream">
+              <Table striped highlightOnHover stickyHeader>
                 <Table.Thead>
                   <Table.Tr>
-                    <Table.Th>Channel</Table.Th>
-                    <Table.Th>seqHead</Table.Th>
-                    <Table.Th>tick</Table.Th>
-                    <Table.Th>subs</Table.Th>
+                    <Table.Th>Ch</Table.Th>
+                    <Table.Th>Type</Table.Th>
+                    <Table.Th>Detail</Table.Th>
                   </Table.Tr>
                 </Table.Thead>
                 <Table.Tbody>
-                  {(['frameBegin','fixedEnd','frameEnd','immediate'] as Channel[]).map((ch) => (
-                    <Table.Tr key={ch}>
-                      <Table.Td>{ch}</Table.Td>
-                      <Table.Td>{stats.channels[ch].seqHead}</Table.Td>
-                      <Table.Td>{stats.channels[ch].tick}</Table.Td>
-                      <Table.Td>{stats.channels[ch].subs}</Table.Td>
+                  {filtered.map((r, i) => (
+                    <Table.Tr key={i}>
+                      <Table.Td>{r.ch}</Table.Td>
+                      <Table.Td>{r.type}</Table.Td>
+                      <Table.Td>{r.detail}</Table.Td>
                     </Table.Tr>
                   ))}
                 </Table.Tbody>
               </Table>
-              <Group pl="sm" pr="sm" pt="xs" gap="xl">
-                <Text size="sm">capacity={stats.capacity}</Text>
-                <Text size="sm">mailboxCapacity={stats.mailboxCapacity}</Text>
-                <Text size="sm">subscribers={stats.subscribers.total}</Text>
-                <Text size="sm">drops: ch={stats.drops.channel} tomb={stats.drops.tombstone}</Text>
-              </Group>
-              {stats.subscribers.mailboxes.length ? (
+            </Tabs.Panel>
+            <Tabs.Panel value="latest">
+              <Table striped highlightOnHover>
+                <Table.Thead>
+                  <Table.Tr>
+                    <Table.Th>Type</Table.Th>
+                    <Table.Th>Channel</Table.Th>
+                    <Table.Th>Detail</Table.Th>
+                  </Table.Tr>
+                </Table.Thead>
+                <Table.Tbody>
+                  {Object.entries(latest).map(([type, v]) => (
+                    <Table.Tr key={type}>
+                      <Table.Td>{type}</Table.Td>
+                      <Table.Td>{v.ch}</Table.Td>
+                      <Table.Td>{v.detail}</Table.Td>
+                    </Table.Tr>
+                  ))}
+                </Table.Tbody>
+              </Table>
+            </Tabs.Panel>
+            <Tabs.Panel value="stats">
+              {stats ? (
                 <>
-                  <Text size="sm" fw={600} pl="sm" pr="sm" pt="xs">Top mailboxes by backlog</Text>
+                  <Text size="sm" fw={600} pl="sm" pr="sm" pt="xs">Bus internals</Text>
                   <Table withTableBorder withColumnBorders>
                     <Table.Thead>
                       <Table.Tr>
-                        <Table.Th>Subscriber</Table.Th>
-                        <Table.Th>frameBegin</Table.Th>
-                        <Table.Th>fixedEnd</Table.Th>
-                        <Table.Th>frameEnd</Table.Th>
-                        <Table.Th>immediate</Table.Th>
+                        <Table.Th>Channel</Table.Th>
+                        <Table.Th>seqHead</Table.Th>
+                        <Table.Th>tick</Table.Th>
+                        <Table.Th>subs</Table.Th>
                       </Table.Tr>
                     </Table.Thead>
                     <Table.Tbody>
-                      {[...stats.subscribers.mailboxes]
-                        .sort((a, b) => (b.frameBegin+b.fixedEnd+b.frameEnd+b.immediate) - (a.frameBegin+a.fixedEnd+a.frameEnd+a.immediate))
-                        .slice(0, 5)
-                        .map((m) => (
-                          <Table.Tr key={m.id}>
-                            <Table.Td>{m.id}</Table.Td>
-                            <Table.Td>{m.frameBegin}</Table.Td>
-                            <Table.Td>{m.fixedEnd}</Table.Td>
-                            <Table.Td>{m.frameEnd}</Table.Td>
-                            <Table.Td>{m.immediate}</Table.Td>
-                          </Table.Tr>
-                        ))}
+                      {(['frameBegin','fixedEnd','frameEnd','immediate'] as Channel[]).map((ch) => (
+                        <Table.Tr key={ch}>
+                          <Table.Td>{ch}</Table.Td>
+                          <Table.Td>{stats.channels[ch].seqHead}</Table.Td>
+                          <Table.Td>{stats.channels[ch].tick}</Table.Td>
+                          <Table.Td>{stats.channels[ch].subs}</Table.Td>
+                        </Table.Tr>
+                      ))}
                     </Table.Tbody>
                   </Table>
+                  <Group pl="sm" pr="sm" pt="xs" gap="xl">
+                    <Text size="sm">capacity={stats.capacity}</Text>
+                    <Text size="sm">mailboxCapacity={stats.mailboxCapacity}</Text>
+                    <Text size="sm">subscribers={stats.subscribers.total}</Text>
+                    <Text size="sm">drops: ch={stats.drops.channel} tomb={stats.drops.tombstone}</Text>
+                  </Group>
+                  {stats.subscribers.mailboxes.length ? (
+                    <>
+                      <Text size="sm" fw={600} pl="sm" pr="sm" pt="xs">Top mailboxes by backlog</Text>
+                      <Table withTableBorder withColumnBorders>
+                        <Table.Thead>
+                          <Table.Tr>
+                            <Table.Th>Subscriber</Table.Th>
+                            <Table.Th>frameBegin</Table.Th>
+                            <Table.Th>fixedEnd</Table.Th>
+                            <Table.Th>frameEnd</Table.Th>
+                            <Table.Th>immediate</Table.Th>
+                          </Table.Tr>
+                        </Table.Thead>
+                        <Table.Tbody>
+                          {[...stats.subscribers.mailboxes]
+                            .sort((a, b) => (b.frameBegin+b.fixedEnd+b.frameEnd+b.immediate) - (a.frameBegin+a.fixedEnd+a.frameEnd+a.immediate))
+                            .slice(0, 5)
+                            .map((m) => (
+                              <Table.Tr key={m.id}>
+                                <Table.Td>{m.id}</Table.Td>
+                                <Table.Td>{m.frameBegin}</Table.Td>
+                                <Table.Td>{m.fixedEnd}</Table.Td>
+                                <Table.Td>{m.frameEnd}</Table.Td>
+                                <Table.Td>{m.immediate}</Table.Td>
+                              </Table.Tr>
+                            ))}
+                        </Table.Tbody>
+                      </Table>
+                    </>
+                  ) : null}
                 </>
-              ) : null}
-            </>
-          ) : null}
+              ) : <Text pl="sm" pr="sm">No stats yet</Text>}
+            </Tabs.Panel>
+          </Tabs>
         </ScrollArea>
       </Paper>
     </Affix>
