@@ -1,47 +1,46 @@
 import { test, expect } from '@playwright/test'
 
-test.describe('Sandbox scene selection smoke', () => {
-  test('loads DSL-mapped scenes without errors and surfaces overlay state', async ({ page }) => {
+const SCENES = [
+  'cloth-c1-settling',
+  'cloth-c2-sleep-wake',
+  'cloth-cr1-over-box',
+  'rigid-stack-rest',
+  'rigid-drop-onto-static',
+  'rigid-thin-wall-ccd',
+  'cloth-cr2-rigid-hit',
+] as const
+
+test.describe('Sandbox scene selection smoke (harness)', () => {
+  test('loads DSL-mapped scenes and overlays via /playwright-tests harness', async ({ page }) => {
     const errors: string[] = []
     page.on('pageerror', (err) => errors.push(err.message))
     page.on('console', (msg) => {
       if (msg.type() === 'error') errors.push(msg.text())
     })
 
-    await page.goto('/sandbox')
+    await page.goto('/playwright-tests/cloth-c1-settling')
 
-    const clickMenuScene = async (label: RegExp) => {
-      await page.getByRole('button', { name: /tests/i }).click()
-      const item = page.getByRole('menuitem', { name: label })
-      await item.waitFor({ state: 'visible', timeout: 4000 })
-      await item.click()
-    }
-
-    const load = async (id: string, label: RegExp) => {
-      const helperReady = await page.waitForFunction(
+    const load = async (id: string) => {
+      await page.waitForFunction(
         () => {
-          const dbg = (window as any).__sandboxDebug
-          return Boolean(dbg?.loadScene) && (dbg.readyResolved === true || dbg.ready?.then)
+          const h = (window as any).__playwrightHarness
+          return Boolean(h?.loadScene) && (h.readyResolved === true || h.ready?.then)
         },
         null,
         { timeout: 2000 }
-      ).catch(() => null)
+      )
 
-      if (helperReady) {
-        await page.evaluate((sceneId) => {
-          const helper = (window as any).__sandboxDebug
-          if (!helper?.loadScene) throw new Error('sandbox helper missing')
-          helper.loadScene(sceneId)
-        }, id)
-      } else {
-        await clickMenuScene(label)
-      }
-      await page.waitForTimeout(400)
+      await page.evaluate((sceneId) => {
+        const helper = (window as any).__playwrightHarness
+        if (!helper?.loadScene) throw new Error('harness missing')
+        helper.loadScene(sceneId)
+      }, id)
+      await page.waitForTimeout(300)
     }
 
     const readOverlay = async () =>
       page.evaluate(() => {
-        const overlay = (window as any).__sandboxDebug?.overlay
+        const overlay = (window as any).__playwrightHarness?.overlay
         if (!overlay) return null
         return {
           drawAABBs: overlay.drawAABBs,
@@ -54,19 +53,13 @@ test.describe('Sandbox scene selection smoke', () => {
         }
       })
 
-    await load('cloth-c1-settling', /Cloth: C1/i)
-    await load('cloth-c2-sleep-wake', /Cloth: C2/i)
-    await load('cloth-cr1-over-box', /CR1/i)
-    await load('rigid-stack-rest', /Rigid: Stack Rest/i)
-    await load('rigid-drop-onto-static', /Rigid: Drop Onto Static/i)
-    await load('rigid-thin-wall-ccd', /Thin Wall CCD/i)
-    await load('cloth-cr2-rigid-hit', /CR2/i)
-    await page.evaluate(() => { (window as any).__cr2AwakeSeen = false })
+    for (const id of SCENES) {
+      await load(id)
+    }
 
     // WebGL canvas should remain mounted
     await expect(page.locator('canvas')).toHaveCount(1)
 
-    // Overlay snapshot sanity checks via test-only hook.
     const overlay = await readOverlay()
     expect(overlay).toBeTruthy()
     const simBodies = overlay?.simSnapshot?.bodies ?? []
@@ -76,10 +69,10 @@ test.describe('Sandbox scene selection smoke', () => {
     expect(simBodies.length + rigidBodies.length).toBeGreaterThan(0)
     expect(simBodies.length).toBeGreaterThan(0)
 
-    // Scene-specific overlay assertions
-    await load('cloth-cr1-over-box', /CR1/i)
+    // CR1 overlay expectations (floor AABB + cloth above floor + camera preset)
+    await load('cloth-cr1-over-box')
     await page.waitForFunction(() => {
-      const overlay = (window as any).__sandboxDebug?.overlay
+      const overlay = (window as any).__playwrightHarness?.overlay
       const bodies = overlay?.simSnapshot?.bodies ?? []
       const hasAabb = (overlay?.aabbs ?? []).length > 0
       if (!hasAabb || bodies.length === 0) return false
@@ -88,7 +81,7 @@ test.describe('Sandbox scene selection smoke', () => {
 
     await page.waitForFunction(
       (target) => {
-        const snap = (window as any).__sandboxDebug?.actions?.getCameraSnapshot?.()
+        const snap = (window as any).__playwrightHarness?.actions?.getCameraSnapshot?.()
         return !!snap && Math.abs(snap.zoom - target) < 0.02
       },
       1.1,
@@ -100,20 +93,21 @@ test.describe('Sandbox scene selection smoke', () => {
     expect(cr1Overlay?.drawAABBs).toBe(true)
     expect((cr1Overlay?.aabbs ?? []).length).toBeGreaterThan(0)
 
-    await load('cloth-cr2-rigid-hit', /CR2/i)
+    // CR2 expectations (wake then deflect rightward + camera preset)
+    await page.evaluate(() => { (window as any).__cr2AwakeSeen = false })
+    await load('cloth-cr2-rigid-hit')
 
     await page.waitForFunction(
       (target) => {
-        const snap = (window as any).__sandboxDebug?.actions?.getCameraSnapshot?.()
+        const snap = (window as any).__playwrightHarness?.actions?.getCameraSnapshot?.()
         return !!snap && Math.abs(snap.zoom - target) < 0.02
       },
       1.2,
       { timeout: 2000 }
     )
 
-    // CR2 should wake at least once, then resleep.
     await page.waitForFunction(() => {
-      const overlay = (window as any).__sandboxDebug?.overlay
+      const overlay = (window as any).__playwrightHarness?.overlay
       const bodies = overlay?.simSnapshot?.bodies ?? []
       if (bodies.length === 0) return false
       const seenAwake = (window as any).__cr2AwakeSeen || bodies.some((b: any) => !b.sleeping)
@@ -122,7 +116,7 @@ test.describe('Sandbox scene selection smoke', () => {
     }, null, { timeout: 5000 })
 
     await page.waitForFunction(() => {
-      const overlay = (window as any).__sandboxDebug?.overlay
+      const overlay = (window as any).__playwrightHarness?.overlay
       const bodies = overlay?.simSnapshot?.bodies ?? []
       const sawAwake = (window as any).__cr2AwakeSeen === true
       if (!sawAwake || bodies.length === 0) return false

@@ -155,6 +155,7 @@ Goal: integrate CCD into the main rigid lane for high-speed bodies, introduce cl
 - [ ] Add sandbox smoke tests per important DSL scene:
   - [x] Scene loads without errors.
   - [x] Overlays/events show the expected shape of activity (e.g., collisions, wakes).
+  - [x] Playwright harness route (`/playwright-tests/:id`) provides UI-free stability for scene assertions.
 
 ---
 

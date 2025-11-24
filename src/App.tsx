@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 import {
   MantineProvider,
   Button,
@@ -62,11 +62,14 @@ function lsGetString<T extends string>(key: string, fallback: T): T {
 }
 function lsSetString(key: string, value: string) { lsSetRaw(key, value) }
 
-type DemoMode = 'playground' | 'sandbox'
+type DemoMode = 'playground' | 'sandbox' | 'playwright'
 
 function resolveDemoMode(): DemoMode {
   if (typeof window === 'undefined' || typeof window.location === 'undefined') return 'playground'
-  return window.location.pathname === '/sandbox' ? 'sandbox' : 'playground'
+  const path = window.location.pathname || ''
+  if (path === '/sandbox') return 'sandbox'
+  if (path.startsWith('/playwright-tests')) return 'playwright'
+  return 'playground'
 }
 
 type DebugProps = {
@@ -600,7 +603,7 @@ function SandboxHero({
   )
 }
 
-function Demo({ mode }: { mode: DemoMode }) {
+function Demo({ mode, initialSceneId }: { mode: DemoMode; initialSceneId?: SandboxSceneId | null }) {
   const controllerRef = useRef<ClothSceneController | null>(null)
   const actionsRef = useRef<EngineActions | null>(null)
   const readyResolveRef = useRef<(() => void) | null>(null)
@@ -685,22 +688,27 @@ function Demo({ mode }: { mode: DemoMode }) {
     readyPromiseRef.current = new Promise<void>((resolve) => {
       readyResolveRef.current = resolve
     })
-    ;(window as any).__sandboxDebug = {
-      controller: null,
-      overlay: null,
-      actions: null,
-      ready: readyPromiseRef.current,
-      readyResolved: false,
-      loadScene: async (sceneId: SandboxSceneId) => {
-        const controller = controllerRef.current
-        if (controller) {
-          await readyPromiseRef.current
-          runScene(sceneId)
-        } else {
-          pendingScenes.push(sceneId)
-        }
-      },
+    const installHarness = (key: string) => {
+      ;(window as any)[key] = {
+        controller: null,
+        overlay: null,
+        actions: null,
+        ready: readyPromiseRef.current,
+        readyResolved: false,
+        loadScene: async (sceneId: SandboxSceneId) => {
+          const controller = controllerRef.current
+          if (controller) {
+            await readyPromiseRef.current
+            runScene(sceneId)
+          } else {
+            pendingScenes.push(sceneId)
+          }
+        },
+      }
     }
+
+    installHarness('__sandboxDebug')
+    installHarness('__playwrightHarness')
 
     const onSandboxLoad = (event: Event) => {
       const custom = event as CustomEvent<SandboxSceneId>
@@ -711,7 +719,7 @@ function Demo({ mode }: { mode: DemoMode }) {
     }
     window.addEventListener('sandbox-load', onSandboxLoad)
 
-    if (typeof window !== 'undefined' && typeof window.matchMedia === 'function') {
+    if (mode !== 'playwright' && typeof window !== 'undefined' && typeof window.matchMedia === 'function') {
       const mql = window.matchMedia('(prefers-reduced-motion: reduce)')
       if (mql.matches) {
         // In reduced-motion environments (including some headless runs), expose a resolved sandbox helper and bail early.
@@ -772,14 +780,17 @@ function Demo({ mode }: { mode: DemoMode }) {
         }
 
         // Expose sandbox debug handles in test mode for Playwright assertions.
-        ;(window as any).__sandboxDebug = {
+        const overlayRef = controller.getOverlayState?.()
+        const harnessPayload = {
           controller,
-          overlay: controller.getOverlayState?.(),
+          overlay: overlayRef,
           actions: actionsRef.current,
           ready: readyPromiseRef.current,
           readyResolved: true,
           loadScene: (sceneId: SandboxSceneId) => runScene(sceneId),
         }
+        ;(window as any).__sandboxDebug = harnessPayload
+        ;(window as any).__playwrightHarness = harnessPayload
         readyResolveRef.current?.()
 
         // Drain any queued scene requests from early loadScene calls.
@@ -787,6 +798,10 @@ function Demo({ mode }: { mode: DemoMode }) {
           for (const sceneId of pendingScenes.splice(0, pendingScenes.length)) {
             runScene(sceneId)
           }
+        }
+
+        if (mode === 'playwright' && initialSceneId) {
+          runScene(initialSceneId)
         }
       } catch (err) {
         if (import.meta?.env?.MODE !== 'test') {
@@ -1086,7 +1101,9 @@ function Demo({ mode }: { mode: DemoMode }) {
         }}
           onSelectScene={handleSelectScene}
         />
-        : <PlaygroundHero />}
+        : mode === 'playwright'
+          ? <div data-testid="playwright-harness" style={{ width: 0, height: 0, overflow: 'hidden' }} />
+          : <PlaygroundHero />}
       <EventsPanel open={eventsOpen} onOpenChange={setEventsOpen} bus={controllerRef.current?.getEventBus?.() ?? null} />
       <DebugPalette
         open={debugOpen}
@@ -1217,10 +1234,20 @@ function Demo({ mode }: { mode: DemoMode }) {
 
 function App() {
   const [mode] = useState<DemoMode>(() => resolveDemoMode())
+  const initialSceneId = useMemo(() => {
+    if (typeof window === 'undefined') return null
+    const path = window.location.pathname || ''
+    if (path.startsWith('/playwright-tests')) {
+      const parts = path.split('/')
+      const maybeId = parts[2] as SandboxSceneId | undefined
+      return maybeId ?? null
+    }
+    return null
+  }, [])
   return (
     <MantineProvider defaultColorScheme="dark">
       <Notifications position="top-right" zIndex={2100} />
-      <Demo mode={mode} />
+      <Demo mode={mode} initialSceneId={initialSceneId ?? undefined} />
     </MantineProvider>
   )
 }
