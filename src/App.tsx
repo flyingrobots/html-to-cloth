@@ -688,27 +688,22 @@ function Demo({ mode, initialSceneId }: { mode: DemoMode; initialSceneId?: Sandb
     readyPromiseRef.current = new Promise<void>((resolve) => {
       readyResolveRef.current = resolve
     })
-    const installHarness = (key: string) => {
-      ;(window as any)[key] = {
-        controller: null,
-        overlay: null,
-        actions: null,
-        ready: readyPromiseRef.current,
-        readyResolved: false,
-        loadScene: async (sceneId: SandboxSceneId) => {
-          const controller = controllerRef.current
-          if (controller) {
-            await readyPromiseRef.current
-            runScene(sceneId)
-          } else {
-            pendingScenes.push(sceneId)
-          }
-        },
-      }
+    ;(window as any).__playwrightHarness = {
+      controller: null,
+      overlay: null,
+      actions: null,
+      ready: readyPromiseRef.current,
+      readyResolved: false,
+      loadScene: async (sceneId: SandboxSceneId) => {
+        const controller = controllerRef.current
+        if (controller) {
+          await readyPromiseRef.current
+          runScene(sceneId)
+        } else {
+          pendingScenes.push(sceneId)
+        }
+      },
     }
-
-    installHarness('__sandboxDebug')
-    installHarness('__playwrightHarness')
 
     const onSandboxLoad = (event: Event) => {
       const custom = event as CustomEvent<SandboxSceneId>
@@ -723,12 +718,10 @@ function Demo({ mode, initialSceneId }: { mode: DemoMode; initialSceneId?: Sandb
       const mql = window.matchMedia('(prefers-reduced-motion: reduce)')
       if (mql.matches) {
         // In reduced-motion environments (including some headless runs), expose a resolved sandbox helper and bail early.
-        if (window) {
-          const dbg = (window as any).__sandboxDebug
-          if (dbg) {
-            dbg.readyResolved = true
-            dbg.ready = Promise.resolve()
-          }
+        const harness = (window as any).__playwrightHarness
+        if (harness) {
+          harness.readyResolved = true
+          harness.ready = Promise.resolve()
         }
         return
       }
@@ -789,7 +782,6 @@ function Demo({ mode, initialSceneId }: { mode: DemoMode; initialSceneId?: Sandb
           readyResolved: true,
           loadScene: (sceneId: SandboxSceneId) => runScene(sceneId),
         }
-        ;(window as any).__sandboxDebug = harnessPayload
         ;(window as any).__playwrightHarness = harnessPayload
         readyResolveRef.current?.()
 
