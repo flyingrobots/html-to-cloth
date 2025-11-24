@@ -29,6 +29,7 @@ import { PRESETS, getPreset } from "./app/presets"
 import { Notifications, notifications } from '@mantine/notifications'
 import { EventsPanel } from './app/EventsPanel'
 import { loadSandboxScene, type SandboxSceneId } from './app/sandboxScenes'
+import { scenarioPresets as scenarioDefaults, type ScenarioPreset } from './engine/scenarios/physicsScenarios'
 
 // Use Mantine's native Kbd component (no inline styles)
 
@@ -651,21 +652,32 @@ function Demo({ mode }: { mode: DemoMode }) {
     return () => window.clearTimeout(id)
   }, [])
 
-  const applySceneDefaults = (_id: SandboxSceneId) => {
-    // Defaults: turn on wireframe and AABBs for scene visibility; open events panel
+  const scenePresets = scenarioDefaults as Partial<Record<SandboxSceneId, ScenarioPreset>>
+
+  const applySceneDefaults = (id: SandboxSceneId) => {
+    const preset = scenePresets[id] ?? {}
+    const overlayPreset = preset.overlay ?? {}
     setWireframe(true)
-    setDrawAABBs(true)
+    setDrawAABBs(overlayPreset.drawAABBs ?? true)
+    setDrawSleep(overlayPreset.drawSleep ?? false)
+    setDrawPins(overlayPreset.drawPins ?? false)
+    setDrawWake(overlayPreset.drawWake ?? false)
     setEventsOpen(true)
-    // Keep pointer overlay hidden unless user toggles; leave sleep/pins as-is
-    // Future: per-scene overrides could be added here.
+    if (typeof preset.cameraZoom === 'number') {
+      setCameraZoom(preset.cameraZoom)
+    }
   }
 
-  const handleSelectScene = (id: SandboxSceneId) => {
+  const runScene = (id: SandboxSceneId) => {
     applySceneDefaults(id)
     loadSandboxScene(id, {
       controller: controllerRef.current,
       actions: actionsRef.current,
     })
+  }
+
+  const handleSelectScene = (id: SandboxSceneId) => {
+    runScene(id)
   }
 
   useEffect(() => {
@@ -683,7 +695,7 @@ function Demo({ mode }: { mode: DemoMode }) {
         const controller = controllerRef.current
         if (controller) {
           await readyPromiseRef.current
-          loadSandboxScene(sceneId, { controller, actions: actionsRef.current })
+          runScene(sceneId)
         } else {
           pendingScenes.push(sceneId)
         }
@@ -766,14 +778,14 @@ function Demo({ mode }: { mode: DemoMode }) {
           actions: actionsRef.current,
           ready: readyPromiseRef.current,
           readyResolved: true,
-          loadScene: (sceneId: SandboxSceneId) => loadSandboxScene(sceneId, { controller, actions }),
+          loadScene: (sceneId: SandboxSceneId) => runScene(sceneId),
         }
         readyResolveRef.current?.()
 
         // Drain any queued scene requests from early loadScene calls.
         if (pendingScenes.length > 0) {
           for (const sceneId of pendingScenes.splice(0, pendingScenes.length)) {
-            loadSandboxScene(sceneId, { controller, actions })
+            runScene(sceneId)
           }
         }
       } catch (err) {

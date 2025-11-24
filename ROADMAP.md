@@ -146,7 +146,7 @@ Goal: integrate CCD into the main rigid lane for high-speed bodies, introduce cl
 
 - [ ] Extend `physicsScenarios.ts`:
   - [x] Define DSL-backed cloth+rigid combinations (cloth-over-boxes, flags + incoming rigid bodies).
-  - [ ] Provide optional camera presets and overlay defaults per scenario.
+  - [x] Provide optional camera presets and overlay defaults per scenario.
 - [x] Make Test/Demo menus map 1:1 to DSL IDs (no ad-hoc sandbox scenes).
 - [x] On scene selection:
   - [x] Tear down current entities safely.
@@ -154,7 +154,7 @@ Goal: integrate CCD into the main rigid lane for high-speed bodies, introduce cl
   - [x] Register all resulting rigid bodies and cloth with `PhysicsSystem`/`SimulationSystem`.
 - [ ] Add sandbox smoke tests per important DSL scene:
   - [x] Scene loads without errors.
-  - [ ] Overlays/events show the expected shape of activity (e.g., collisions, wakes).
+  - [x] Overlays/events show the expected shape of activity (e.g., collisions, wakes).
 
 ---
 
@@ -369,3 +369,7 @@ This section records changes made to `ROADMAP.md` itself. New entries should be 
   - Marked N2.1 CCD policy tasks complete after integrating CCD sweeps into `PhysicsSystem` and enabling PhysicsSystem-level CCD specs.
 - **2025-11-24**
   - Completed N2.2 cloth↔rigid coupling v1: particle-vs-rigid collisions, engine integration, and CR1/CR2 acceptance scenes enabled.
+- **2025-11-25**
+  - Wired Sandbox Tests menu directly to DSL scene ids (CR1/CR2/thin-wall CCD) with scene teardown/registration and passing smoke e2e; added stable sandbox debug helper for automated scene loading.
+- **2025-11-24**
+  - Added per-scene sandbox presets for camera zoom and overlay toggles (CR1/CR2 and rigid scenes) and expanded sandbox scene e2e to assert overlays/camera behaviour.

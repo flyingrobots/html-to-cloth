@@ -26,6 +26,26 @@ export const rigidScenarioIds: RigidScenarioId[] = [
   'rigid-thin-wall-ccd',
 ]
 
+export type ScenarioPreset = {
+  cameraZoom?: number
+  overlay?: {
+    drawAABBs?: boolean
+    drawSleep?: boolean
+    drawPins?: boolean
+    drawWake?: boolean
+  }
+}
+
+export const scenarioPresets: Partial<Record<ClothScenarioId | RigidScenarioId, ScenarioPreset>> = {
+  'cloth-c1-settling': { cameraZoom: 1.05, overlay: { drawAABBs: true, drawSleep: true } },
+  'cloth-c2-sleep-wake': { cameraZoom: 1.05, overlay: { drawAABBs: true, drawSleep: true, drawWake: true } },
+  'cloth-cr1-over-box': { cameraZoom: 1.1, overlay: { drawAABBs: true, drawSleep: true } },
+  'cloth-cr2-rigid-hit': { cameraZoom: 1.2, overlay: { drawAABBs: true, drawSleep: true, drawPins: true, drawWake: true } },
+  'rigid-stack-rest': { cameraZoom: 1.0, overlay: { drawAABBs: true } },
+  'rigid-drop-onto-static': { cameraZoom: 1.0, overlay: { drawAABBs: true } },
+  'rigid-thin-wall-ccd': { cameraZoom: 1.0, overlay: { drawAABBs: true } },
+}
+
 export type ClothScenarioContext = {
   three: typeof THREE_NS
   makeClothPatch: (widthVertices?: number, heightVertices?: number) => ClothPhysics

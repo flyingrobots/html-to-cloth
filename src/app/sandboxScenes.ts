@@ -91,6 +91,8 @@ function resetActiveScene(deps: SandboxSceneDeps) {
   if (overlay) {
     overlay.rigidBodies = []
     overlay.pinMarkers = []
+    overlay.aabbs = []
+    overlay.wakeMarkers = []
     overlay.simSnapshot = undefined
   }
 }
@@ -216,6 +218,9 @@ export function loadSandboxScene(id: SandboxSceneId, deps: SandboxSceneDeps) {
       })
       ;(cloth.mesh.material as THREE.MeshBasicMaterial).wireframe = true
 
+      const floorHalf = { x: 0.7, y: 0.1 }
+      const floorCenter = { x: 0, y: 0 }
+
       const sim = deps.controller?.getSimulationSystem?.()
       const overlay = deps.controller?.getOverlayState?.()
       const addSceneObject = deps.controller?.addSceneObject?.bind(deps.controller)
@@ -223,10 +228,19 @@ export function loadSandboxScene(id: SandboxSceneId, deps: SandboxSceneDeps) {
 
       addSceneObject?.(cloth.mesh)
 
+      if (overlay) {
+        overlay.aabbs = [
+          {
+            min: { x: floorCenter.x - floorHalf.x, y: floorCenter.y - floorHalf.y },
+            max: { x: floorCenter.x + floorHalf.x, y: floorCenter.y + floorHalf.y },
+          },
+        ]
+      }
+
       if (sim) {
         const bodyId = 'sandbox-cloth-cr1'
         const body = new ScenarioClothBody(bodyId, cloth, step)
-        sim.addBody(body, { warmStart: DEFAULT_WARM_START, sleep: { velocityThreshold: 0.002, frameThreshold: 200 } })
+        sim.addBody(body, { warmStart: DEFAULT_WARM_START, sleep: { velocityThreshold: 0.002, frameThreshold: 140 } })
         sim.fixedUpdate?.(0)
         overlay && (overlay.simSnapshot = sim.getSnapshot())
         teardownCurrentScene = () => {
@@ -267,7 +281,7 @@ export function loadSandboxScene(id: SandboxSceneId, deps: SandboxSceneDeps) {
       if (sim) {
         const bodyId = 'sandbox-cloth-cr2'
         const body = new ScenarioClothBody(bodyId, cloth, step)
-        sim.addBody(body, { warmStart: DEFAULT_WARM_START, sleep: { velocityThreshold: 0.002, frameThreshold: 160 } })
+        sim.addBody(body, { warmStart: DEFAULT_WARM_START, sleep: { velocityThreshold: 0.002, frameThreshold: 140 } })
         sim.fixedUpdate?.(0)
         overlay && (overlay.simSnapshot = sim.getSnapshot())
         teardownCurrentScene = () => {
