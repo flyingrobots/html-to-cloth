@@ -62,6 +62,9 @@ import { __mocks as controllerMocks } from '../../lib/clothSceneController'
 beforeEach(() => {
   vi.clearAllMocks()
   document.body.innerHTML = ''
+  // Mantine Combobox calls scrollIntoView on options; stub for jsdom.
+  // @ts-expect-error jsdom missing scrollIntoView
+  Element.prototype.scrollIntoView = vi.fn()
 })
 
 function openDebugPalette() {
@@ -156,9 +159,8 @@ describe('Debug UI → EngineActions integration (App)', () => {
     const user = userEvent.setup()
     const select = await screen.findByPlaceholderText('Choose preset')
     await user.click(select)
-    const listbox = await screen.findByRole('listbox')
-    const heavy = within(listbox).getByText('Heavy')
-    await user.click(heavy)
+    const heavyOption = await screen.findByText((content) => content.includes('Heavy'), {}, { timeout: 3000 })
+    await user.click(heavyOption)
 
     await Promise.resolve()
     expect(simulation.broadcastConstraintIterations).toHaveBeenCalled()

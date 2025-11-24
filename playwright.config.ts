@@ -12,7 +12,7 @@ const config: PlaywrightTestConfig = {
     // Build first so a fresh checkout can run tests without manual pre-steps
     command: 'npm run build && npm run preview',
     port: 4173,
-    reuseExistingServer: true,
+    reuseExistingServer: false,
     timeout: 60_000,
   },
 }

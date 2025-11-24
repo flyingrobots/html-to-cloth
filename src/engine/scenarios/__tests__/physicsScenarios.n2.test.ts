@@ -5,8 +5,7 @@ import { clothScenarioIds, rigidScenarioIds } from '../physicsScenarios'
 /**
  * Failing specs to pin Scenario DSL expectations for N2.3 before implementation.
  */
-// TODO(N2.3): enable once new DSL scene ids are added.
-describe.skip('Scenario DSL coverage for N2', () => {
+describe('Scenario DSL coverage for N2', () => {
   it('includes cloth+rigid mixed scenes for Sandbox 2.0', () => {
     expect(clothScenarioIds as any).toContain('cloth-cr1-over-box')
     expect(clothScenarioIds as any).toContain('cloth-cr2-rigid-hit')

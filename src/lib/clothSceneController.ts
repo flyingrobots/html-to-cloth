@@ -96,6 +96,12 @@ class ClothBodyAdapter implements SimBody, Component {
   private _worldStillFrames = 0
   private _worldSleepVelThreshold = 0.001
   private _worldSleepFrameThreshold = 60
+  private getRigidObstacles?: () => Array<{
+    center: { x: number; y: number }
+    half: { x: number; y: number }
+    angle: number
+    velocity?: { x: number; y: number }
+  }>
 
   constructor(
     id: string,
@@ -104,7 +110,13 @@ class ClothBodyAdapter implements SimBody, Component {
     collisionSystem: CollisionSystem,
     handleOffscreen: () => void,
     record: DOMMeshRecord,
-    debug: Pick<DebugSettings, 'impulseMultiplier'>
+    debug: Pick<DebugSettings, 'impulseMultiplier'>,
+    getRigidObstacles?: () => Array<{
+      center: { x: number; y: number }
+      half: { x: number; y: number }
+      angle: number
+      velocity?: { x: number; y: number }
+    }>
   ) {
     this.id = id
     this.item = item
@@ -113,6 +125,7 @@ class ClothBodyAdapter implements SimBody, Component {
     this.offscreenCallback = handleOffscreen
     this.record = record
     this.debug = debug
+    this.getRigidObstacles = getRigidObstacles
     // Initialize world sleep thresholds from controller defaults
     this._worldSleepVelThreshold = window.__clothWorldSleepVel ?? 0.001
   }
@@ -135,6 +148,20 @@ class ClothBodyAdapter implements SimBody, Component {
 
     cloth.update(dt)
     this.collisionSystem.apply(cloth)
+
+    const rigidObstacles = this.getRigidObstacles?.() ?? []
+    if (rigidObstacles.length > 0) {
+      cloth.collideWithObstacles(
+        rigidObstacles.map((b) => ({
+          kind: 'obb' as const,
+          center: { x: b.center.x, y: b.center.y },
+          half: { x: b.half.x, y: b.half.y },
+          angle: b.angle,
+          velocity: b.velocity,
+        })),
+        0.6
+      )
+    }
 
     let boundary = -CANONICAL_HEIGHT_METERS
     if (worldBody) {
@@ -682,7 +709,8 @@ export class ClothSceneController {
       this.collisionSystem,
       () => this.handleClothOffscreen(item),
       record,
-      this.debug
+      this.debug,
+      () => this.physicsSystem?.debugGetRigidBodies?.() ?? []
     )
     // Mark mesh as cloth for render settings system.
     const meshObj = record.mesh as unknown as { userData?: Record<string, unknown> }

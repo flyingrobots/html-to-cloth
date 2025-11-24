@@ -21,7 +21,6 @@ import {
   ActionIcon,
 } from "@mantine/core"
 import type { DebugOverlayState } from './engine/render/DebugOverlayState'
-
 import { ClothSceneController, type PinMode } from "./lib/clothSceneController"
 import { IconPlayerPause, IconPlayerPlay, IconPlayerTrackNext, IconListDetails, IconSettings } from '@tabler/icons-react'
 import { EngineActions } from "./engine/debug/engineActions"
@@ -30,7 +29,6 @@ import { PRESETS, getPreset } from "./app/presets"
 import { Notifications, notifications } from '@mantine/notifications'
 import { EventsPanel } from './app/EventsPanel'
 import { loadSandboxScene, type SandboxSceneId } from './app/sandboxScenes'
-import { toCanonicalX, toCanonicalY, toCanonicalWidthMeters, toCanonicalHeightMeters, PX_PER_METER } from './lib/units'
 
 // Use Mantine's native Kbd component (no inline styles)
 
@@ -528,6 +526,18 @@ function SandboxHero({
                   Cloth: C2 – Sleep/Wake
                 </Menu.Item>
                 <Menu.Item
+                  className="cloth-enabled"
+                  onClick={() => onSelectScene?.('cloth-cr1-over-box')}
+                >
+                  Cloth: CR1 – Drape Over Box
+                </Menu.Item>
+                <Menu.Item
+                  className="cloth-enabled"
+                  onClick={() => onSelectScene?.('cloth-cr2-rigid-hit')}
+                >
+                  Cloth+Rigid: CR2 – Projectile Into Cloth
+                </Menu.Item>
+                <Menu.Item
                   onClick={() => onSelectScene?.('rigid-stack-rest')}
                 >
                   Rigid: Stack Rest
@@ -536,6 +546,11 @@ function SandboxHero({
                   onClick={() => onSelectScene?.('rigid-drop-onto-static')}
                 >
                   Rigid: Drop Onto Static
+                </Menu.Item>
+                <Menu.Item
+                  onClick={() => onSelectScene?.('rigid-thin-wall-ccd')}
+                >
+                  Rigid: Thin Wall CCD
                 </Menu.Item>
               </Menu.Dropdown>
             </Menu>
@@ -587,6 +602,8 @@ function SandboxHero({
 function Demo({ mode }: { mode: DemoMode }) {
   const controllerRef = useRef<ClothSceneController | null>(null)
   const actionsRef = useRef<EngineActions | null>(null)
+  const readyResolveRef = useRef<(() => void) | null>(null)
+  const readyPromiseRef = useRef<Promise<void> | null>(null)
   const rigidIdRef = useRef(100)
   const realTimeRef = useRef(true)
   const [debugOpen, setDebugOpen] = useState(() => {
@@ -652,9 +669,49 @@ function Demo({ mode }: { mode: DemoMode }) {
   }
 
   useEffect(() => {
-    if (typeof window !== 'undefined') {
+    const pendingScenes: SandboxSceneId[] = []
+    readyPromiseRef.current = new Promise<void>((resolve) => {
+      readyResolveRef.current = resolve
+    })
+    ;(window as any).__sandboxDebug = {
+      controller: null,
+      overlay: null,
+      actions: null,
+      ready: readyPromiseRef.current,
+      readyResolved: false,
+      loadScene: async (sceneId: SandboxSceneId) => {
+        const controller = controllerRef.current
+        if (controller) {
+          await readyPromiseRef.current
+          loadSandboxScene(sceneId, { controller, actions: actionsRef.current })
+        } else {
+          pendingScenes.push(sceneId)
+        }
+      },
+    }
+
+    const onSandboxLoad = (event: Event) => {
+      const custom = event as CustomEvent<SandboxSceneId>
+      const sceneId = custom.detail
+      const controller = controllerRef.current
+      if (!controller || !sceneId) return
+      loadSandboxScene(sceneId, { controller, actions: actionsRef.current })
+    }
+    window.addEventListener('sandbox-load', onSandboxLoad)
+
+    if (typeof window !== 'undefined' && typeof window.matchMedia === 'function') {
       const mql = window.matchMedia('(prefers-reduced-motion: reduce)')
-      if (mql.matches) return
+      if (mql.matches) {
+        // In reduced-motion environments (including some headless runs), expose a resolved sandbox helper and bail early.
+        if (window) {
+          const dbg = (window as any).__sandboxDebug
+          if (dbg) {
+            dbg.readyResolved = true
+            dbg.ready = Promise.resolve()
+          }
+        }
+        return
+      }
     }
 
     const controller = new ClothSceneController()
@@ -701,6 +758,24 @@ function Demo({ mode }: { mode: DemoMode }) {
           )
           setRegistrySummary(summary)
         }
+
+        // Expose sandbox debug handles in test mode for Playwright assertions.
+        ;(window as any).__sandboxDebug = {
+          controller,
+          overlay: controller.getOverlayState?.(),
+          actions: actionsRef.current,
+          ready: readyPromiseRef.current,
+          readyResolved: true,
+          loadScene: (sceneId: SandboxSceneId) => loadSandboxScene(sceneId, { controller, actions }),
+        }
+        readyResolveRef.current?.()
+
+        // Drain any queued scene requests from early loadScene calls.
+        if (pendingScenes.length > 0) {
+          for (const sceneId of pendingScenes.splice(0, pendingScenes.length)) {
+            loadSandboxScene(sceneId, { controller, actions })
+          }
+        }
       } catch (err) {
         if (import.meta?.env?.MODE !== 'test') {
           console.warn('EngineActions init failed:', err)
@@ -732,6 +807,7 @@ function Demo({ mode }: { mode: DemoMode }) {
     window.addEventListener("keydown", handler)
 
     return () => {
+      window.removeEventListener('sandbox-load', onSandboxLoad)
       window.removeEventListener("keydown", handler)
       controller.dispose()
       controllerRef.current = null

@@ -10,6 +10,27 @@ export type ClothOptions = {
   gravityController?: GravityController
 }
 
+export type ClothObstacle =
+  | {
+      kind: 'aabb'
+      min: { x: number; y: number }
+      max: { x: number; y: number }
+      velocity?: { x: number; y: number }
+    }
+  | {
+      kind: 'obb'
+      center: { x: number; y: number }
+      half: { x: number; y: number }
+      angle: number
+      velocity?: { x: number; y: number }
+    }
+  | {
+      kind: 'sphere'
+      center: { x: number; y: number }
+      radius: number
+      velocity?: { x: number; y: number }
+    }
+
 type Particle = {
   position: THREE.Vector3
   previous: THREE.Vector3
@@ -46,6 +67,7 @@ export class ClothPhysics {
   private storedSubsteps = 1
   private gravityController: GravityController
   private gravityBuffer = new THREE.Vector3()
+  private particleRadius = 0.02
 
   constructor(mesh: THREE.Mesh<THREE.PlaneGeometry, THREE.MeshBasicMaterial>, options?: ClothOptions) {
     this.mesh = mesh
@@ -127,6 +149,11 @@ export class ClothPhysics {
     }
   }
 
+  /** Returns the approximate collision radius used for particle↔rigid tests. */
+  getParticleRadius() {
+    return this.particleRadius
+  }
+
   applyPointForce(
     center: THREE.Vector2,
     velocity: THREE.Vector2,
@@ -178,6 +205,100 @@ export class ClothPhysics {
       particle.position.y += impulseY
       particle.previous.x -= impulseX
       particle.previous.y -= impulseY
+    }
+  }
+
+  /**
+   * Resolves penetrations between cloth particles and rigid obstacles (AABB/OBB/sphere).
+   * Meant to be called after integration each step when cloth↔rigid coupling is enabled.
+   */
+  collideWithObstacles(obstacles: ClothObstacle[], damping = 0.6) {
+    if (!obstacles.length) return
+    const r = this.particleRadius
+    let any = false
+    let maxCorrectionSq = 0
+
+    for (const particle of this.particles) {
+      if (particle.pinned) continue
+
+      for (const obs of obstacles) {
+        if (obs.kind === 'sphere') {
+          const dx = particle.position.x - obs.center.x
+          const dy = particle.position.y - obs.center.y
+          const distSq = dx * dx + dy * dy
+          const limit = r + obs.radius
+          if (distSq < limit * limit) {
+            const dist = Math.sqrt(Math.max(distSq, 1e-12))
+            const inv = dist > 0 ? 1 / dist : 0
+            const nx = dist > 0 ? dx * inv : 0
+            const ny = dist > 0 ? dy * inv : 1
+            const penetration = limit - dist
+            particle.position.x += nx * penetration
+            particle.position.y += ny * penetration
+            maxCorrectionSq = Math.max(maxCorrectionSq, penetration * penetration)
+            particle.previous.lerp(particle.position, damping)
+            any = true
+          }
+          continue
+        }
+
+        // Treat OBBs as AABBs in their local frame; fallback to bounding sphere when angle present.
+        if (obs.kind === 'obb' && Math.abs(obs.angle) > 1e-3) {
+          const radius = Math.max(obs.half.x, obs.half.y)
+          const dx = particle.position.x - obs.center.x
+          const dy = particle.position.y - obs.center.y
+          const limit = r + radius
+          const distSq = dx * dx + dy * dy
+          if (distSq < limit * limit) {
+            const dist = Math.sqrt(Math.max(distSq, 1e-12))
+            const nx = dist > 0 ? dx / dist : 0
+            const ny = dist > 0 ? dy / dist : 1
+            const penetration = limit - dist
+            particle.position.x += nx * penetration
+            particle.position.y += ny * penetration
+            maxCorrectionSq = Math.max(maxCorrectionSq, penetration * penetration)
+            particle.previous.lerp(particle.position, damping)
+            any = true
+          }
+          continue
+        }
+
+        const minX = obs.kind === 'aabb' ? obs.min.x : obs.center.x - obs.half.x
+        const maxX = obs.kind === 'aabb' ? obs.max.x : obs.center.x + obs.half.x
+        const minY = obs.kind === 'aabb' ? obs.min.y : obs.center.y - obs.half.y
+        const maxY = obs.kind === 'aabb' ? obs.max.y : obs.center.y + obs.half.y
+
+        const closestX = Math.max(minX, Math.min(maxX, particle.position.x))
+        const closestY = Math.max(minY, Math.min(maxY, particle.position.y))
+        const dx = particle.position.x - closestX
+        const dy = particle.position.y - closestY
+        const distSq = dx * dx + dy * dy
+
+        if (distSq < r * r) {
+          const dist = Math.sqrt(Math.max(distSq, 1e-12))
+          const nx = dist > 0 ? dx / dist : 0
+          const ny = dist > 0 ? dy / dist : 1
+          const penetration = r - dist
+          particle.position.x += nx * penetration
+          particle.position.y += ny * penetration
+          maxCorrectionSq = Math.max(maxCorrectionSq, penetration * penetration)
+          particle.previous.lerp(particle.position, damping)
+          any = true
+        }
+      }
+    }
+
+    if (any) {
+      this.syncGeometry()
+      if (maxCorrectionSq < this.sleepVelocityThresholdSq) {
+        this.sleepFrameCounter++
+        if (this.sleepFrameCounter >= this.sleepFrameThreshold) {
+          this.sleeping = true
+        }
+      } else {
+        this.sleeping = false
+        this.sleepFrameCounter = 0
+      }
     }
   }
 
@@ -364,23 +485,29 @@ export class ClothPhysics {
   }
 
   private initializeConstraints() {
+    let minRest = Infinity
     for (let y = 0; y < this.heightSegments; y++) {
       for (let x = 0; x < this.widthSegments; x++) {
         const index = this.index(x, y)
 
         if (x < this.widthSegments - 1) {
-          this.addConstraint(index, this.index(x + 1, y))
+          minRest = Math.min(minRest, this.addConstraint(index, this.index(x + 1, y)))
         }
 
         if (y < this.heightSegments - 1) {
-          this.addConstraint(index, this.index(x, y + 1))
+          minRest = Math.min(minRest, this.addConstraint(index, this.index(x, y + 1)))
         }
 
         if (x < this.widthSegments - 1 && y < this.heightSegments - 1) {
-          this.addConstraint(index, this.index(x + 1, y + 1))
-          this.addConstraint(this.index(x + 1, y), this.index(x, y + 1))
+          minRest = Math.min(minRest, this.addConstraint(index, this.index(x + 1, y + 1)))
+          minRest = Math.min(minRest, this.addConstraint(this.index(x + 1, y), this.index(x, y + 1)))
         }
       }
+    }
+
+    if (Number.isFinite(minRest) && minRest < Infinity) {
+      // Use a fraction of the rest length as a per-particle collision radius.
+      this.particleRadius = Math.max(1e-4, minRest * 0.6)
     }
   }
 
@@ -388,11 +515,13 @@ export class ClothPhysics {
     const particle1 = this.particles[p1]
     const particle2 = this.particles[p2]
 
+    const restLength = particle1.position.distanceTo(particle2.position)
     this.constraints.push({
       p1,
       p2,
-      restLength: particle1.position.distanceTo(particle2.position),
+      restLength,
     })
+    return restLength
   }
 
   private satisfyConstraint(constraint: Constraint) {

@@ -2,21 +2,28 @@ import type * as THREE_NS from 'three'
 import { EventBus } from '../events/bus'
 import { RigidStaticSystem, type RigidBody } from '../systems/rigidStaticSystem'
 import type { AABB } from '../systems/rigidStaticSystem'
-import type { ClothPhysics } from '../../lib/clothPhysics'
+import { ClothPhysics } from '../../lib/clothPhysics'
 
 // ---- Public types ----
 
-export type ClothScenarioId = 'cloth-c1-settling' | 'cloth-c2-sleep-wake'
-export type RigidScenarioId = 'rigid-stack-rest' | 'rigid-drop-onto-static'
+export type ClothScenarioId =
+  | 'cloth-c1-settling'
+  | 'cloth-c2-sleep-wake'
+  | 'cloth-cr1-over-box'
+  | 'cloth-cr2-rigid-hit'
+export type RigidScenarioId = 'rigid-stack-rest' | 'rigid-drop-onto-static' | 'rigid-thin-wall-ccd'
 
 export const clothScenarioIds: ClothScenarioId[] = [
   'cloth-c1-settling',
   'cloth-c2-sleep-wake',
+  'cloth-cr1-over-box',
+  'cloth-cr2-rigid-hit',
 ]
 
 export const rigidScenarioIds: RigidScenarioId[] = [
   'rigid-stack-rest',
   'rigid-drop-onto-static',
+  'rigid-thin-wall-ccd',
 ]
 
 export type ClothScenarioContext = {
@@ -28,6 +35,7 @@ export type ClothScenarioResult = {
   cloth: ClothPhysics
   /** Step function used by both tests and Sandbox to advance the scenario. */
   step: (dt: number) => void
+  projectile?: { center: THREE_NS.Vector2; velocity: THREE_NS.Vector2; radius: number }
 }
 
 export type RigidScenarioResult =
@@ -69,6 +77,67 @@ export function createClothScenario(
 
       const step = (dt: number) => {
         cloth.update(dt)
+      }
+
+      return { cloth, step }
+    }
+
+    case 'cloth-cr1-over-box': {
+      const geom = new ctx.three.PlaneGeometry(1, 1, 6, 6)
+      geom.translate(0, 0.8, 0)
+      const mat = new ctx.three.MeshBasicMaterial()
+      const mesh = new ctx.three.Mesh(geom, mat)
+      const cloth = new ClothPhysics(mesh)
+      cloth.setGravity(new ctx.three.Vector3(0, -9.81, 0))
+      cloth.setConstraintIterations(6)
+      cloth.setSleepThresholds(0.005, 200)
+      cloth.setSubsteps(2)
+
+      const floorHalf = { x: 0.7, y: 0.1 }
+      const floorCenter = { x: 0, y: 0 }
+
+      const step = (dt: number) => {
+        cloth.update(dt)
+        cloth.collideWithObstacles([
+          {
+            kind: 'aabb',
+            min: { x: floorCenter.x - floorHalf.x, y: floorCenter.y - floorHalf.y },
+            max: { x: floorCenter.x + floorHalf.x, y: floorCenter.y + floorHalf.y },
+          },
+        ])
+      }
+
+      return { cloth, step }
+    }
+
+    case 'cloth-cr2-rigid-hit': {
+      const geom = new ctx.three.PlaneGeometry(1, 1, 6, 6)
+      geom.translate(0, 0.6, 0)
+      const mat = new ctx.three.MeshBasicMaterial()
+      const mesh = new ctx.three.Mesh(geom, mat)
+      const cloth = new ClothPhysics(mesh)
+      cloth.pinTopEdge()
+      cloth.setGravity(new ctx.three.Vector3(0, -9.81, 0))
+      cloth.setConstraintIterations(6)
+      cloth.setSleepThresholds(0.002, 140)
+      cloth.setSubsteps(2)
+
+      const projectile = {
+        center: new ctx.three.Vector2(-0.6, 0),
+        velocity: new ctx.three.Vector2(3, -0.2),
+        radius: 0.06,
+      }
+
+      const step = (dt: number) => {
+        cloth.update(dt)
+        cloth.collideWithObstacles([
+          {
+            kind: 'sphere',
+            center: { x: projectile.center.x, y: projectile.center.y },
+            radius: projectile.radius,
+          },
+        ])
+        projectile.center.addScaledVector(projectile.velocity, dt)
       }
 
       return { cloth, step }
@@ -159,6 +228,36 @@ export function createRigidScenario(id: RigidScenarioId): RigidScenarioResult {
       system.addBody(body)
 
       return { system, body }
+    }
+
+    case 'rigid-thin-wall-ccd': {
+      const bus = new EventBus({ capacity: 128, mailboxCapacity: 128 })
+      const wall: AABB = {
+        min: { x: 0.0, y: -1 },
+        max: { x: 0.02, y: 1 },
+      }
+      const system = new RigidStaticSystem({
+        bus,
+        getAabbs: () => [wall],
+        gravity: 0,
+        enableDynamicPairs: false,
+      })
+      system.configureCcd({ enabled: true, speedThreshold: 0.5, epsilon: 1e-4 })
+
+      const fastBody: RigidBody = {
+        id: 99,
+        center: { x: -1, y: 0 },
+        half: { x: 0.1, y: 0.1 },
+        angle: 0,
+        velocity: { x: 6, y: 0 },
+        restitution: 0,
+        friction: 0,
+        mass: 1,
+      }
+
+      system.addBody(fastBody)
+
+      return { system, body: fastBody }
     }
 
     default: {

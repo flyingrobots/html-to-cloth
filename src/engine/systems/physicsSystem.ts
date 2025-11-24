@@ -65,6 +65,8 @@ export class PhysicsSystem implements EngineSystem {
         id: number
         center: { x: number; y: number }
         half: { x: number; y: number }
+        angle: number
+        velocity?: { x: number; y: number }
       }>
     }
     return []

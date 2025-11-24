@@ -8,7 +8,6 @@ type CcdObstacle = { id?: number; shape: CcdShape; velocity: { x: number; y: num
 type CcdSweepResult =
   | (ReturnType<typeof advanceWithCCD> & { obstacleVelocity: { x: number; y: number } })
   | null
-type CcdShape = CcdObb | CcdAabb
 import { obbVsAabb, type OBB as SatObb } from '../../lib/collision/satObbAabb'
 
 export type AABB = { min: { x: number; y: number }; max: { x: number; y: number } }
@@ -95,6 +94,7 @@ export class RigidStaticSystem implements EngineSystem {
       id: b.id,
       center: { x: b.center.x, y: b.center.y },
       half: { x: b.half.x, y: b.half.y },
+      angle: b.angle,
       velocity: { x: b.velocity.x, y: b.velocity.y },
       mass: b.mass ?? 1,
     }))
@@ -168,7 +168,7 @@ export class RigidStaticSystem implements EngineSystem {
       if (this.shouldUseCcd(b, speedSqAfter) && ccdObstacles.length > 0) {
         const sweep = this.advanceBodyWithCcd(b, dt, ccdObstacles)
         if (sweep?.collided) {
-          ccdHit = { normal: sweep.normal, point: sweep.point, obstacleVelocity: sweep.obstacleVelocity }
+          ccdHit = { normal: sweep.normal, point: (sweep as any).point, obstacleVelocity: sweep.obstacleVelocity }
         }
       } else {
         b.center.x += b.velocity.x * dt

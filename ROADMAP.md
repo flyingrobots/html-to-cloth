@@ -131,29 +131,29 @@ Goal: integrate CCD into the main rigid lane for high-speed bodies, introduce cl
 
 ### N2.2 Cloth↔Rigid Collisions v1
 
-- [ ] Implement cloth particle / rigid body collision model:
-  - [ ] Treat select cloth vertices or aggregated spheres as particles with radius derived from mesh scale.
-  - [ ] Broad-phase: particle spheres vs static AABBs + rigid OBBs.
-  - [ ] Narrow-phase: sphere vs OBB/AABB separation and optional rigid impulse.
-- [ ] Integrate cloth↔rigid collision step into the engine:
-  - [ ] After rigid lane resolution, use static AABBs + rigid bodies as obstacles during cloth update.
-  - [ ] Constrain particles and then run cloth solver iterations.
-- [ ] Add cloth↔rigid acceptance scenes:
-  - [ ] CR1: Cloth draping onto a rigid floor box.
-  - [ ] CR2: Rigid “ball” hitting a hanging cloth patch (deflection + bounded jitter).
+- [x] Implement cloth particle / rigid body collision model:
+  - [x] Treat select cloth vertices or aggregated spheres as particles with radius derived from mesh scale.
+  - [x] Broad-phase: particle spheres vs static AABBs + rigid OBBs.
+  - [x] Narrow-phase: sphere vs OBB/AABB separation and optional rigid impulse.
+- [x] Integrate cloth↔rigid collision step into the engine:
+  - [x] After rigid lane resolution, use static AABBs + rigid bodies as obstacles during cloth update.
+  - [x] Constrain particles and then run cloth solver iterations.
+- [x] Add cloth↔rigid acceptance scenes:
+  - [x] CR1: Cloth draping onto a rigid floor box.
+  - [x] CR2: Rigid “ball” hitting a hanging cloth patch (deflection + bounded jitter).
 
 ### N2.3 Scenario DSL + Sandbox 2.0
 
 - [ ] Extend `physicsScenarios.ts`:
-  - [ ] Define DSL-backed cloth+rigid combinations (cloth-over-boxes, flags + incoming rigid bodies).
+  - [x] Define DSL-backed cloth+rigid combinations (cloth-over-boxes, flags + incoming rigid bodies).
   - [ ] Provide optional camera presets and overlay defaults per scenario.
-- [ ] Make Test/Demo menus map 1:1 to DSL IDs (no ad-hoc sandbox scenes).
-- [ ] On scene selection:
-  - [ ] Tear down current entities safely.
-  - [ ] Invoke the DSL factory for the selected scene.
-  - [ ] Register all resulting rigid bodies and cloth with `PhysicsSystem`/`SimulationSystem`.
+- [x] Make Test/Demo menus map 1:1 to DSL IDs (no ad-hoc sandbox scenes).
+- [x] On scene selection:
+  - [x] Tear down current entities safely.
+  - [x] Invoke the DSL factory for the selected scene.
+  - [x] Register all resulting rigid bodies and cloth with `PhysicsSystem`/`SimulationSystem`.
 - [ ] Add sandbox smoke tests per important DSL scene:
-  - [ ] Scene loads without errors.
+  - [x] Scene loads without errors.
   - [ ] Overlays/events show the expected shape of activity (e.g., collisions, wakes).
 
 ---
@@ -367,3 +367,5 @@ This section records changes made to `ROADMAP.md` itself. New entries should be 
   - Completed N1.6 sandbox alignment: wired C2 cloth sleep/wake, rigid stack-rest, and rigid drop-onto-static scenes into `/sandbox` with smoke tests.
 - **2025-11-23**
   - Marked N2.1 CCD policy tasks complete after integrating CCD sweeps into `PhysicsSystem` and enabling PhysicsSystem-level CCD specs.
+- **2025-11-24**
+  - Completed N2.2 cloth↔rigid coupling v1: particle-vs-rigid collisions, engine integration, and CR1/CR2 acceptance scenes enabled.

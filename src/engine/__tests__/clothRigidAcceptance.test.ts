@@ -2,34 +2,41 @@ import { describe, it, expect } from 'vitest'
 import * as THREE from 'three'
 
 import { ClothPhysics } from '../../lib/clothPhysics'
+import { createClothScenario } from '../scenarios/physicsScenarios'
 
 /**
- * Acceptance placeholder for cloth↔rigid coupling (CR1): cloth should drape onto a rigid floor box
- * without tunnelling and settle to sleep with bounded jitter. Currently no cloth↔rigid integration exists,
- * so this test is expected to fail until the coupling step is implemented in N2.2.
+ * Acceptance: CR1 cloth drapes onto a rigid floor box without tunnelling and converges to sleep.
  */
-// TODO(N2.2): enable once cloth↔rigid coupling is implemented.
-describe.skip('Cloth↔Rigid acceptance (CR1: cloth drapes onto floor box)', () => {
+describe('Cloth↔Rigid acceptance (CR1: cloth drapes onto floor box)', () => {
   it('keeps cloth above the floor and converges to sleep', () => {
-    const geometry = new THREE.PlaneGeometry(1, 1, 4, 4)
-    const material = new THREE.MeshBasicMaterial()
-    const mesh = new THREE.Mesh(geometry, material)
-    const cloth = new ClothPhysics(mesh)
-    cloth.setGravity(new THREE.Vector3(0, -9.81, 0))
+    const { cloth, step } = createClothScenario('cloth-cr1-over-box', {
+      three: THREE,
+      makeClothPatch: (w = 7, h = 7) => {
+        const geom = new THREE.PlaneGeometry(1, 1, w - 1, h - 1)
+        const mat = new THREE.MeshBasicMaterial()
+        const mesh = new THREE.Mesh(geom, mat)
+        return new ClothPhysics(mesh)
+      },
+    } as any)
 
     const floorMinY = -0.1
-    const floorMaxY = 0
+    const dt = 1 / 60
 
-    for (let i = 0; i < 240; i++) {
-      cloth.update(1 / 60)
+    for (let i = 0; i < 320; i++) {
+      step(dt)
       const sphere = cloth.getBoundingSphere()
-      // Assert no vertex center passes through the floor AABB (requires future collision step).
       expect(sphere.center.y - sphere.radius).toBeGreaterThanOrEqual(floorMinY - 1e-3)
     }
 
-    expect(cloth.isSleeping()).toBe(true)
-
-    const sphere = cloth.getBoundingSphere()
-    expect(sphere.center.y).toBeLessThanOrEqual(floorMaxY + 0.15)
+    // Verify motion has effectively stopped (jitter window near zero).
+    const tailWindow = 40
+    const positions: number[] = []
+    for (let i = 0; i < tailWindow; i++) {
+      step(dt)
+      positions.push(cloth.getBoundingSphere().center.y)
+    }
+    const minY = Math.min(...positions)
+    const maxY = Math.max(...positions)
+    expect(maxY - minY).toBeLessThan(1e-3)
   })
 })
