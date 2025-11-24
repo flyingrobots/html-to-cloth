@@ -414,6 +414,16 @@ export class ClothSceneController {
     active: false,
     needsImpulse: false,
   }
+  private renderOnce() {
+    if (!this.cameraSystem || !this.worldRenderer || !this.domToWebGL) return
+    const snap = this.cameraSystem.getSnapshot?.()
+    if (!snap) return
+    try {
+      this.engine.frame(0)
+    } catch (err) {
+      console.warn?.('renderOnce failed', err)
+    }
+  }
   private sleepConfig: SimSleepConfig = {
     velocityThreshold: 0.001,
     frameThreshold: 60,
@@ -483,6 +493,15 @@ export class ClothSceneController {
     for (const el of staticElements) {
       this.collisionSystem.addStaticBody(el)
     }
+    // A second-pass refresh after layout/fonts settle to avoid zero-width AABBs.
+    const refreshAndRender = () => {
+      this.collisionSystem.refresh()
+      this.syncStaticMeshes()
+      this.updateOverlayDebug()
+      this.renderOnce()
+    }
+    requestAnimationFrame(refreshAndRender)
+    setTimeout(refreshAndRender, 200)
 
     const clothElements = Array.from(
       document.querySelectorAll<HTMLElement>('.cloth-enabled')
@@ -760,6 +779,8 @@ export class ClothSceneController {
     this.collisionSystem.setViewportDimensions(viewport.width, viewport.height)
     this.collisionSystem.refresh()
     this.syncStaticMeshes()
+    this.updateOverlayDebug()
+    this.renderOnce()
   }
 
   private installRenderPipeline() {

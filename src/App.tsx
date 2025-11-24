@@ -584,6 +584,8 @@ function SandboxHero({
               <Textarea
                 aria-label="Collision target"
                 className="rigid-static"
+                id="sandbox-floor"
+                name="sandbox-floor"
                 placeholder="Rigid floor (static AABB)"
                 autosize
                 minRows={2}

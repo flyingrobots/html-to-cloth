@@ -12,6 +12,10 @@ export function EventsPanel({ open, onOpenChange, bus }: { open: boolean; onOpen
   const [autoScroll, setAutoScroll] = useState(true)
   const [activeTab, setActiveTab] = useState<'stream' | 'latest' | 'stats'>('stream')
   const [panelHeight, setPanelHeight] = useState(45)
+  const [panelWidth, setPanelWidth] = useState(480)
+  const [dock, setDock] = useState<'left' | 'right' | 'float'>('right')
+  const [floatPos, setFloatPos] = useState<{ x: number; y: number }>({ x: 24, y: 24 })
+  const draggingRef = useRef<{ kind: 'move' | 'resize'; startX: number; startY: number; startW: number; startH: number; startPos: { x: number; y: number } } | null>(null)
   const [enabledChannels, setEnabledChannels] = useState<Record<Channel, boolean>>({ frameBegin: true, fixedEnd: true, frameEnd: true, immediate: true })
   const [enabledTypes, setEnabledTypes] = useState<Record<string, boolean>>({
     PointerMove: true,
@@ -137,6 +141,31 @@ export function EventsPanel({ open, onOpenChange, bus }: { open: boolean; onOpen
   // Reset filter when panel closes
   useEffect(() => { if (!open) setQuery('') }, [open])
 
+  // Drag/resize handlers for floating mode
+  useEffect(() => {
+    if (!open) return
+    const onMove = (e: MouseEvent) => {
+      const drag = draggingRef.current
+      if (!drag) return
+      e.preventDefault()
+      const dx = e.clientX - drag.startX
+      const dy = e.clientY - drag.startY
+      if (drag.kind === 'move') {
+        setFloatPos({ x: Math.max(8, drag.startPos.x + dx), y: Math.max(8, drag.startPos.y + dy) })
+      } else if (drag.kind === 'resize') {
+        setPanelWidth(Math.max(320, drag.startW + dx))
+        setPanelHeight(Math.max(30, Math.min(75, drag.startH + dy * 0.2)))
+      }
+    }
+    const onUp = () => { draggingRef.current = null }
+    window.addEventListener('mousemove', onMove)
+    window.addEventListener('mouseup', onUp)
+    return () => {
+      window.removeEventListener('mousemove', onMove)
+      window.removeEventListener('mouseup', onUp)
+    }
+  }, [open])
+
   const filtered = useMemo(() => {
     if (!query) return rows
     const q = query.toLowerCase()
@@ -151,11 +180,23 @@ export function EventsPanel({ open, onOpenChange, bus }: { open: boolean; onOpen
   }, [filtered.length, autoScroll, paused])
 
   if (!open) return null
+
+  const affixProps = dock === 'float'
+    ? { style: { position: 'fixed', left: floatPos.x, top: floatPos.y, width: panelWidth, zIndex: 1200 } as React.CSSProperties }
+    : { position: { left: dock === 'left' ? 12 : undefined, right: dock === 'right' ? 12 : undefined, bottom: 12 } }
+
   return (
-    <Affix position={{ left: 12, right: 12, bottom: 12 }}>
-      <Paper withBorder radius="md" shadow="sm" style={{ height: `${panelHeight}vh`, minHeight: 220 }}>
+    <Affix {...affixProps}>
+      <Paper withBorder radius="md" shadow="sm" style={{ height: `${panelHeight}vh`, minHeight: 220, width: dock === 'float' ? panelWidth : undefined }}>
         <Group p="sm" justify="space-between" wrap="nowrap">
-          <Text fw={600}>Events</Text>
+          <Group gap="xs" align="center" data-drag-handle="move" style={{ cursor: dock === 'float' ? 'grab' : 'default' }}>
+            <Text fw={600}>Events</Text>
+            <Group gap={4}>
+              <Button size="xs" variant={dock === 'left' ? 'filled' : 'light'} onClick={() => setDock('left')}>Dock L</Button>
+              <Button size="xs" variant={dock === 'right' ? 'filled' : 'light'} onClick={() => setDock('right')}>Dock R</Button>
+              <Button size="xs" variant={dock === 'float' ? 'filled' : 'light'} onClick={() => setDock('float')}>Float</Button>
+            </Group>
+          </Group>
           <Group gap="xs" wrap="nowrap">
             <TextInput aria-label="Filter events" placeholder="Filter…" value={query} onChange={(e) => setQuery(e.currentTarget.value)} />
             <Checkbox label="Auto-scroll" checked={autoScroll} onChange={(e) => setAutoScroll(e.currentTarget.checked)} />
@@ -167,6 +208,13 @@ export function EventsPanel({ open, onOpenChange, bus }: { open: boolean; onOpen
         <Group pl="sm" pr="sm" pb={6} gap="md" align="center">
           <Text size="xs" fw={600}>Height</Text>
           <Slider value={panelHeight} onChange={setPanelHeight} min={30} max={75} step={1} style={{ width: 200 }} marks={[{ value: 30, label: '30vh' }, { value: 50, label: '50vh' }, { value: 70, label: '70vh' }]} />
+          {dock === 'float' ? (
+            <>
+              <Text size="xs" fw={600}>Width</Text>
+              <Slider value={panelWidth} onChange={setPanelWidth} min={320} max={900} step={10} style={{ width: 200 }} marks={[{ value: 320, label: '320' }, { value: 620, label: '620' }, { value: 900, label: '900' }]} />
+              <Text size="xs" c="dimmed">Drag header to move, corner to resize</Text>
+            </>
+          ) : null}
         </Group>
         <Group pl="sm" pr="sm" gap="xl" wrap="wrap">
           <Group gap="xs">

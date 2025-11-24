@@ -6,6 +6,7 @@ type StaticBody = {
   element: HTMLElement
   min: THREE.Vector2
   max: THREE.Vector2
+  observer?: ResizeObserver
 }
 
 export class CollisionSystem {
@@ -20,23 +21,37 @@ export class CollisionSystem {
   }
 
   addStaticBody(element: HTMLElement) {
-    const rect = element.getBoundingClientRect()
-    this.staticBodies.push({
+    const body: StaticBody = {
       element,
-      min: this.rectMin(rect),
-      max: this.rectMax(rect),
-    })
+      min: new THREE.Vector2(),
+      max: new THREE.Vector2(),
+    }
+    this.recomputeBody(body)
+
+    if (typeof ResizeObserver !== 'undefined') {
+      const obs = new ResizeObserver(() => {
+        this.recomputeBody(body)
+      })
+      obs.observe(element)
+      body.observer = obs
+    }
+
+    this.staticBodies.push(body)
   }
 
   removeStaticBody(element: HTMLElement) {
-    this.staticBodies = this.staticBodies.filter((body) => body.element !== element)
+    this.staticBodies = this.staticBodies.filter((body) => {
+      if (body.element === element) {
+        body.observer?.disconnect()
+        return false
+      }
+      return true
+    })
   }
 
   refresh() {
     for (const body of this.staticBodies) {
-      const rect = body.element.getBoundingClientRect()
-      body.min = this.rectMin(rect)
-      body.max = this.rectMax(rect)
+      this.recomputeBody(body)
     }
   }
 
@@ -47,7 +62,19 @@ export class CollisionSystem {
   }
 
   clear() {
+    for (const body of this.staticBodies) body.observer?.disconnect()
     this.staticBodies = []
+  }
+
+  private recomputeBody(body: StaticBody) {
+    const rect = body.element.getBoundingClientRect()
+    // If layout is not ready yet (e.g., fonts loading), retry on the next frame when width/height are too small.
+    if ((rect.width ?? 0) < 4 || (rect.height ?? 0) < 4) {
+      requestAnimationFrame(() => this.recomputeBody(body))
+      return
+    }
+    body.min = this.rectMin(rect)
+    body.max = this.rectMax(rect)
   }
 
   /** Returns a snapshot of static body AABBs (canonical units). */
