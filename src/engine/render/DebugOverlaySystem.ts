@@ -23,6 +23,7 @@ export class DebugOverlaySystem implements EngineSystem {
   private pointer?: THREE.Mesh
   private attached = false
   private aabbGroup?: THREE.Group
+  private domRectGroup?: THREE.Group
   private rigidGroup?: THREE.Group
   private circleGroup?: THREE.Group
   private pinGroup?: THREE.Group
@@ -53,6 +54,11 @@ export class DebugOverlaySystem implements EngineSystem {
       this.clearOverlayGroup(this.aabbGroup)
       this.view.scene?.remove(this.aabbGroup)
       this.aabbGroup = undefined
+    }
+    if (this.domRectGroup) {
+      this.clearOverlayGroup(this.domRectGroup)
+      this.view.scene?.remove(this.domRectGroup)
+      this.domRectGroup = undefined
     }
     if (this.pinGroup) {
       this.clearOverlayGroup(this.pinGroup)
@@ -93,6 +99,7 @@ export class DebugOverlaySystem implements EngineSystem {
     }
     // Render other gizmos independently of pointer visibility
     this.drawAABBs(!!this.state.drawAABBs)
+    this.drawDomRects(!!this.state.drawDomRects)
     this.drawRigidBodies(!!this.state.drawAABBs)
     this.drawSimCircles(!!this.state.drawSleep)
     this.drawPins(!!this.state.drawPins)
@@ -149,6 +156,38 @@ export class DebugOverlaySystem implements EngineSystem {
       const mat = new THREE.LineBasicMaterial({ color, transparent: true, opacity: 0.6 })
       const lines = new THREE.LineSegments(geom, mat)
       this.aabbGroup.add(lines)
+    }
+  }
+
+  private drawDomRects(visible: boolean) {
+    if (!this.view.scene) return
+    if (!this.domRectGroup) {
+      this.domRectGroup = new THREE.Group()
+      this.domRectGroup.renderOrder = 999
+      this.view.scene.add(this.domRectGroup)
+    }
+    this.domRectGroup.visible = visible
+    if (!visible) return
+    this.clearOverlayGroup(this.domRectGroup)
+    const color = new THREE.Color(0xff66ff)
+    for (const box of this.state.domRects) {
+      const geom = new THREE.BufferGeometry()
+      const min = box.min, max = box.max
+      const vertices = new Float32Array([
+        min.x, min.y, 0,
+        max.x, min.y, 0,
+        max.x, min.y, 0,
+        max.x, max.y, 0,
+        max.x, max.y, 0,
+        min.x, max.y, 0,
+        min.x, max.y, 0,
+        min.x, min.y, 0,
+      ])
+      geom.setAttribute('position', new THREE.BufferAttribute(vertices, 3))
+      const mat = new THREE.LineDashedMaterial({ color, transparent: true, opacity: 0.85, dashSize: 0.06, gapSize: 0.04 })
+      const lines = new THREE.LineSegments(geom, mat)
+      lines.computeLineDistances()
+      this.domRectGroup.add(lines)
     }
   }
 

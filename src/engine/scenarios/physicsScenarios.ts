@@ -30,6 +30,7 @@ export type ScenarioPreset = {
   cameraZoom?: number
   overlay?: {
     drawAABBs?: boolean
+    drawDomRects?: boolean
     drawSleep?: boolean
     drawPins?: boolean
     drawWake?: boolean
@@ -39,11 +40,11 @@ export type ScenarioPreset = {
 export const scenarioPresets: Partial<Record<ClothScenarioId | RigidScenarioId, ScenarioPreset>> = {
   'cloth-c1-settling': { cameraZoom: 1.05, overlay: { drawAABBs: true, drawSleep: true } },
   'cloth-c2-sleep-wake': { cameraZoom: 1.05, overlay: { drawAABBs: true, drawSleep: true, drawWake: true } },
-  'cloth-cr1-over-box': { cameraZoom: 1.1, overlay: { drawAABBs: true, drawSleep: true } },
-  'cloth-cr2-rigid-hit': { cameraZoom: 1.2, overlay: { drawAABBs: true, drawSleep: true, drawPins: true, drawWake: true } },
-  'rigid-stack-rest': { cameraZoom: 1.0, overlay: { drawAABBs: true } },
-  'rigid-drop-onto-static': { cameraZoom: 1.0, overlay: { drawAABBs: true } },
-  'rigid-thin-wall-ccd': { cameraZoom: 1.0, overlay: { drawAABBs: true } },
+  'cloth-cr1-over-box': { cameraZoom: 1.1, overlay: { drawAABBs: true, drawDomRects: true, drawSleep: true } },
+  'cloth-cr2-rigid-hit': { cameraZoom: 1.2, overlay: { drawAABBs: true, drawDomRects: true, drawSleep: true, drawPins: true, drawWake: true } },
+  'rigid-stack-rest': { cameraZoom: 1.0, overlay: { drawAABBs: true, drawDomRects: true } },
+  'rigid-drop-onto-static': { cameraZoom: 1.0, overlay: { drawAABBs: true, drawDomRects: true } },
+  'rigid-thin-wall-ccd': { cameraZoom: 1.0, overlay: { drawAABBs: true, drawDomRects: true } },
 }
 
 export type ClothScenarioContext = {

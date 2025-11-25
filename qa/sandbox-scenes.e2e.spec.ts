@@ -130,4 +130,28 @@ test.describe('Sandbox scene selection smoke (harness)', () => {
 
     expect(errors, `No page/console errors expected, saw: ${errors.join('\n')}`).toEqual([])
   })
+
+  test('falls back when visualViewport is missing and still maps DOM rects', async ({ page, browserName }) => {
+    const errors: string[] = []
+    page.on('pageerror', (err) => errors.push(err.message))
+    page.on('console', (msg) => { if (msg.type() === 'error') errors.push(msg.text()) })
+
+    await page.addInitScript(() => {
+      // Simulate environments without visualViewport
+      // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+      // @ts-ignore
+      delete (window as any).visualViewport
+    })
+
+    await page.goto('/playwright-tests/cloth-c1-settling')
+
+    const overlay = await page.evaluate(() => (window as any).__playwrightHarness?.overlay ?? null)
+    expect(overlay?.aabbs?.length ?? 0).toBeGreaterThan(0)
+    const first = overlay?.aabbs?.[0]
+    expect(first?.max?.x - first?.min?.x).toBeGreaterThan(0.2)
+    // Fallback banner should exist
+    const hasBanner = await page.$('#vv-fallback-banner')
+    expect(hasBanner).not.toBeNull()
+    expect(errors, `No page/console errors expected, saw: ${errors.join('\n')}`).toEqual([])
+  })
 })

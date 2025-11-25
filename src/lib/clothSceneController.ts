@@ -416,8 +416,8 @@ export class ClothSceneController {
   }
   private renderOnce() {
     if (!this.cameraSystem || !this.worldRenderer || !this.domToWebGL) return
-    const snap = this.cameraSystem.getSnapshot?.()
-    if (!snap) return
+    // Prime camera snapshot so frame render has a valid pose even while paused.
+    this.cameraSystem.fixedUpdate?.(0)
     try {
       this.engine.frame(0)
     } catch (err) {
@@ -513,6 +513,9 @@ export class ClothSceneController {
     this.updateOverlayDebug()
 
     window.addEventListener('resize', this.onResize, { passive: true })
+    if (typeof window !== 'undefined' && (window as any).visualViewport) {
+      (window as any).visualViewport.addEventListener('resize', this.onResize, { passive: true })
+    }
     window.addEventListener('scroll', this.onScroll, { passive: true })
     window.addEventListener('pointermove', this.onPointerMove, { passive: true })
     window.addEventListener('pointerup', this.onPointerUp, { passive: true })
@@ -521,6 +524,9 @@ export class ClothSceneController {
 
     // Register camera + render systems once the DOM/WebGL view exists.
     this.installRenderPipeline()
+
+    // Prime a render so overlays and guides reflect current layout even when paused.
+    this.renderOnce()
 
     this.clock.start()
     this.animate()
@@ -541,6 +547,9 @@ export class ClothSceneController {
     // Pointer helper removed; overlay system manages gizmos.
 
     window.removeEventListener('resize', this.onResize)
+    if (typeof window !== 'undefined' && (window as any).visualViewport) {
+      (window as any).visualViewport.removeEventListener('resize', this.onResize)
+    }
     window.removeEventListener('scroll', this.onScroll)
     window.removeEventListener('pointermove', this.onPointerMove)
     window.removeEventListener('pointerup', this.onPointerUp)
@@ -754,10 +763,9 @@ export class ClothSceneController {
     const delta = Math.min(this.clock.getDelta(), 0.05)
 
     this.simulationRunner.update(delta)
-    // Skip frame updates while paused to avoid emitting overlay/perf events when the sim is paused.
-    if (!this.engine.isPaused()) {
-      this.simulationRunner.getEngine().frame(delta)
-    }
+    // Always render a frame; paused engines will skip systems that disallow paused via EngineWorld.frame.
+    const frameDt = this.engine.isPaused() ? 0 : delta
+    this.simulationRunner.getEngine().frame(frameDt)
 
     this.decayPointerImpulse()
     this.hideActivatedDomElements()
@@ -1146,6 +1154,7 @@ export class ClothSceneController {
       max: { x: b.max.x, y: b.max.y },
     }))
     this.overlayState.aabbs = aabbs
+    this.overlayState.domRects = aabbs
     // Rigid bodies (for debug markers)
     if (this.physicsSystem && typeof (this.physicsSystem as any).debugGetRigidBodies === 'function') {
       this.overlayState.rigidBodies = (this.physicsSystem as any).debugGetRigidBodies()

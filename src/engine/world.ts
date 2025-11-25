@@ -79,6 +79,7 @@ export class EngineWorld {
     const current = new Set(this.systems)
     for (const entry of snapshot) {
       if (!current.has(entry)) continue
+      if (this.paused && !entry.allowWhilePaused) continue
       entry.system.frameUpdate?.(dt)
     }
   }

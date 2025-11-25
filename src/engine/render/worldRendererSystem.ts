@@ -37,7 +37,9 @@ export class WorldRendererSystem implements EngineSystem {
   }
 
   frameUpdate() {
+    if (!this.view?.camera) return
     const snap = this.camera.getSnapshot()
+    if (!snap) return
 
     // Apply snapshot to the view camera without mutating the snapshot itself.
     this.view.camera.position.copy(snap.position)

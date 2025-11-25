@@ -20,10 +20,14 @@ export class DebugOverlayState {
   drawPins = false
   /** Whether to highlight recently woken bodies (neighbor-wake). */
   drawWake = false
+  /** Whether to draw DOM rects captured for physics (debug helper). */
+  drawDomRects = false
   /** World-space positions of recently woken bodies (small pulsing markers). */
   wakeMarkers: Array<{ x: number; y: number }> = []
   /** Static collision AABBs (canonical coordinates). */
   aabbs: CollisionAABB[] = []
+  /** DOM rects mapped into canonical space (debug). */
+  domRects: CollisionAABB[] = []
   /** Simulation snapshot for sleeping/awake coloring of gizmos. */
   simSnapshot?: Readonly<SimSnapshot>
   /** World-space pin markers (small crosses). */

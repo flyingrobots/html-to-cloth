@@ -14,6 +14,7 @@ import {
   Title,
   Divider,
   Select,
+  NativeSelect,
   Kbd,
   Menu,
   Textarea,
@@ -104,6 +105,8 @@ type DebugProps = {
   onPointerColliderVisibleChange: (value: boolean) => void
   drawAABBs: boolean
   onDrawAABBsChange: (value: boolean) => void
+  drawDomRects: boolean
+  onDrawDomRectsChange: (value: boolean) => void
   drawSleep: boolean
   onDrawSleepChange: (value: boolean) => void
   drawPins: boolean
@@ -164,6 +167,8 @@ function DebugPalette(props: DebugProps) {
     onPointerColliderVisibleChange,
     drawAABBs,
     onDrawAABBsChange,
+    drawDomRects,
+    onDrawDomRectsChange,
     drawSleep,
     onDrawSleepChange,
     drawPins,
@@ -213,12 +218,14 @@ function DebugPalette(props: DebugProps) {
           <Stack gap="md">
             <Stack gap={6}>
               <Text fw={600}>Presets</Text>
-              <Select
+              <NativeSelect
                 aria-label="Presets"
                 placeholder="Choose preset"
                 data={PRESETS.map((p) => ({ value: p.name, label: p.name }))}
-                comboboxProps={{ withinPortal: true, zIndex: 2300 }}
-                onChange={(v) => v && onPresetSelect?.(v)}
+                onChange={(event) => {
+                  const v = event.currentTarget.value
+                  if (v) onPresetSelect?.(v)
+                }}
               />
             </Stack>
             <Group justify="space-between">
@@ -258,6 +265,14 @@ function DebugPalette(props: DebugProps) {
                 <Text size="sm" c="dimmed">Draw static collision bounds</Text>
               </Stack>
               <Switch aria-label="Debug AABBs" checked={drawAABBs} onChange={(e) => onDrawAABBsChange(e.currentTarget.checked)} />
+            </Group>
+            <Group justify="space-between">
+              <Stack gap={0}
+              >
+                <Text fw={600}>DOM Rects (debug)</Text>
+                <Text size="sm" c="dimmed">Show sampled DOM rects used for physics</Text>
+              </Stack>
+              <Switch aria-label="DOM rects" checked={drawDomRects} onChange={(e) => onDrawDomRectsChange(e.currentTarget.checked)} />
             </Group>
             <Group justify="space-between">
               <Stack gap={0}
@@ -631,6 +646,7 @@ function Demo({ mode, initialSceneId }: { mode: DemoMode; initialSceneId?: Sandb
   const [cameraZoomActual, setCameraZoomActual] = useState(1)
   const [pointerColliderVisible, setPointerColliderVisible] = useState(() => lsGetBoolean('pointerColliderVisible', false))
   const [drawAABBs, setDrawAABBs] = useState(() => lsGetBoolean('drawAABBs', false))
+  const [drawDomRects, setDrawDomRects] = useState(() => lsGetBoolean('drawDomRects', false))
   const [drawSleep, setDrawSleep] = useState(() => lsGetBoolean('drawSleep', false))
   const [drawPins, setDrawPins] = useState(() => lsGetBoolean('drawPins', false))
   const [drawWake, setDrawWake] = useState(false)
@@ -647,7 +663,7 @@ function Demo({ mode, initialSceneId }: { mode: DemoMode; initialSceneId?: Sandb
   const initialSnapshotRef = useRef({
     wireframe, realTime, gravity, impulseMultiplier, tessellationSegments,
     constraintIterations, substeps, sleepVelocity, sleepFrames, warmStartPasses,
-    cameraZoom, pointerColliderVisible, drawAABBs, drawSleep, drawPins, pinMode,
+    cameraZoom, pointerColliderVisible, drawAABBs, drawDomRects, drawSleep, drawPins, pinMode,
     ccdEnabled, ccdProbeSpeed, ccdSpeedThreshold, ccdEpsilon,
   })
   const savedToastShownRef = useRef(lsGetBoolean('savedToastShown', false))
@@ -664,6 +680,7 @@ function Demo({ mode, initialSceneId }: { mode: DemoMode; initialSceneId?: Sandb
     const overlayPreset = preset.overlay ?? {}
     setWireframe(true)
     setDrawAABBs(overlayPreset.drawAABBs ?? true)
+    setDrawDomRects(overlayPreset.drawDomRects ?? overlayPreset.drawAABBs ?? false)
     setDrawSleep(overlayPreset.drawSleep ?? false)
     setDrawPins(overlayPreset.drawPins ?? false)
     setDrawWake(overlayPreset.drawWake ?? false)
@@ -914,6 +931,23 @@ function Demo({ mode, initialSceneId }: { mode: DemoMode; initialSceneId?: Sandb
 
   useEffect(() => {
     const overlay = controllerRef.current?.getOverlayState?.() as DebugOverlayState | null
+    if (overlay) overlay.drawDomRects = drawDomRects
+  }, [drawDomRects])
+
+  // Keyboard shortcut: Alt+D toggles DOM rect overlay for quick inspection.
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => {
+      if (event.altKey && !event.metaKey && !event.ctrlKey && !event.shiftKey && event.key.toLowerCase() === 'd') {
+        event.preventDefault()
+        setDrawDomRects((v) => !v)
+      }
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [])
+
+  useEffect(() => {
+    const overlay = controllerRef.current?.getOverlayState?.() as DebugOverlayState | null
     if (overlay) overlay.drawSleep = drawSleep
   }, [drawSleep])
 
@@ -947,6 +981,7 @@ function Demo({ mode, initialSceneId }: { mode: DemoMode; initialSceneId?: Sandb
     lsSetNumber('cameraZoom', cameraZoom)
     lsSetBoolean('pointerColliderVisible', pointerColliderVisible)
     lsSetBoolean('drawAABBs', drawAABBs)
+    lsSetBoolean('drawDomRects', drawDomRects)
     lsSetBoolean('drawSleep', drawSleep)
     lsSetBoolean('drawPins', drawPins)
     lsSetString('pinMode', pinMode)
@@ -980,6 +1015,7 @@ function Demo({ mode, initialSceneId }: { mode: DemoMode; initialSceneId?: Sandb
       cameraZoom !== initial.cameraZoom ||
       pointerColliderVisible !== initial.pointerColliderVisible ||
       drawAABBs !== initial.drawAABBs ||
+      drawDomRects !== initial.drawDomRects ||
       drawSleep !== initial.drawSleep ||
       drawPins !== initial.drawPins ||
       pinMode !== initial.pinMode ||
@@ -1139,6 +1175,8 @@ function Demo({ mode, initialSceneId }: { mode: DemoMode; initialSceneId?: Sandb
         onPointerColliderVisibleChange={setPointerColliderVisible}
         drawAABBs={drawAABBs}
         onDrawAABBsChange={setDrawAABBs}
+        drawDomRects={drawDomRects}
+        onDrawDomRectsChange={setDrawDomRects}
         drawSleep={drawSleep}
         onDrawSleepChange={setDrawSleep}
         drawPins={drawPins}
