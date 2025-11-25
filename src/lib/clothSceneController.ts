@@ -1146,6 +1146,35 @@ export class ClothSceneController {
     // overlay pointer updated elsewhere
   }
 
+  /** Public helper for tests/debug panels to force overlay data (AABBs, pins) to refresh from the current world. */
+  refreshOverlayDebug() {
+    this.updateOverlayDebug()
+    this.renderOnce()
+  }
+
+  /** Exposes static collision AABBs for tests/debugging without touching overlay state. */
+  getStaticAabbsSnapshot() {
+    return this.collisionSystem.getStaticAABBs().map((b) => ({
+      min: { x: b.min.x, y: b.min.y },
+      max: { x: b.max.x, y: b.max.y },
+    }))
+  }
+
+  /** Re-scans DOM rigid-static elements and refreshes collision/overlay state (used by harness/tests). */
+  resyncStaticDomBodies() {
+    if (!this.domToWebGL) return
+    const viewport = this.domToWebGL.getViewportPixels()
+    this.collisionSystem.clear()
+    this.collisionSystem.setViewportDimensions(viewport.width, viewport.height)
+    const staticElements = Array.from(document.querySelectorAll<HTMLElement>('.rigid-static'))
+    for (const el of staticElements) {
+      this.collisionSystem.addStaticBody(el)
+    }
+    this.collisionSystem.refresh()
+    this.syncStaticMeshes()
+    this.refreshOverlayDebug()
+  }
+
   private updateOverlayDebug() {
     if (!this.overlayState) return
     // Static AABBs

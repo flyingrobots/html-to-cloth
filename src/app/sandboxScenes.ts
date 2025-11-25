@@ -106,6 +106,7 @@ function resetActiveScene(deps: SandboxSceneDeps) {
  */
 export function loadSandboxScene(id: SandboxSceneId, deps: SandboxSceneDeps) {
   resetActiveScene(deps)
+  deps.controller?.refreshOverlayDebug?.()
 
   switch (id) {
     case 'cloth-c1-settling': {
@@ -157,6 +158,7 @@ export function loadSandboxScene(id: SandboxSceneId, deps: SandboxSceneDeps) {
           cloth.mesh.material.dispose()
         }
       }
+      deps.controller?.refreshOverlayDebug?.()
       return
     }
 
@@ -203,6 +205,7 @@ export function loadSandboxScene(id: SandboxSceneId, deps: SandboxSceneDeps) {
           cloth.mesh.material.dispose()
         }
       }
+      deps.controller?.refreshOverlayDebug?.()
       return
     }
 
@@ -297,6 +300,7 @@ export function loadSandboxScene(id: SandboxSceneId, deps: SandboxSceneDeps) {
           cloth.mesh.material.dispose()
         }
       }
+      deps.controller?.refreshOverlayDebug?.()
 
       // Optional: visualize projectile as a small sphere if scene graph available.
       if (projectile && addSceneObject && removeSceneObject) {
@@ -360,6 +364,7 @@ export function loadSandboxScene(id: SandboxSceneId, deps: SandboxSceneDeps) {
         for (const id of activeRigidIds) physics.removeRigidBody(id)
         activeRigidIds = []
       }
+      deps.controller?.refreshOverlayDebug?.()
       return
     }
 
@@ -401,6 +406,7 @@ export function loadSandboxScene(id: SandboxSceneId, deps: SandboxSceneDeps) {
         for (const id of activeRigidIds) physics.removeRigidBody(id)
         activeRigidIds = []
       }
+      deps.controller?.refreshOverlayDebug?.()
       return
     }
 
@@ -427,10 +433,12 @@ export function loadSandboxScene(id: SandboxSceneId, deps: SandboxSceneDeps) {
         for (const id of activeRigidIds) physics.removeRigidBody(id)
         activeRigidIds = []
       }
+      deps.controller?.refreshOverlayDebug?.()
       return
     }
     default:
       // Other scenes will be implemented incrementally.
+      deps.controller?.refreshOverlayDebug?.()
       return
   }
 }

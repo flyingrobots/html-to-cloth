@@ -220,8 +220,11 @@ function DebugPalette(props: DebugProps) {
               <Text fw={600}>Presets</Text>
               <NativeSelect
                 aria-label="Presets"
-                placeholder="Choose preset"
-                data={PRESETS.map((p) => ({ value: p.name, label: p.name }))}
+                data={[
+                  { value: '', label: 'Choose preset', disabled: true },
+                  ...PRESETS.map((p) => ({ value: p.name, label: p.name })),
+                ]}
+                defaultValue=""
                 onChange={(event) => {
                   const v = event.currentTarget.value
                   if (v) onPresetSelect?.(v)

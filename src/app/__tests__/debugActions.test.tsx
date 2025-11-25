@@ -157,10 +157,8 @@ describe('Debug UI → EngineActions integration (App)', () => {
     openDebugPalette()
 
     const user = userEvent.setup()
-    const select = await screen.findByPlaceholderText('Choose preset')
-    await user.click(select)
-    const heavyOption = await screen.findByText((content) => content.includes('Heavy'), {}, { timeout: 3000 })
-    await user.click(heavyOption)
+    const select = await screen.findByLabelText('Presets')
+    await user.selectOptions(select, 'Heavy')
 
     await Promise.resolve()
     expect(simulation.broadcastConstraintIterations).toHaveBeenCalled()
