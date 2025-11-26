@@ -710,6 +710,8 @@ function Demo({ mode, initialSceneId }: { mode: DemoMode; initialSceneId?: Sandb
     readyPromiseRef.current = new Promise<void>((resolve) => {
       readyResolveRef.current = resolve
     })
+    let overlayReadyResolve: (() => void) | null = null
+    let overlayReadyPromise: Promise<void> | null = new Promise<void>((resolve) => { overlayReadyResolve = resolve })
     const getHudSnapshot = () => {
       const vv = (window as any).visualViewport
       const aabb = (window as any).__playwrightHarness?.overlay?.aabbs?.[0] ?? null
@@ -741,6 +743,10 @@ function Demo({ mode, initialSceneId }: { mode: DemoMode; initialSceneId?: Sandb
         }
       },
       getHudSnapshot,
+      overlayReady: overlayReadyPromise,
+      waitForOverlayReady: async () => {
+        if (overlayReadyPromise) await overlayReadyPromise
+      },
     }
 
     const onSandboxLoad = (event: Event) => {
@@ -812,6 +818,16 @@ function Demo({ mode, initialSceneId }: { mode: DemoMode; initialSceneId?: Sandb
 
         // Expose sandbox debug handles in test mode for Playwright assertions.
         const overlayRef = controller.getOverlayState?.()
+        const bus = controller.getEventBus?.()
+        if (bus) {
+          bus.subscribe('playwright-overlay-ready', [{ channel: 'frameEnd', ids: [(EventIds as any).OverlayReady ?? 12] }], (_h, reader) => {
+            if (reader && overlayReadyResolve) {
+              overlayReadyResolve()
+              overlayReadyResolve = null
+              overlayReadyPromise = Promise.resolve()
+            }
+          })
+        }
         const harnessPayload = {
           controller,
           overlay: overlayRef,
@@ -820,6 +836,10 @@ function Demo({ mode, initialSceneId }: { mode: DemoMode; initialSceneId?: Sandb
           readyResolved: true,
           loadScene: (sceneId: SandboxSceneId) => runScene(sceneId),
           getHudSnapshot,
+          overlayReady: overlayReadyPromise,
+          waitForOverlayReady: async () => {
+            if (overlayReadyPromise) await overlayReadyPromise
+          },
         }
         ;(window as any).__playwrightHarness = harnessPayload
         readyResolveRef.current?.()

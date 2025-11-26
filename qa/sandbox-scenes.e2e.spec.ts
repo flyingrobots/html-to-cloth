@@ -61,6 +61,7 @@ async function prepareScene(page: import('@playwright/test').Page, sceneId: stri
       document.body.appendChild(div)
     }
     h.controller?.resyncStaticDomBodies?.()
+    if (h.waitForOverlayReady) await h.waitForOverlayReady()
   }, sceneId)
   await waitForStaticAabb(page)
 }
