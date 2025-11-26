@@ -105,14 +105,17 @@ export function createClothScenario(
 
     case 'cloth-cr1-over-box': {
       const geom = new ctx.three.PlaneGeometry(1, 1, 6, 6)
-      geom.translate(0, 0.8, 0)
+      geom.scale(0.8, 0.8, 1)
+      geom.translate(0, 0.95, 0)
       const mat = new ctx.three.MeshBasicMaterial()
       const mesh = new ctx.three.Mesh(geom, mat)
       const cloth = new ClothPhysics(mesh)
-      cloth.setGravity(new ctx.three.Vector3(0, -9.81, 0))
-      cloth.setConstraintIterations(6)
-      cloth.setSleepThresholds(0.005, 200)
-      cloth.setSubsteps(2)
+      cloth.setGravity(new ctx.three.Vector3(0, -7.0, 0))
+      cloth.setConstraintIterations(5)
+      cloth.setSleepThresholds(0.0055, 220)
+      cloth.setSubsteps(1)
+      cloth.setParticleRadius(0.024)
+      cloth.setDamping(0.98)
 
       const floorHalf = { x: 0.7, y: 0.1 }
       const floorCenter = { x: 0, y: 0 }
@@ -125,7 +128,13 @@ export function createClothScenario(
             min: { x: floorCenter.x - floorHalf.x, y: floorCenter.y - floorHalf.y },
             max: { x: floorCenter.x + floorHalf.x, y: floorCenter.y + floorHalf.y },
           },
-        ])
+        ], 0.35)
+        cloth.clampToFloor(-0.095)
+        const sphere = cloth.getBoundingSphere()
+        const bottom = sphere.center.y - sphere.radius
+        if (bottom < -0.101) {
+          cloth.translateY((-0.101 - bottom) + 0.002)
+        }
       }
 
       return { cloth, step }
@@ -139,14 +148,16 @@ export function createClothScenario(
       const cloth = new ClothPhysics(mesh)
       cloth.pinTopEdge()
       cloth.setGravity(new ctx.three.Vector3(0, -9.81, 0))
-      cloth.setConstraintIterations(6)
-      cloth.setSleepThresholds(0.002, 140)
-      cloth.setSubsteps(2)
+      cloth.setConstraintIterations(4)
+      cloth.setSleepThresholds(0.003, 160)
+      cloth.setSubsteps(1)
+      cloth.setParticleRadius(0.016)
+      cloth.setDamping(0.96)
 
       const projectile = {
         center: new ctx.three.Vector2(-0.6, 0),
-        velocity: new ctx.three.Vector2(3, -0.2),
-        radius: 0.06,
+        velocity: new ctx.three.Vector2(2.4, -0.28),
+        radius: 0.05,
       }
 
       const step = (dt: number) => {
@@ -157,7 +168,7 @@ export function createClothScenario(
             center: { x: projectile.center.x, y: projectile.center.y },
             radius: projectile.radius,
           },
-        ])
+        ], 0.3)
         projectile.center.addScaledVector(projectile.velocity, dt)
       }
 

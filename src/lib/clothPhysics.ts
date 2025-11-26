@@ -154,6 +154,40 @@ export class ClothPhysics {
     return this.particleRadius
   }
 
+  /** Overrides particle collision radius used for obstacle tests. */
+  setParticleRadius(radius: number) {
+    if (!Number.isFinite(radius) || radius <= 0) return
+    this.particleRadius = radius
+  }
+
+  /** Adjusts per-step velocity damping applied during integration. */
+  setDamping(value: number) {
+    if (!Number.isFinite(value)) return
+    this.damping = Math.min(0.999, Math.max(0, value))
+  }
+
+  /** Clamps all particles to stay above a world-space floor (Y axis up). */
+  clampToFloor(minY: number, padding = 1e-3) {
+    const limit = minY + padding
+    for (const p of this.particles) {
+      if (p.position.y < limit) {
+        p.position.y = limit
+        if (p.previous.y < limit) p.previous.y = limit
+      }
+    }
+    this.syncGeometry()
+  }
+
+  /** Translates all particles vertically (useful for post-collision corrections). */
+  translateY(dy: number) {
+    if (!Number.isFinite(dy) || dy === 0) return
+    for (const p of this.particles) {
+      p.position.y += dy
+      p.previous.y += dy
+    }
+    this.syncGeometry()
+  }
+
   applyPointForce(
     center: THREE.Vector2,
     velocity: THREE.Vector2,
