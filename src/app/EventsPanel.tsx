@@ -1,14 +1,29 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Affix, Group, Paper, ScrollArea, Table, Text, TextInput, Button, Checkbox, Tabs, Slider } from '@mantine/core'
 import type { EventBus, Channel, EventHeaderView, EventReader, BusStats } from '../engine/events/bus'
+import type { EngineActions } from '../engine/debug/engineActions'
 import { EventIds } from '../engine/events/ids'
 
-export function EventsPanel({ open, onOpenChange, bus }: { open: boolean; onOpenChange: (v: boolean) => void; bus?: EventBus | null }) {
+export function EventsPanel({
+  open,
+  onOpenChange,
+  bus,
+  actions,
+  realTime,
+  onRealTimeChange,
+}: {
+  open: boolean
+  onOpenChange: (v: boolean) => void
+  bus?: EventBus | null
+  actions?: EngineActions | null
+  realTime?: boolean
+  onRealTimeChange?: (enabled: boolean) => void
+}) {
   const [query, setQuery] = useState('')
   const [rows, setRows] = useState<Array<{ time: number; ch: Channel; type: string; detail: string }>>([])
   const [latest, setLatest] = useState<Record<string, { ch: Channel; detail: string; time: number }>>({})
   const [stats, setStats] = useState<BusStats | null>(null)
-  const [paused, setPaused] = useState(false)
+  const [paused, setPaused] = useState(() => realTime === false)
   const [autoScroll, setAutoScroll] = useState(true)
   const [activeTab, setActiveTab] = useState<'stream' | 'latest' | 'stats'>('stream')
   const [panelHeight, setPanelHeight] = useState(45)
@@ -29,6 +44,10 @@ export function EventsPanel({ open, onOpenChange, bus }: { open: boolean; onOpen
   const scrollerRef = useRef<HTMLDivElement | null>(null)
   const cursorRef = useRef<ReturnType<EventBus['subscribe']> | null>(null)
   const rafRef = useRef<number | null>(null)
+
+  useEffect(() => {
+    setPaused(realTime === false)
+  }, [realTime])
 
   // Subscribe when opened and bus available
   useEffect(() => {
@@ -201,7 +220,19 @@ export function EventsPanel({ open, onOpenChange, bus }: { open: boolean; onOpen
             <TextInput aria-label="Filter events" placeholder="Filter…" value={query} onChange={(e) => setQuery(e.currentTarget.value)} />
             <Checkbox label="Auto-scroll" checked={autoScroll} onChange={(e) => setAutoScroll(e.currentTarget.checked)} />
             <Button size="xs" variant="outline" onClick={() => setRows([])}>Clear</Button>
-            <Button size="xs" variant="default" onClick={() => setPaused((v) => !v)}>{paused ? 'Resume' : 'Pause'}</Button>
+            <Button
+              size="xs"
+              variant="default"
+              onClick={() => {
+                const next = !paused
+                setPaused(next)
+                const desiredRealTime = !next
+                if (onRealTimeChange) onRealTimeChange(desiredRealTime)
+                else actions?.setRealTime?.(desiredRealTime)
+              }}
+            >
+              {paused ? 'Resume' : 'Pause'}
+            </Button>
             <Button size="xs" variant="default" onClick={() => onOpenChange(false)}>Close</Button>
           </Group>
         </Group>
@@ -342,6 +373,30 @@ export function EventsPanel({ open, onOpenChange, bus }: { open: boolean; onOpen
             </Tabs.Panel>
           </Tabs>
         </ScrollArea>
+        {dock === 'float'
+          ? (
+            <div
+              style={{
+                position: 'absolute',
+                right: 4,
+                bottom: 4,
+                width: 16,
+                height: 16,
+                cursor: 'nwse-resize',
+              }}
+              onMouseDown={(e) => {
+                draggingRef.current = {
+                  kind: 'resize',
+                  startX: e.clientX,
+                  startY: e.clientY,
+                  startW: panelWidth,
+                  startH: panelHeight,
+                  startPos: floatPos,
+                }
+              }}
+            />
+          )
+          : null}
       </Paper>
     </Affix>
   )

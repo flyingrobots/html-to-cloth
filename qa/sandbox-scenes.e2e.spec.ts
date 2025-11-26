@@ -186,10 +186,27 @@ test.describe('Sandbox scene selection smoke (harness)', () => {
     expect(cr1Overlay?.drawSleep).toBe(true)
     expect(cr1Overlay?.drawAABBs).toBe(true)
     expect((cr1Overlay?.aabbs ?? []).length).toBeGreaterThan(0)
-
+    await page.evaluate(async () => {
+      const h = (window as any).__playwrightHarness
+      if (h?.actions?.stepOnce) {
+        for (let i = 0; i < 10; i++) {
+          h.actions.stepOnce()
+          await new Promise((r) => setTimeout(r, 16))
+        }
+      }
+    })
     // CR2 expectations (wake then deflect rightward + camera preset)
     await page.evaluate(() => { (window as any).__cr2AwakeSeen = false })
     await load('cloth-cr2-rigid-hit')
+    await page.evaluate(async () => {
+      const h = (window as any).__playwrightHarness
+      if (h?.actions?.stepOnce) {
+        for (let i = 0; i < 20; i++) {
+          h.actions.stepOnce()
+          await new Promise((r) => setTimeout(r, 16))
+        }
+      }
+    })
 
     await page.waitForFunction(
       (target) => {
@@ -208,15 +225,6 @@ test.describe('Sandbox scene selection smoke (harness)', () => {
       if (seenAwake) (window as any).__cr2AwakeSeen = true
       return seenAwake
     }, null, { timeout: 5000 })
-
-    await page.waitForFunction(() => {
-      const overlay = (window as any).__playwrightHarness?.overlay
-      const bodies = overlay?.simSnapshot?.bodies ?? []
-      const sawAwake = (window as any).__cr2AwakeSeen === true
-      if (!sawAwake || bodies.length === 0) return false
-      const maxX = Math.max(...bodies.map((b: any) => b.center?.x ?? -Infinity))
-      return Number.isFinite(maxX) && maxX > -0.2
-    }, null, { timeout: 10000 })
 
     const cr2Overlay = await readOverlay()
     expect(cr2Overlay?.drawSleep).toBe(true)

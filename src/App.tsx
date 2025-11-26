@@ -937,10 +937,10 @@ function Demo({ mode, initialSceneId }: { mode: DemoMode; initialSceneId?: Sandb
     if (overlay) overlay.drawDomRects = drawDomRects
   }, [drawDomRects])
 
-  // Keyboard shortcut: Alt+D toggles DOM rect overlay for quick inspection.
+  // Keyboard shortcut: Ctrl+Shift+D toggles DOM rect overlay (avoids macOS Alt+D bookmark).
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
-      if (event.altKey && !event.metaKey && !event.ctrlKey && !event.shiftKey && event.key.toLowerCase() === 'd') {
+      if (event.ctrlKey && event.shiftKey && !event.metaKey && event.key.toLowerCase() === 'd') {
         event.preventDefault()
         setDrawDomRects((v) => !v)
       }
@@ -1137,7 +1137,14 @@ function Demo({ mode, initialSceneId }: { mode: DemoMode; initialSceneId?: Sandb
         : mode === 'playwright'
           ? <div data-testid="playwright-harness" style={{ width: 0, height: 0, overflow: 'hidden' }} />
           : <PlaygroundHero />}
-      <EventsPanel open={eventsOpen} onOpenChange={setEventsOpen} bus={controllerRef.current?.getEventBus?.() ?? null} />
+      <EventsPanel
+        open={eventsOpen}
+        onOpenChange={setEventsOpen}
+        bus={controllerRef.current?.getEventBus?.() ?? null}
+        actions={actionsRef.current}
+        realTime={realTime}
+        onRealTimeChange={setRealTime}
+      />
       <DebugPalette
         open={debugOpen}
         onOpenChange={setDebugOpen}
