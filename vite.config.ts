@@ -10,4 +10,15 @@ export default defineConfig({
       "@": path.resolve(__dirname, "./src"),
     },
   },
+  build: {
+    chunkSizeWarningLimit: 1600,
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          react: ['react', 'react-dom'],
+          mantine: ['@mantine/core', '@mantine/hooks'],
+        },
+      },
+    },
+  },
 })

@@ -17,6 +17,8 @@ describe('Events panel (spec)', () => {
     await user.keyboard(`{${modKey()}>}e{/${modKey()}}`)
     // Title should be visible
     expect(await screen.findByText('Events')).toBeTruthy()
+    // HUD tab should exist now
+    expect(await screen.findByText('HUD')).toBeTruthy()
 
     // Non-modal: the primary scene button remains clickable
     const btn = await screen.findByRole('button', { name: /peel back/i })

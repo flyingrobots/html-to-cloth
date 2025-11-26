@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Affix, Group, Paper, ScrollArea, Table, Text, TextInput, Button, Checkbox, Tabs, Slider } from '@mantine/core'
+import { Affix, Group, Paper, ScrollArea, Table, Text, TextInput, Button, Checkbox, Tabs, Slider, Code, Stack } from '@mantine/core'
 import type { EventBus, Channel, EventHeaderView, EventReader, BusStats } from '../engine/events/bus'
 import type { EngineActions } from '../engine/debug/engineActions'
 import { EventIds } from '../engine/events/ids'
@@ -44,6 +44,13 @@ export function EventsPanel({
   const scrollerRef = useRef<HTMLDivElement | null>(null)
   const cursorRef = useRef<ReturnType<EventBus['subscribe']> | null>(null)
   const rafRef = useRef<number | null>(null)
+  const [hud, setHud] = useState<null | {
+    dpr: number
+    inner: { w: number; h: number }
+    vv: { w: number; h: number; x: number; y: number } | null
+    domRect: { left: number; top: number; width: number; height: number } | null
+    aabb: { min: { x: number; y: number }; max: { x: number; y: number } } | null
+  }>(null)
 
   useEffect(() => {
     setPaused(realTime === false)
@@ -157,6 +164,25 @@ export function EventsPanel({
     }
   }, [open, bus, paused, enabledChannels.frameBegin, enabledChannels.frameEnd, enabledTypes.PointerMove, enabledTypes.PerfRow, enabledTypes.CcdHit])
 
+  // Lightweight HUD to surface viewport/DPR and the first static AABB mapping
+  useEffect(() => {
+    if (!open) return
+    const id = window.setInterval(() => {
+      const vv = (window as any).visualViewport
+      const aabb = (window as any).__playwrightHarness?.overlay?.aabbs?.[0] ?? null
+      const el = document.querySelector('.rigid-static') as HTMLElement | null
+      const rect = el?.getBoundingClientRect?.()
+      setHud({
+        dpr: window.devicePixelRatio ?? 1,
+        inner: { w: window.innerWidth, h: window.innerHeight },
+        vv: vv ? { w: vv.width ?? 0, h: vv.height ?? 0, x: vv.offsetLeft ?? 0, y: vv.offsetTop ?? 0 } : null,
+        domRect: rect ? { left: rect.left, top: rect.top, width: rect.width, height: rect.height } : null,
+        aabb: aabb ?? null,
+      })
+    }, 500)
+    return () => window.clearInterval(id)
+  }, [open])
+
   // Reset filter when panel closes
   useEffect(() => { if (!open) setQuery('') }, [open])
 
@@ -264,10 +290,11 @@ export function EventsPanel({
         <ScrollArea style={{ height: `calc(${panelHeight}vh - 180px)` }} viewportRef={scrollerRef}>
           <Tabs value={activeTab} onChange={(v) => setActiveTab(v as any)} keepMounted={false}>
             <Tabs.List>
-              <Tabs.Tab value="stream">Stream</Tabs.Tab>
-              <Tabs.Tab value="latest">Latest</Tabs.Tab>
-              <Tabs.Tab value="stats">Stats</Tabs.Tab>
-            </Tabs.List>
+            <Tabs.Tab value="stream">Stream</Tabs.Tab>
+            <Tabs.Tab value="latest">Latest</Tabs.Tab>
+            <Tabs.Tab value="stats">Stats</Tabs.Tab>
+            <Tabs.Tab value="hud">HUD</Tabs.Tab>
+          </Tabs.List>
             <Tabs.Panel value="stream">
               <Table striped highlightOnHover stickyHeader>
                 <Table.Thead>
@@ -370,6 +397,31 @@ export function EventsPanel({
                   ) : null}
                 </>
               ) : <Text pl="sm" pr="sm">No stats yet</Text>}
+            </Tabs.Panel>
+            <Tabs.Panel value="hud">
+              <Stack gap={6} p="xs" c="dimmed" fz="xs">
+                <Group gap="sm" wrap="wrap">
+                  <Text fw={600}>DPR</Text><Code>{hud?.dpr.toFixed(2) ?? '–'}</Code>
+                  <Text fw={600}>Inner</Text><Code>{hud ? `${hud.inner.w}×${hud.inner.h}` : '–'}</Code>
+                  <Text fw={600}>visualViewport</Text><Code>{hud?.vv ? `${hud.vv.w}×${hud.vv.h} @ (${hud.vv.x},${hud.vv.y})` : 'n/a'}</Code>
+                </Group>
+                <Group gap="sm" wrap="wrap">
+                  <Text fw={600}>DOM .rigid-static</Text>
+                  <Code>
+                    {hud?.domRect
+                      ? `l=${hud.domRect.left.toFixed(1)} t=${hud.domRect.top.toFixed(1)} w=${hud.domRect.width.toFixed(1)} h=${hud.domRect.height.toFixed(1)}`
+                      : 'none'}
+                  </Code>
+                </Group>
+                <Group gap="sm" wrap="wrap">
+                  <Text fw={600}>First AABB</Text>
+                  <Code>
+                    {hud?.aabb
+                      ? `min=(${hud.aabb.min.x.toFixed(3)},${hud.aabb.min.y.toFixed(3)}) max=(${hud.aabb.max.x.toFixed(3)},${hud.aabb.max.y.toFixed(3)})`
+                      : 'none'}
+                  </Code>
+                </Group>
+              </Stack>
             </Tabs.Panel>
           </Tabs>
         </ScrollArea>

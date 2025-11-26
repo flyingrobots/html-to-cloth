@@ -710,6 +710,21 @@ function Demo({ mode, initialSceneId }: { mode: DemoMode; initialSceneId?: Sandb
     readyPromiseRef.current = new Promise<void>((resolve) => {
       readyResolveRef.current = resolve
     })
+    const getHudSnapshot = () => {
+      const vv = (window as any).visualViewport
+      const aabb = (window as any).__playwrightHarness?.overlay?.aabbs?.[0] ?? null
+      const el = document.querySelector('.rigid-static') as HTMLElement | null
+      const rect = el?.getBoundingClientRect()
+      return {
+        dpr: window.devicePixelRatio ?? 1,
+        inner: { w: window.innerWidth, h: window.innerHeight },
+        vv: vv ? { w: vv.width ?? 0, h: vv.height ?? 0, x: vv.offsetLeft ?? 0, y: vv.offsetTop ?? 0 } : null,
+        domRect: rect
+          ? { left: rect.left, top: rect.top, width: rect.width, height: rect.height }
+          : null,
+        aabb,
+      }
+    }
     ;(window as any).__playwrightHarness = {
       controller: null,
       overlay: null,
@@ -725,6 +740,7 @@ function Demo({ mode, initialSceneId }: { mode: DemoMode; initialSceneId?: Sandb
           pendingScenes.push(sceneId)
         }
       },
+      getHudSnapshot,
     }
 
     const onSandboxLoad = (event: Event) => {
@@ -803,6 +819,7 @@ function Demo({ mode, initialSceneId }: { mode: DemoMode; initialSceneId?: Sandb
           ready: readyPromiseRef.current,
           readyResolved: true,
           loadScene: (sceneId: SandboxSceneId) => runScene(sceneId),
+          getHudSnapshot,
         }
         ;(window as any).__playwrightHarness = harnessPayload
         readyResolveRef.current?.()

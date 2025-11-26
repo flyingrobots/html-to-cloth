@@ -10,6 +10,7 @@ export const EventIds = {
   Sleep: 9,
   Impulse: 10,
   Pick: 11,
+  OverlayReady: 12,
 } as const
 
 export type EventIdName = keyof typeof EventIds
