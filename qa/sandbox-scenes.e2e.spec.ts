@@ -119,18 +119,18 @@ test.describe('Sandbox scene selection smoke (harness)', () => {
       await page.waitForFunction(
         () => {
           const h = (window as any).__playwrightHarness
-          return Boolean(h?.loadScene) && (h.readyResolved === true || h.ready?.then)
+          return Boolean(h?.loadScene && h.waitForOverlayReady && (h.readyResolved === true || h.ready))
         },
         null,
-        { timeout: 2000 }
+        { timeout: 4000 }
       )
 
-      await page.evaluate((sceneId) => {
+      await page.evaluate(async (sceneId) => {
         const helper = (window as any).__playwrightHarness
-        if (!helper?.loadScene) throw new Error('harness missing')
-        helper.loadScene(sceneId)
+        if (!helper?.loadScene || !helper.waitForOverlayReady) throw new Error('harness missing')
+        await helper.loadScene(sceneId)
+        await helper.waitForOverlayReady()
       }, id)
-      await page.waitForTimeout(300)
     }
 
     const readOverlay = async () =>
@@ -226,6 +226,24 @@ test.describe('Sandbox scene selection smoke (harness)', () => {
       if (seenAwake) (window as any).__cr2AwakeSeen = true
       return seenAwake
     }, null, { timeout: 5000 })
+
+    // Deflection expectations: moves rightward and spreads after impact
+    await page.waitForFunction(() => {
+      const overlay = (window as any).__playwrightHarness?.overlay
+      const bodies = overlay?.simSnapshot?.bodies ?? []
+      if (bodies.length === 0) return false
+      const maxX = Math.max(...bodies.map((b: any) => b.center?.x ?? -Infinity))
+      return Number.isFinite(maxX) && maxX > -0.15
+    }, null, { timeout: 12000 })
+
+    await page.waitForFunction(() => {
+      const overlay = (window as any).__playwrightHarness?.overlay
+      const bodies = overlay?.simSnapshot?.bodies ?? []
+      if (bodies.length === 0) return false
+      const xs = bodies.map((b: any) => b.center?.x ?? 0)
+      const spread = Math.max(...xs) - Math.min(...xs)
+      return spread > 0.18
+    }, null, { timeout: 12000 })
 
     const cr2Overlay = await readOverlay()
     expect(cr2Overlay?.drawSleep).toBe(true)
