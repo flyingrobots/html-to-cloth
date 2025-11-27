@@ -143,6 +143,7 @@ test.describe('Sandbox scene selection smoke (harness)', () => {
           })(),
           timeout(8000, `bodies:${sceneId}`),
         ])
+        await Promise.race([h.waitForSimReady?.() ?? Promise.resolve(), timeout(8000, `simReady:${sceneId}`)])
         if (!document.querySelector('.rigid-static')) {
           const div = document.createElement('div')
           div.className = 'rigid-static'
@@ -264,6 +265,7 @@ test.describe('Sandbox scene selection smoke (harness)', () => {
     expect(maxX).toBeGreaterThan(-0.15)
     const xs = cr2Snapshot?.bodies?.map((b: any) => b.center?.x ?? 0) ?? []
     const spread = Math.max(...xs) - Math.min(...xs)
+    // TODO: tighten once cloth deflection is tuned; currently minimal spread in headless browsers.
     expect(spread).toBeGreaterThanOrEqual(0)
 
     const cr2Overlay = await readOverlay()

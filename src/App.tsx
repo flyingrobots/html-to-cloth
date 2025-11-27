@@ -632,6 +632,8 @@ function Demo({ mode, initialSceneId }: { mode: DemoMode; initialSceneId?: Sandb
   const overlayReadyPromiseRef = useRef<Promise<void> | null>(null)
   const aabbReadyResolveRef = useRef<(() => void) | null>(null)
   const aabbReadyPromiseRef = useRef<Promise<void> | null>(null)
+  const simReadyResolveRef = useRef<(() => void) | null>(null)
+  const simReadyPromiseRef = useRef<Promise<void> | null>(null)
   const rigidIdRef = useRef(100)
   const realTimeRef = useRef(true)
   const [debugOpen, setDebugOpen] = useState(() => {
@@ -740,6 +742,19 @@ function Demo({ mode, initialSceneId }: { mode: DemoMode; initialSceneId?: Sandb
         aabbReadyPromiseRef.current = Promise.resolve()
       }
     }
+    const resetSimReady = () => {
+      simReadyPromiseRef.current = new Promise<void>((resolve) => {
+        simReadyResolveRef.current = resolve
+      })
+    }
+    resetSimReady()
+    ;(window as any).__simReady = () => {
+      if (simReadyResolveRef.current) {
+        simReadyResolveRef.current()
+        simReadyResolveRef.current = null
+        simReadyPromiseRef.current = Promise.resolve()
+      }
+    }
     const getHudSnapshot = () => {
       const vv = (window as any).visualViewport
       const aabb = (window as any).__playwrightHarness?.overlay?.aabbs?.[0] ?? null
@@ -766,6 +781,7 @@ function Demo({ mode, initialSceneId }: { mode: DemoMode; initialSceneId?: Sandb
         if (controller) {
           resetOverlayReady()
           resetAabbReady()
+          resetSimReady()
           await readyPromiseRef.current
           runScene(sceneId)
         } else {
@@ -806,6 +822,9 @@ function Demo({ mode, initialSceneId }: { mode: DemoMode; initialSceneId?: Sandb
         aabbReadyResolveRef.current?.()
         aabbReadyResolveRef.current = null
         aabbReadyPromiseRef.current = Promise.resolve()
+        simReadyResolveRef.current?.()
+        simReadyResolveRef.current = null
+        simReadyPromiseRef.current = Promise.resolve()
         return
       }
     }
@@ -866,6 +885,7 @@ function Demo({ mode, initialSceneId }: { mode: DemoMode; initialSceneId?: Sandb
           loadScene: (sceneId: SandboxSceneId) => {
             resetOverlayReady()
             resetAabbReady()
+            resetSimReady()
             return runScene(sceneId)
           },
           getHudSnapshot,
@@ -877,6 +897,10 @@ function Demo({ mode, initialSceneId }: { mode: DemoMode; initialSceneId?: Sandb
           waitForAabbReady: async () => {
             if (aabbReadyPromiseRef.current) await aabbReadyPromiseRef.current
           },
+          simReady: simReadyPromiseRef.current,
+          waitForSimReady: async () => {
+            if (simReadyPromiseRef.current) await simReadyPromiseRef.current
+          },
         }
         ;(window as any).__playwrightHarness = harnessPayload
         readyResolveRef.current?.()
@@ -886,6 +910,7 @@ function Demo({ mode, initialSceneId }: { mode: DemoMode; initialSceneId?: Sandb
           for (const sceneId of pendingScenes.splice(0, pendingScenes.length)) {
             resetOverlayReady()
             resetAabbReady()
+            resetSimReady()
             runScene(sceneId)
           }
         }
@@ -893,6 +918,7 @@ function Demo({ mode, initialSceneId }: { mode: DemoMode; initialSceneId?: Sandb
         if (mode === 'playwright' && initialSceneId) {
           resetOverlayReady()
           resetAabbReady()
+          resetSimReady()
           runScene(initialSceneId)
         }
       } catch (err) {

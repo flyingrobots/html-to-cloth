@@ -1209,6 +1209,28 @@ export class ClothSceneController {
       this.overlayState.simSnapshot = this.isSimSnapshot(snapshot) ? snapshot : undefined
       if (this.overlayState.simSnapshot) {
         try { (window as any).__overlayReady?.() } catch {}
+        if ((this.overlayState.simSnapshot.bodies?.length ?? 0) > 0) {
+          try { (window as any).__simReady?.() } catch {}
+          const bus = this.eventBusSystem?.getBus()
+          if (bus) {
+            try {
+              bus.publish('frameEnd', EventIds.SimSnapshotReady, (w) => {
+                w.i32[0] = this.overlayState?.simSnapshot?.bodies?.length ?? 0
+              })
+            } catch {}
+          }
+        }
+      }
+      if ((this.overlayState.rigidBodies?.length ?? 0) > 0) {
+        try { (window as any).__simReady?.() } catch {}
+        const bus = this.eventBusSystem?.getBus()
+        if (bus) {
+          try {
+            bus.publish('frameEnd', EventIds.SimSnapshotReady, (w) => {
+              w.i32[0] = this.overlayState?.rigidBodies?.length ?? 0
+            })
+          } catch {}
+        }
       }
     } catch (error) {
       console.error('Failed to capture simulation snapshot for overlay', error)
