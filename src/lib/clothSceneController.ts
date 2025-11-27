@@ -1184,6 +1184,19 @@ export class ClothSceneController {
     }))
     this.overlayState.aabbs = aabbs
     this.overlayState.domRects = aabbs
+    const staticCountReady = this.collisionSystem.getStaticCount?.() ?? aabbs.length
+    const allAabbsReady =
+      aabbs.length === staticCountReady &&
+      (aabbs.length === 0 ||
+        aabbs.every(
+          (r) =>
+            Number.isFinite(r.max.x - r.min.x) &&
+            (r.max.x - r.min.x) > 0.001 &&
+            (r.max.y - r.min.y) > 0.001
+        ))
+    if (allAabbsReady) {
+      try { (window as any).__aabbReady?.() } catch {}
+    }
     // Rigid bodies (for debug markers)
     if (this.physicsSystem && typeof (this.physicsSystem as any).debugGetRigidBodies === 'function') {
       this.overlayState.rigidBodies = (this.physicsSystem as any).debugGetRigidBodies()
@@ -1194,7 +1207,7 @@ export class ClothSceneController {
     try {
       const snapshot = this.simulationSystem.getSnapshot()
       this.overlayState.simSnapshot = this.isSimSnapshot(snapshot) ? snapshot : undefined
-      if (this.overlayState.simSnapshot && (this.overlayState.simSnapshot.bodies?.length ?? 0) > 0) {
+      if (this.overlayState.simSnapshot) {
         try { (window as any).__overlayReady?.() } catch {}
       }
     } catch (error) {

@@ -628,6 +628,10 @@ function Demo({ mode, initialSceneId }: { mode: DemoMode; initialSceneId?: Sandb
   const actionsRef = useRef<EngineActions | null>(null)
   const readyResolveRef = useRef<(() => void) | null>(null)
   const readyPromiseRef = useRef<Promise<void> | null>(null)
+  const overlayReadyResolveRef = useRef<(() => void) | null>(null)
+  const overlayReadyPromiseRef = useRef<Promise<void> | null>(null)
+  const aabbReadyResolveRef = useRef<(() => void) | null>(null)
+  const aabbReadyPromiseRef = useRef<Promise<void> | null>(null)
   const rigidIdRef = useRef(100)
   const realTimeRef = useRef(true)
   const [debugOpen, setDebugOpen] = useState(() => {
@@ -710,13 +714,30 @@ function Demo({ mode, initialSceneId }: { mode: DemoMode; initialSceneId?: Sandb
     readyPromiseRef.current = new Promise<void>((resolve) => {
       readyResolveRef.current = resolve
     })
-    let overlayReadyResolve: (() => void) | null = null
-    let overlayReadyPromise: Promise<void> | null = new Promise<void>((resolve) => { overlayReadyResolve = resolve })
+    const resetOverlayReady = () => {
+      overlayReadyPromiseRef.current = new Promise<void>((resolve) => {
+        overlayReadyResolveRef.current = resolve
+      })
+    }
+    resetOverlayReady()
     ;(window as any).__overlayReady = () => {
-      if (overlayReadyResolve) {
-        overlayReadyResolve()
-        overlayReadyResolve = null
-        overlayReadyPromise = Promise.resolve()
+      if (overlayReadyResolveRef.current) {
+        overlayReadyResolveRef.current()
+        overlayReadyResolveRef.current = null
+        overlayReadyPromiseRef.current = Promise.resolve()
+      }
+    }
+    const resetAabbReady = () => {
+      aabbReadyPromiseRef.current = new Promise<void>((resolve) => {
+        aabbReadyResolveRef.current = resolve
+      })
+    }
+    resetAabbReady()
+    ;(window as any).__aabbReady = () => {
+      if (aabbReadyResolveRef.current) {
+        aabbReadyResolveRef.current()
+        aabbReadyResolveRef.current = null
+        aabbReadyPromiseRef.current = Promise.resolve()
       }
     }
     const getHudSnapshot = () => {
@@ -743,6 +764,8 @@ function Demo({ mode, initialSceneId }: { mode: DemoMode; initialSceneId?: Sandb
       loadScene: async (sceneId: SandboxSceneId) => {
         const controller = controllerRef.current
         if (controller) {
+          resetOverlayReady()
+          resetAabbReady()
           await readyPromiseRef.current
           runScene(sceneId)
         } else {
@@ -750,9 +773,12 @@ function Demo({ mode, initialSceneId }: { mode: DemoMode; initialSceneId?: Sandb
         }
       },
       getHudSnapshot,
-      overlayReady: overlayReadyPromise,
+      overlayReady: overlayReadyPromiseRef.current,
       waitForOverlayReady: async () => {
-        if (overlayReadyPromise) await overlayReadyPromise
+        if (overlayReadyPromiseRef.current) await overlayReadyPromiseRef.current
+      },
+      waitForAabbReady: async () => {
+        if (aabbReadyPromiseRef.current) await aabbReadyPromiseRef.current
       },
     }
 
@@ -774,6 +800,12 @@ function Demo({ mode, initialSceneId }: { mode: DemoMode; initialSceneId?: Sandb
           harness.readyResolved = true
           harness.ready = Promise.resolve()
         }
+        overlayReadyResolveRef.current?.()
+        overlayReadyResolveRef.current = null
+        overlayReadyPromiseRef.current = Promise.resolve()
+        aabbReadyResolveRef.current?.()
+        aabbReadyResolveRef.current = null
+        aabbReadyPromiseRef.current = Promise.resolve()
         return
       }
     }
@@ -831,11 +863,19 @@ function Demo({ mode, initialSceneId }: { mode: DemoMode; initialSceneId?: Sandb
           actions: actionsRef.current,
           ready: readyPromiseRef.current,
           readyResolved: true,
-          loadScene: (sceneId: SandboxSceneId) => runScene(sceneId),
+          loadScene: (sceneId: SandboxSceneId) => {
+            resetOverlayReady()
+            resetAabbReady()
+            return runScene(sceneId)
+          },
           getHudSnapshot,
-          overlayReady: overlayReadyPromise,
+          overlayReady: overlayReadyPromiseRef.current,
           waitForOverlayReady: async () => {
-            if (overlayReadyPromise) await overlayReadyPromise
+            if (overlayReadyPromiseRef.current) await overlayReadyPromiseRef.current
+          },
+          aabbReady: aabbReadyPromiseRef.current,
+          waitForAabbReady: async () => {
+            if (aabbReadyPromiseRef.current) await aabbReadyPromiseRef.current
           },
         }
         ;(window as any).__playwrightHarness = harnessPayload
@@ -844,11 +884,15 @@ function Demo({ mode, initialSceneId }: { mode: DemoMode; initialSceneId?: Sandb
         // Drain any queued scene requests from early loadScene calls.
         if (pendingScenes.length > 0) {
           for (const sceneId of pendingScenes.splice(0, pendingScenes.length)) {
+            resetOverlayReady()
+            resetAabbReady()
             runScene(sceneId)
           }
         }
 
         if (mode === 'playwright' && initialSceneId) {
+          resetOverlayReady()
+          resetAabbReady()
           runScene(initialSceneId)
         }
       } catch (err) {

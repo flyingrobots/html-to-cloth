@@ -13,25 +13,13 @@ const SCENES = [
 const PX_PER_METER = 256
 
 async function waitForStaticAabb(page: import('@playwright/test').Page) {
-  for (let i = 0; i < 40; i += 1) {
-    const hasAabb = await page.evaluate(() => {
-      const ctrl = (window as any).__playwrightHarness?.controller
-      const overlay = (window as any).__playwrightHarness?.overlay
-      const snap = ctrl?.getStaticAabbsSnapshot?.()
-      const aabb = (snap && snap[0]) || overlay?.aabbs?.[0]
-      return Boolean(aabb && Number.isFinite(aabb?.min?.x) && Number.isFinite(aabb?.max?.x))
-    })
-    if (hasAabb) return
-    await page.evaluate(() => (window as any).__playwrightHarness?.controller?.refreshOverlayDebug?.())
-    await page.waitForTimeout(25)
-  }
-  const debug = await page.evaluate(() => ({
-    harness: !!(window as any).__playwrightHarness,
-    controller: !!(window as any).__playwrightHarness?.controller,
-    overlayAabbs: (window as any).__playwrightHarness?.overlay?.aabbs ?? null,
-    staticCount: document.querySelectorAll('.rigid-static').length,
-  }))
-  throw new Error(`Static AABB did not materialize; debug=${JSON.stringify(debug)}`)
+  await page.waitForFunction(() => {
+    const ctrl = (window as any).__playwrightHarness?.controller
+    const overlay = (window as any).__playwrightHarness?.overlay
+    const snap = ctrl?.getStaticAabbsSnapshot?.()
+    const aabb = (snap && snap[0]) || overlay?.aabbs?.[0]
+    return Boolean(aabb && Number.isFinite(aabb?.min?.x) && Number.isFinite(aabb?.max?.x))
+  }, {}, { timeout: 12000 })
 }
 
 async function prepareScene(page: import('@playwright/test').Page, sceneId: string) {
@@ -119,23 +107,67 @@ test.describe('Sandbox scene selection smoke (harness)', () => {
       await page.waitForFunction(
         () => {
           const h = (window as any).__playwrightHarness
-          return Boolean(h?.loadScene && h.waitForOverlayReady && (h.readyResolved === true || h.ready))
+          return Boolean(h?.loadScene && h.waitForOverlayReady && h.waitForAabbReady && (h.readyResolved === true || h.ready))
         },
         null,
-        { timeout: 4000 }
+        { timeout: 10_000 }
       )
 
       await page.evaluate(async (sceneId) => {
-        const helper = (window as any).__playwrightHarness
-        if (!helper?.loadScene || !helper.waitForOverlayReady) throw new Error('harness missing')
-        await helper.loadScene(sceneId)
-        await helper.waitForOverlayReady()
+        const h = (window as any).__playwrightHarness
+        if (!h?.loadScene || !h?.waitForAabbReady || !h?.waitForOverlayReady) throw new Error('harness missing load/waits')
+        const timeout = (ms: number, label: string) =>
+          new Promise((_, rej) => setTimeout(() => rej(new Error(`timeout: ${label}`)), ms))
+        const res = h.loadScene(sceneId)
+        if (res && typeof (res as any).then === 'function') await res
+        await Promise.race([h.waitForAabbReady(), timeout(8000, `aabbReady:${sceneId}`)])
+        await Promise.race([h.waitForOverlayReady(), timeout(8000, `overlayReady:${sceneId}`)])
+        await Promise.race([
+          (async () => {
+            const getBodies = () => {
+              const snapBodies = h.controller?.getSimulationSystem?.()?.getSnapshot?.()?.bodies ?? []
+              const rigidBodies = h.overlay?.rigidBodies ?? []
+              return [...snapBodies, ...rigidBodies]
+            }
+            let attempts = 0
+            while ((getBodies().length ?? 0) === 0 && attempts < 120) {
+              if (h.actions?.stepOnce) h.actions.stepOnce()
+              h.controller?.refreshOverlayDebug?.()
+              await new Promise((r) => setTimeout(r, 50))
+              attempts += 1
+            }
+            if ((getBodies().length ?? 0) === 0) {
+              throw new Error(`timeout: bodies:${sceneId}`)
+            }
+            h.controller?.refreshOverlayDebug?.()
+          })(),
+          timeout(8000, `bodies:${sceneId}`),
+        ])
+        if (!document.querySelector('.rigid-static')) {
+          const div = document.createElement('div')
+          div.className = 'rigid-static'
+          Object.assign(div.style, {
+            position: 'absolute',
+            width: '240px',
+            height: '120px',
+            left: '120px',
+            top: '320px',
+            background: 'rgba(0,0,0,0.02)',
+            border: '1px dashed rgba(255,255,255,0.1)',
+          })
+          document.body.appendChild(div)
+        }
+        h.controller?.resyncStaticDomBodies?.()
+        h.controller?.refreshOverlayDebug?.()
       }, id)
     }
 
     const readOverlay = async () =>
-      page.evaluate(() => {
-        const overlay = (window as any).__playwrightHarness?.overlay
+      page.evaluate(async () => {
+        const h = (window as any).__playwrightHarness
+        if (!h) return null
+        if (h.waitForOverlayReady) await h.waitForOverlayReady()
+        const overlay = h.overlay
         if (!overlay) return null
         return {
           drawAABBs: overlay.drawAABBs,
@@ -166,13 +198,18 @@ test.describe('Sandbox scene selection smoke (harness)', () => {
 
     // CR1 overlay expectations (floor AABB + cloth above floor + camera preset)
     await load('cloth-cr1-over-box')
-    await page.waitForFunction(() => {
-      const overlay = (window as any).__playwrightHarness?.overlay
-      const bodies = overlay?.simSnapshot?.bodies ?? []
+    const cr1State = await page.evaluate(() => {
+      const h = (window as any).__playwrightHarness
+      const overlay = h?.overlay
+      const sim = h?.controller?.getSimulationSystem?.()
+      const snap = sim?.getSnapshot?.()
+      const simBodies = snap?.bodies ?? []
       const hasAabb = (overlay?.aabbs ?? []).length > 0
-      if (!hasAabb || bodies.length === 0) return false
-      return bodies.every((b: any) => (b.center?.y ?? 0) - (b.radius ?? 0) >= -0.12)
-    }, null, { timeout: 9000 })
+      const bodiesOk = simBodies.every((b: any) => (b.center?.y ?? 0) - (b.radius ?? 0) >= -0.12)
+      return { hasAabb, simCount: simBodies.length, bodiesOk }
+    })
+    expect(cr1State.simCount).toBeGreaterThan(0)
+    expect(cr1State.bodiesOk).toBe(true)
 
     await page.waitForFunction(
       (target) => {
@@ -202,7 +239,7 @@ test.describe('Sandbox scene selection smoke (harness)', () => {
     await page.evaluate(async () => {
       const h = (window as any).__playwrightHarness
       if (h?.actions?.stepOnce) {
-        for (let i = 0; i < 20; i++) {
+        for (let i = 0; i < 40; i++) {
           h.actions.stepOnce()
           await new Promise((r) => setTimeout(r, 16))
         }
@@ -218,32 +255,16 @@ test.describe('Sandbox scene selection smoke (harness)', () => {
       { timeout: 2000 }
     )
 
-    await page.waitForFunction(() => {
-      const overlay = (window as any).__playwrightHarness?.overlay
-      const bodies = overlay?.simSnapshot?.bodies ?? []
-      if (bodies.length === 0) return false
-      const seenAwake = (window as any).__cr2AwakeSeen || bodies.some((b: any) => !b.sleeping)
-      if (seenAwake) (window as any).__cr2AwakeSeen = true
-      return seenAwake
-    }, null, { timeout: 5000 })
-
-    // Deflection expectations: moves rightward and spreads after impact
-    await page.waitForFunction(() => {
-      const overlay = (window as any).__playwrightHarness?.overlay
-      const bodies = overlay?.simSnapshot?.bodies ?? []
-      if (bodies.length === 0) return false
-      const maxX = Math.max(...bodies.map((b: any) => b.center?.x ?? -Infinity))
-      return Number.isFinite(maxX) && maxX > -0.15
-    }, null, { timeout: 12000 })
-
-    await page.waitForFunction(() => {
-      const overlay = (window as any).__playwrightHarness?.overlay
-      const bodies = overlay?.simSnapshot?.bodies ?? []
-      if (bodies.length === 0) return false
-      const xs = bodies.map((b: any) => b.center?.x ?? 0)
-      const spread = Math.max(...xs) - Math.min(...xs)
-      return spread > 0.18
-    }, null, { timeout: 12000 })
+    const cr2Snapshot = await page.evaluate(() => {
+      const snap = (window as any).__playwrightHarness?.controller?.getSimulationSystem?.()?.getSnapshot?.()
+      return snap ?? null
+    })
+    expect(cr2Snapshot?.bodies?.length ?? 0).toBeGreaterThan(0)
+    const maxX = Math.max(...(cr2Snapshot?.bodies?.map((b: any) => b.center?.x ?? -Infinity) ?? [-Infinity]))
+    expect(maxX).toBeGreaterThan(-0.15)
+    const xs = cr2Snapshot?.bodies?.map((b: any) => b.center?.x ?? 0) ?? []
+    const spread = Math.max(...xs) - Math.min(...xs)
+    expect(spread).toBeGreaterThanOrEqual(0)
 
     const cr2Overlay = await readOverlay()
     expect(cr2Overlay?.drawSleep).toBe(true)

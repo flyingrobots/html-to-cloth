@@ -14,6 +14,10 @@ export class CollisionSystem {
   private viewportWidth = window.innerWidth
   private viewportHeight = window.innerHeight
 
+  getStaticCount() {
+    return this.staticBodies.length
+  }
+
   setViewportDimensions(width: number, height: number) {
     this.viewportWidth = width
     this.viewportHeight = height

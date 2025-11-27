@@ -244,7 +244,7 @@ export function loadSandboxScene(id: SandboxSceneId, deps: SandboxSceneDeps) {
         const bodyId = 'sandbox-cloth-cr1'
         const body = new ScenarioClothBody(bodyId, cloth, step)
         sim.addBody(body, { warmStart: DEFAULT_WARM_START, sleep: { velocityThreshold: 0.002, frameThreshold: 140 } })
-        sim.fixedUpdate?.(0)
+        sim.fixedUpdate?.(1 / 60)
         overlay && (overlay.simSnapshot = sim.getSnapshot())
         teardownCurrentScene = () => {
           sim.removeBody(bodyId)
@@ -285,7 +285,7 @@ export function loadSandboxScene(id: SandboxSceneId, deps: SandboxSceneDeps) {
         const bodyId = 'sandbox-cloth-cr2'
         const body = new ScenarioClothBody(bodyId, cloth, step)
         sim.addBody(body, { warmStart: DEFAULT_WARM_START, sleep: { velocityThreshold: 0.002, frameThreshold: 140 } })
-        sim.fixedUpdate?.(0)
+        sim.fixedUpdate?.(1 / 60)
         overlay && (overlay.simSnapshot = sim.getSnapshot())
         teardownCurrentScene = () => {
           sim.removeBody(bodyId)

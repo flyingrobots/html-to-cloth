@@ -11,6 +11,7 @@ export const EventIds = {
   Impulse: 10,
   Pick: 11,
   OverlayReady: 12,
+  AABBReady: 13,
 } as const
 
 export type EventIdName = keyof typeof EventIds
