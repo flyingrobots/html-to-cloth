@@ -83,6 +83,7 @@ export function createClothScenario(
 
       cloth.setGravity(new ctx.three.Vector3(0, 0, 0))
       cloth.addTurbulence(0.01)
+      cloth.wake?.()
 
       const step = (dt: number) => {
         cloth.update(dt)
@@ -95,6 +96,7 @@ export function createClothScenario(
       const cloth = ctx.makeClothPatch(3, 3)
 
       cloth.setGravity(new ctx.three.Vector3(0, 0, 0))
+      cloth.wake?.()
 
       const step = (dt: number) => {
         cloth.update(dt)
@@ -110,6 +112,7 @@ export function createClothScenario(
       const mat = new ctx.three.MeshBasicMaterial()
       const mesh = new ctx.three.Mesh(geom, mat)
       const cloth = new ClothPhysics(mesh)
+      cloth.wake?.()
       cloth.setGravity(new ctx.three.Vector3(0, -7.0, 0))
       cloth.setConstraintIterations(8)
       cloth.setSleepThresholds(0.0045, 240)
@@ -154,6 +157,7 @@ export function createClothScenario(
       const mesh = new ctx.three.Mesh(geom, mat)
       const cloth = new ClothPhysics(mesh)
       cloth.pinTopEdge()
+      cloth.wake?.()
       cloth.setGravity(new ctx.three.Vector3(0, -9.81, 0))
       cloth.setConstraintIterations(6)
       cloth.setSleepThresholds(0.0035, 200)
