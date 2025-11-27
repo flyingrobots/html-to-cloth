@@ -111,11 +111,11 @@ export function createClothScenario(
       const mesh = new ctx.three.Mesh(geom, mat)
       const cloth = new ClothPhysics(mesh)
       cloth.setGravity(new ctx.three.Vector3(0, -7.0, 0))
-      cloth.setConstraintIterations(5)
-      cloth.setSleepThresholds(0.0055, 220)
-      cloth.setSubsteps(1)
+      cloth.setConstraintIterations(8)
+      cloth.setSleepThresholds(0.0045, 240)
+      cloth.setSubsteps(2)
       cloth.setParticleRadius(0.024)
-      cloth.setDamping(0.98)
+      cloth.setDamping(0.985)
 
       const floorHalf = { x: 0.7, y: 0.1 }
       const floorCenter = { x: 0, y: 0 }
@@ -137,6 +137,13 @@ export function createClothScenario(
         }
       }
 
+      // Pre-lift if geometry starts intersecting floor.
+      const initialSphere = cloth.getBoundingSphere()
+      const initialBottom = initialSphere.center.y - initialSphere.radius
+      if (initialBottom < -0.101) {
+        cloth.translateY((-0.101 - initialBottom) + 0.002)
+      }
+
       return { cloth, step }
     }
 
@@ -148,16 +155,16 @@ export function createClothScenario(
       const cloth = new ClothPhysics(mesh)
       cloth.pinTopEdge()
       cloth.setGravity(new ctx.three.Vector3(0, -9.81, 0))
-      cloth.setConstraintIterations(4)
-      cloth.setSleepThresholds(0.003, 160)
-      cloth.setSubsteps(1)
-      cloth.setParticleRadius(0.016)
-      cloth.setDamping(0.96)
+      cloth.setConstraintIterations(6)
+      cloth.setSleepThresholds(0.0035, 200)
+      cloth.setSubsteps(2)
+      cloth.setParticleRadius(0.018)
+      cloth.setDamping(0.985)
 
       const projectile = {
         center: new ctx.three.Vector2(-0.6, 0),
-        velocity: new ctx.three.Vector2(2.4, -0.28),
-        radius: 0.05,
+        velocity: new ctx.three.Vector2(2.6, -0.26),
+        radius: 0.06,
       }
 
       const step = (dt: number) => {
@@ -170,6 +177,13 @@ export function createClothScenario(
           },
         ], 0.3)
         projectile.center.addScaledVector(projectile.velocity, dt)
+      }
+
+      // Pre-lift cloth if any particle starts below a small threshold to avoid initial overlaps.
+      const initialSphere = cloth.getBoundingSphere()
+      const initialBottom = initialSphere.center.y - initialSphere.radius
+      if (initialBottom < -0.12) {
+        cloth.translateY((-0.12 - initialBottom) + 0.002)
       }
 
       return { cloth, step }

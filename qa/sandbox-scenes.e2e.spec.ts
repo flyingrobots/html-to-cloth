@@ -256,17 +256,18 @@ test.describe('Sandbox scene selection smoke (harness)', () => {
       { timeout: 2000 }
     )
 
-    const cr2Snapshot = await page.evaluate(() => {
+    const cr2Summary = await page.evaluate(() => {
       const snap = (window as any).__playwrightHarness?.controller?.getSimulationSystem?.()?.getSnapshot?.()
-      return snap ?? null
+      const bodies = snap?.bodies ?? []
+      const maxX = Math.max(...(bodies.map((b: any) => b.center?.x ?? -Infinity)))
+      const xs = bodies.map((b: any) => b.center?.x ?? 0)
+      const spread = xs.length ? Math.max(...xs) - Math.min(...xs) : 0
+      return { count: bodies.length, maxX, spread }
     })
-    expect(cr2Snapshot?.bodies?.length ?? 0).toBeGreaterThan(0)
-    const maxX = Math.max(...(cr2Snapshot?.bodies?.map((b: any) => b.center?.x ?? -Infinity) ?? [-Infinity]))
-    expect(maxX).toBeGreaterThan(-0.15)
-    const xs = cr2Snapshot?.bodies?.map((b: any) => b.center?.x ?? 0) ?? []
-    const spread = Math.max(...xs) - Math.min(...xs)
+    expect(cr2Summary.count).toBeGreaterThan(0)
+    expect(cr2Summary.maxX).toBeGreaterThan(-0.15)
     // TODO: tighten once cloth deflection is tuned; currently minimal spread in headless browsers.
-    expect(spread).toBeGreaterThanOrEqual(0)
+    expect(cr2Summary.spread).toBeGreaterThanOrEqual(0)
 
     const cr2Overlay = await readOverlay()
     expect(cr2Overlay?.drawSleep).toBe(true)
