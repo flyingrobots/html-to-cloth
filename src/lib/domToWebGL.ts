@@ -213,36 +213,10 @@ export class DOMToWebGL {
   }
 
   private getViewportSize() {
-    const vv = typeof window !== 'undefined' && (window as any).visualViewport
-    const useFallback = !vv || typeof vv.width !== 'number' || typeof vv.height !== 'number'
-    const width = useFallback ? window.innerWidth : vv.width
-    const height = useFallback ? window.innerHeight : vv.height
-    if (useFallback) this.showViewportFallbackBanner()
+    // Use innerWidth/innerHeight consistently to avoid shifts when visualViewport changes (e.g., scrollbar, pinch).
+    const width = typeof window !== 'undefined' ? window.innerWidth : 0
+    const height = typeof window !== 'undefined' ? window.innerHeight : 0
     return { width, height }
-  }
-
-  private showViewportFallbackBanner() {
-    if (typeof document === 'undefined') return
-    if (document.getElementById('vv-fallback-banner')) return
-    const div = document.createElement('div')
-    div.id = 'vv-fallback-banner'
-    div.textContent = 'visualViewport unavailable; using window.innerWidth/Height for overlays'
-    Object.assign(div.style, {
-      position: 'fixed',
-      top: '8px',
-      right: '8px',
-      padding: '8px 12px',
-      background: 'rgba(255, 193, 7, 0.92)',
-      color: '#111',
-      fontSize: '12px',
-      fontFamily: 'sans-serif',
-      borderRadius: '6px',
-      zIndex: '2102',
-      boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
-      pointerEvents: 'none',
-    })
-    document.body.appendChild(div)
-    console.warn('[DOMToWebGL] visualViewport not available; falling back to window.innerWidth/Height')
   }
 
   pointerToCanonical(clientX: number, clientY: number) {

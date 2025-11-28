@@ -13,6 +13,7 @@ export const EventIds = {
   OverlayReady: 12,
   AABBReady: 13,
   SimSnapshotReady: 14,
+  EventLogFlush: 15,
 } as const
 
 export type EventIdName = keyof typeof EventIds

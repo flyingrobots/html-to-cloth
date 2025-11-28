@@ -527,6 +527,11 @@ export class ClothSceneController {
 
     // Prime a render so overlays and guides reflect current layout even when paused.
     this.renderOnce()
+    // Re-sync overlay once more after the next frame to catch any late layout shifts.
+    requestAnimationFrame(() => {
+      this.refreshOverlayDebug()
+      this.renderOnce()
+    })
 
     this.clock.start()
     this.animate()
@@ -894,7 +899,13 @@ export class ClothSceneController {
     })
     // Event bus and overlays
     this.engine.addSystem(this.eventBusSystem, { id: 'event-bus', priority: 1000, allowWhilePaused: true })
-    this.eventOverlayAdapter = new EventOverlayAdapter({ bus: this.eventBusSystem.getBus(), overlay: this.overlayState! })
+    this.eventOverlayAdapter = new EventOverlayAdapter({
+      bus: this.eventBusSystem.getBus(),
+      overlay: this.overlayState!,
+      logSink: (batch) => {
+        try { (window as any).__eventLog?.push?.(...batch) } catch {}
+      },
+    })
     this.engine.addSystem(this.eventOverlayAdapter, { id: 'event-overlay-adapter', priority: 9, allowWhilePaused: true })
     // Perf emitter
     const perfRigid = new PerfEmitterSystem({ bus: this.eventBusSystem.getBus(), laneId: 0 })
@@ -1229,6 +1240,7 @@ export class ClothSceneController {
             bus.publish('frameEnd', EventIds.SimSnapshotReady, (w) => {
               w.i32[0] = this.overlayState?.rigidBodies?.length ?? 0
             })
+            bus.publish('immediate', EventIds.EventLogFlush, () => {})
           } catch {}
         }
       }

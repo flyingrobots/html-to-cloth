@@ -770,6 +770,7 @@ function Demo({ mode, initialSceneId }: { mode: DemoMode; initialSceneId?: Sandb
         aabb,
       }
     }
+    ;(window as any).__eventLog = []
     ;(window as any).__playwrightHarness = {
       controller: null,
       overlay: null,
@@ -901,6 +902,7 @@ function Demo({ mode, initialSceneId }: { mode: DemoMode; initialSceneId?: Sandb
           waitForSimReady: async () => {
             if (simReadyPromiseRef.current) await simReadyPromiseRef.current
           },
+          eventLog: () => (window as any).__eventLog ?? [],
         }
         ;(window as any).__playwrightHarness = harnessPayload
         readyResolveRef.current?.()
